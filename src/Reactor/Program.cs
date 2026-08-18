@@ -44,6 +44,12 @@ internal sealed class Program
         if (args.Length > 0 && args[0] is "--backfill" or "backfill")
             return Backfill(args);
 
+        // Checks that every stored position still names the event it was stored for. Its own mode
+        // rather than a flag on --backfill: it writes nothing, and a read-only check should not share
+        // an entry point with the one operation here that fills a database.
+        if (args.Length > 0 && args[0] is "--verify" or "verify")
+            return Verify(args);
+
         // Asking what the binary does is not a mistake, and answering it with exit 2 sends somebody
         // looking for a problem that does not exist.
         if (args.Length > 0 && args[0] is "--help" or "-h" or "help")
@@ -390,6 +396,107 @@ internal sealed class Program
         return 0;
     }
 
+    /// <summary>
+    /// Checks stored positions against the journals and prints what has drifted.
+    /// </summary>
+    /// <remarks>
+    /// Exits non-zero when it finds drift, so a host can run this on a timer and be told rather than
+    /// have to read it. ⚠ A rewritten segment is the cause it exists for, and the readings taken from
+    /// a drifted ledger are wrong in a way nothing else on the host reports.
+    /// </remarks>
+    private static int Verify(string[] args)
+    {
+        string? ledgerPath = null;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--ledger" when i + 1 < args.Length:
+                    ledgerPath = args[i + 1];
+                    i++;
+                    break;
+                case "--help" or "-h":
+                    Console.WriteLine(Usage);
+                    return 0;
+                default:
+                    Console.Error.WriteLine($"unrecognised argument: {args[i]}");
+                    Console.Error.WriteLine(Usage);
+                    return 2;
+            }
+        }
+
+        ReactorOptions options = ResolveOptions();
+        ledgerPath = string.IsNullOrWhiteSpace(ledgerPath) ? options.LedgerPath : ledgerPath;
+
+        if (!File.Exists(ledgerPath))
+        {
+            Console.Error.WriteLine($"no ledger at '{ledgerPath}'.");
+            return 1;
+        }
+
+        using var ledger = new ObservationLedger(ledgerPath);
+
+        Ingest.JournalVerify.VerifyResult result = Ingest.JournalVerify.Run(
+            ledger, options.StateRoot ?? "/var/lib", options.JournalDir);
+
+        Console.WriteLine($"kgsm-reactor — verifying {result.Checked} stored position(s) in {ledgerPath}");
+        Console.WriteLine();
+        Console.WriteLine($"   {result.Intact,6}  still name the event they were stored for");
+        Console.WriteLine($"   {result.Drifted.Count,6}  do not");
+
+        if (result.SegmentsMissing > 0)
+        {
+            Console.WriteLine(
+                $"   {result.SegmentsMissing,6}  in a segment that is gone (retention — not drift)");
+        }
+
+        if (!result.FoundDrift)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Every position resolves. Nothing has rewritten a segment under the ledger.");
+            return 0;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("── Drifted ─────────────────────────────────────────────────────────");
+        Console.WriteLine("A segment has been rewritten. Deleting one line shifts every byte after");
+        Console.WriteLine("it, and a stored position then names whatever now sits at that offset.");
+        Console.WriteLine();
+
+        foreach (Ingest.JournalVerify.Drift drift in result.Drifted.Take(50))
+        {
+            Console.WriteLine(
+                $"   {drift.Producer}/{drift.Segment}@{drift.Offset}");
+            // Only the wrong-event case has two things worth saying — what was expected and what is
+            // actually there. The others describe themselves, and repeating the description as a
+            // suffix reads as though the tool found two separate problems.
+            Console.WriteLine(drift.State == Ingest.JournalVerify.PositionState.WrongEvent
+                ? $"      stored as {drift.Expected} — now {drift.Found}  ⚠ a valid line, and the wrong one"
+                : $"      stored as {drift.Expected} — {Describe(drift.State)}");
+        }
+
+        if (result.Drifted.Count > 50)
+            Console.WriteLine($"   … and {result.Drifted.Count - 50} more");
+
+        Console.WriteLine();
+        Console.WriteLine("⚠  Readings taken from this ledger are wrong, and a re-run of --backfill");
+        Console.WriteLine("   would ADD the shifted lines rather than recognise them — the same event");
+        Console.WriteLine("   at a new offset is a new row. The ledger is derived, so the remedy is to");
+        Console.WriteLine("   delete it and run --backfill once against the journals as they now are.");
+
+        return 1;
+    }
+
+    private static string Describe(Ingest.JournalVerify.PositionState state) => state switch
+    {
+        Ingest.JournalVerify.PositionState.WrongEvent => "a valid line, and the wrong one",
+        Ingest.JournalVerify.PositionState.MidLine => "no longer the start of a line",
+        Ingest.JournalVerify.PositionState.PastEnd => "past the end of the segment",
+        Ingest.JournalVerify.PositionState.SegmentMissing => "segment gone",
+        _ => state.ToString(),
+    };
+
     /// <summary>The daemon's own configuration, resolved the way the daemon resolves it.</summary>
     /// <remarks>
     /// Shared by the read-only modes so running one on the host needs no arguments: the settings file
@@ -425,6 +532,7 @@ internal sealed class Program
         usage: kgsm-reactor --report    [--days N] [--ledger PATH]   what this host does
                kgsm-reactor --decisions [--days N] [--ledger PATH]   what the reactor made of it
                kgsm-reactor --backfill  [--days N] [--ledger PATH]   read journal history into the ledger
+               kgsm-reactor --verify              [--ledger PATH]   check stored positions still resolve
 
         --backfill fills OBSERVATIONS only. It evaluates no rule and writes no event: an
         observation restates a line that exists, where a decision is a judgment made against a

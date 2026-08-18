@@ -29,6 +29,9 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 
 # Read journal history the reactor was not running for. Observations only; idempotent; safe live.
 /opt/kgsm-reactor/kgsm-reactor --backfill --days 60
+
+# Check every stored position still names its event. Exits non-zero on drift.
+/opt/kgsm-reactor/kgsm-reactor --verify
 ```
 
 ## Deploying
@@ -74,6 +77,11 @@ where the journal line is written after the ledger is open and the rules are res
   replayed action is performed again for real). What it costs is events arriving while the process is
   down. The fix for that is *not* a cursor: it is expressing the rules that matter as **state** a rule
   re-derives from the world rather than **edges** it has to catch. See the plan's decision #3.
+- **⚠ A rewritten segment silently invalidates the ledger.** A position is right only while segments
+  are appended to and deleted whole. Deleting one line shifts every byte after it, and a stored
+  position then resolves to a real, parseable event of the *wrong kind* — no error, nothing to notice.
+  `--verify` is the detector; `tks/journal-entry-id-plan.md` is the fix. Do not clean test entries out
+  of a journal: that is the record, not a view of it.
 - **The row's identity is its position** — `(producer, segment, offset)` — not its content.
   Content-derived ids collapse two identical events in the same second into one row, which is a real
   defect in the engine's own index, and a rate measured from a ledger with it would under-report

@@ -7,6 +7,29 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-18
+
+A stored position is only as good as the promise that segments are never rewritten. This checks.
+
+### Added
+
+- **`kgsm-reactor --verify`** — walks every stored position, observations and decision source pointers
+  alike, and reports the ones that no longer name the event they were stored for. Exits non-zero on
+  drift, so a host can be told rather than have to look.
+  - It exists for the failure that **does not announce itself**: an offset past the end of a segment
+    or one landing mid-line raises on the next read, but a shifted offset resolves to a real,
+    parseable event of the wrong kind, and every reading derived from it looks as trustworthy as one
+    derived from the truth.
+  - A pruned segment is counted apart from drift. Retention doing its job is not corruption, and a
+    check that cried wolf on every host older than its window would be useless where it matters.
+  - Read-only, and it repairs nothing. Rebuilding is a decision about data somebody may be reading a
+    report from.
+
+### Fixed
+
+- **`--verify` on a ledger with no `decisions` table** threw instead of verifying. That is the state
+  `--backfill` leaves on a host where the daemon has never run — exactly the host most worth checking.
+
 ## [0.6.0] - 2026-08-18
 
 The reactor tails, so it knew only what had happened since it started. The journals are older than it
