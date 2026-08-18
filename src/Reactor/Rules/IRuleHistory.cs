@@ -5,10 +5,18 @@ internal readonly record struct HistoryEvent(string EventType, string Subject, D
 
 /// <summary>A condition that opened and has not closed.</summary>
 /// <param name="Subject">What it is about.</param>
+/// <param name="SubjectKind">
+/// What sort of thing that is, as it was classified when the opening line was read. Carried rather
+/// than re-derived from the name: the same string can be a server here and a sensor reference
+/// elsewhere, and only the observation knows which it was.
+/// </param>
 /// <param name="OpenedAt">When it opened.</param>
 /// <param name="Source">The journal line that opened it — the episode's identity.</param>
 internal readonly record struct OpenEpisode(
-    string Subject, DateTimeOffset OpenedAt, Ledger.EventSource Source);
+    string Subject,
+    Classification.SubjectKind SubjectKind,
+    DateTimeOffset OpenedAt,
+    Ledger.EventSource Source);
 
 /// <summary>
 /// What has been observed, for the questions a single event cannot answer.

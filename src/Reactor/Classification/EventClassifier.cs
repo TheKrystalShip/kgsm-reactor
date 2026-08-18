@@ -41,6 +41,16 @@ internal enum EventClass
     /// <summary>The assistant reporting on itself.</summary>
     Assistant,
 
+    /// <summary>
+    /// This leaf reporting its own judgments.
+    /// </summary>
+    /// <remarks>
+    /// The reactor tails every producer's journal, its own included, so what it writes comes back to
+    /// it. Recorded like anything else — a decision is a real fact about the host — but no rule may
+    /// wake on one, which is where the loop is stopped rather than here.
+    /// </remarks>
+    Reactor,
+
     /// <summary>A type this build does not recognise. Recorded, never dropped.</summary>
     Other,
 }
@@ -92,6 +102,16 @@ internal static class EventClassifier
     /// <summary>The threshold payload's server, when the episode is scoped to one.</summary>
     private const string ServerIdProperty = "ServerId";
 
+    /// <summary>
+    /// The subject named by this leaf's own events, which carry it under its own name.
+    /// </summary>
+    /// <remarks>
+    /// Read rather than ignored: a decision about <c>starbound</c> is genuinely about
+    /// <c>starbound</c>, and filing it under nothing would make the ledger's history of a server
+    /// incomplete for no gain. Safe because nothing wakes on a <c>reactor_*</c> event.
+    /// </remarks>
+    private const string SubjectProperty = "Subject";
+
     /// <summary>The threshold payload's measured reference (a sensor, a mount).</summary>
     private const string RefProperty = "Ref";
 
@@ -118,6 +138,17 @@ internal static class EventClassifier
 
         if (cls == EventClass.Threshold)
             return new EventFacts(cls, ThresholdSubjectKind(data), ThresholdSubject(data));
+
+        // This leaf's own events name both the subject and what kind of thing it is, because whatever
+        // decided already knew. Taking its word rather than re-deriving is the same rule that applies
+        // everywhere else here: the classification travels with the observation.
+        if (cls == EventClass.Reactor)
+        {
+            string decided = StringProperty(data, SubjectProperty);
+            return decided.Length > 0
+                ? new EventFacts(cls, ReactorSubjectKind(data), decided)
+                : new EventFacts(cls, SubjectKind.Unknown, string.Empty);
+        }
 
         string instance = StringProperty(data, InstanceNameProperty);
         return instance.Length > 0
@@ -162,6 +193,9 @@ internal static class EventClassifier
 
         var t when t.StartsWith("assistant_", StringComparison.Ordinal) => EventClass.Assistant,
 
+        var t when t.StartsWith(Events.ReactorEvents.Prefix, StringComparison.Ordinal)
+            => EventClass.Reactor,
+
         var t when t.StartsWith("account_", StringComparison.Ordinal)
                 || t.StartsWith("auth_", StringComparison.Ordinal)
                 || t.StartsWith("user_", StringComparison.Ordinal)
@@ -184,6 +218,22 @@ internal static class EventClassifier
 
         _ => EventClass.Other,
     };
+
+    /// <summary>
+    /// What kind of thing one of this leaf's own events was about, as that event says.
+    /// </summary>
+    /// <remarks>
+    /// A spelling this build does not recognise reads as <see cref="SubjectKind.Unknown"/>. That is a
+    /// newer reactor's vocabulary reaching an older one, and guessing at it would be a fabrication
+    /// indistinguishable from a reading afterwards.
+    /// </remarks>
+    private static SubjectKind ReactorSubjectKind(JsonElement data) =>
+        Enum.TryParse(
+            StringProperty(data, Events.ReactorEventFields.SubjectKind),
+            ignoreCase: true,
+            out SubjectKind kind)
+            ? kind
+            : SubjectKind.Unknown;
 
     /// <summary>
     /// A threshold episode is about one server when it names one, and about the host otherwise.

@@ -38,6 +38,18 @@ public class RuleCatalogTests
     }
 
     [Fact]
+    public void No_rule_wakes_on_something_this_leaf_wrote_itself()
+    {
+        // The loop guard, and the reason it is a test rather than a comment. The reactor tails every
+        // producer's journal including its own, so a decision it writes comes straight back in. A rule
+        // waking on one would decide about its own decision, write that, and be woken by it — at the
+        // sweep interval, forever, with a plausible-looking ledger.
+        Assert.All(RuleCatalog.All, rule =>
+            Assert.DoesNotContain(rule.Wakes, type =>
+                type.StartsWith(Events.ReactorEvents.Prefix, StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void Every_rule_describes_the_action_it_would_take()
     {
         Assert.All(RuleCatalog.All, rule =>

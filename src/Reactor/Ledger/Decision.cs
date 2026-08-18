@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
+using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
 namespace TheKrystalShip.Kgsm.Reactor.Ledger;
@@ -30,6 +31,28 @@ internal enum DecisionOutcome
 
     /// <summary>No judgment could be formed — the world, or the history, would not say.</summary>
     Unreadable,
+}
+
+/// <summary>
+/// What recording a decision did to the record.
+/// </summary>
+/// <remarks>
+/// The ledger folds every re-evaluation of one episode into a single row, so "recorded" says nothing
+/// about whether anything is new. This is what separates a judgment that changed from a sweep that
+/// found the world exactly as it left it — and therefore what decides whether a <c>reactor_decided</c>
+/// line is written. Without it a condition open for six hours would append a line every thirty
+/// seconds and the journal would read as how often the reactor looked rather than what it concluded.
+/// </remarks>
+internal enum DecisionChange
+{
+    /// <summary>The same verdict as last sweep. Nothing to announce.</summary>
+    Unchanged,
+
+    /// <summary>The first evaluation of this episode.</summary>
+    Opened,
+
+    /// <summary>The verdict on an episode already on record is not what it was.</summary>
+    Changed,
 }
 
 /// <summary>How far the action got.</summary>
@@ -72,6 +95,10 @@ internal readonly record struct EventSource(string Producer, string Segment, lon
 /// </param>
 /// <param name="RuleId">Which rule. This is the actor string an audit row would carry.</param>
 /// <param name="Subject">What it was about.</param>
+/// <param name="SubjectKind">
+/// What sort of thing that is. Carried from where the subject was observed rather than derived from
+/// the name, because a consumer deriving it does so by looking the name up and seeing what it finds.
+/// </param>
 /// <param name="EpisodeKey">
 /// The journal position of the event that opened the condition — what makes two evaluations of one
 /// episode the same decision, and two separate failures two decisions.
@@ -81,6 +108,8 @@ internal readonly record struct EventSource(string Producer, string Segment, lon
 /// <param name="Outcome">What was decided.</param>
 /// <param name="Reason">Why, in words. Always present.</param>
 /// <param name="Action">What it would do, described rather than performed.</param>
+/// <param name="ActionName">The same action as a stable name other programs compare against.</param>
+/// <param name="ActionInstance">The server the action would operate on, or null when it operates on none.</param>
 /// <param name="ActionState">How far that got.</param>
 /// <param name="OpenedAt">When the condition began.</param>
 /// <param name="DecidedAt">When this evaluation ran.</param>
@@ -89,12 +118,15 @@ internal sealed record Decision(
     string Id,
     string RuleId,
     string Subject,
+    SubjectKind SubjectKind,
     string EpisodeKey,
     Severity Severity,
     RuleMode Mode,
     DecisionOutcome Outcome,
     string Reason,
     string Action,
+    string ActionName,
+    string? ActionInstance,
     ActionState ActionState,
     DateTimeOffset OpenedAt,
     DateTimeOffset DecidedAt,

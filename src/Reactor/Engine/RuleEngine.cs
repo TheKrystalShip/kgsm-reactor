@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using TheKrystalShip.Kgsm.Reactor.Classification;
+using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.KGSM.Core.Interfaces;
@@ -37,6 +38,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly DecisionStore _decisions;
     private readonly IWorldView _world;
     private readonly IRuleHistory _history;
+    private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
     private readonly TimeProvider _clock;
     private readonly ILogger<RuleEngine> _logger;
@@ -56,6 +58,7 @@ internal sealed class RuleEngine : BackgroundService
         IEventService events,
         ObservationLedger ledger,
         DecisionStore decisions,
+        IDecisionEmitter emitter,
         IWorldView world,
         IRuleHistory history,
         IOptions<ReactorOptions> options,
@@ -65,6 +68,7 @@ internal sealed class RuleEngine : BackgroundService
         _events = events;
         _ledger = ledger;
         _decisions = decisions;
+        _emitter = emitter;
         _world = world;
         _history = history;
         _options = options.Value;
@@ -74,11 +78,20 @@ internal sealed class RuleEngine : BackgroundService
 
     /// <summary>An evaluation that has been woken and is waiting out its settle window.</summary>
     private sealed record Pending(
-        Rule Rule, string Subject, string EpisodeKey, EventSource Source,
+        Rule Rule, string Subject, SubjectKind SubjectKind, string EpisodeKey, EventSource Source,
         DateTimeOffset OpenedAt, DateTimeOffset DueAt);
 
     /// <summary>Decisions recorded since start. Read by tests.</summary>
     internal long Recorded { get; private set; }
+
+    /// <summary>
+    /// Decisions announced on the journal since start. Read by tests.
+    /// </summary>
+    /// <remarks>
+    /// Lower than <see cref="Recorded"/> by design, and the gap is the point: it is every sweep that
+    /// re-read a condition and found the same answer.
+    /// </remarks>
+    internal long Emitted { get; private set; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -193,7 +206,8 @@ internal sealed class RuleEngine : BackgroundService
 
             string key = $"{rule.Id}|{facts.Subject}|{source.Key}";
             _pending[key] = new Pending(
-                rule, facts.Subject, source.Key, source, occurredAt, _clock.GetUtcNow() + rule.Settle);
+                rule, facts.Subject, facts.SubjectKind, source.Key, source,
+                occurredAt, _clock.GetUtcNow() + rule.Settle);
         }
 
         return Task.CompletedTask;
@@ -233,8 +247,8 @@ internal sealed class RuleEngine : BackgroundService
                     continue;
 
                 await EvaluateAsync(
-                    new Pending(rule, subject, episode.Value.Source.Key, episode.Value.Source,
-                        episode.Value.OpenedAt, now),
+                    new Pending(rule, subject, episode.Value.SubjectKind, episode.Value.Source.Key,
+                        episode.Value.Source, episode.Value.OpenedAt, now),
                     now, token).ConfigureAwait(false);
             }
         }
@@ -300,12 +314,15 @@ internal sealed class RuleEngine : BackgroundService
             Id: Decision.IdFor(rule.Id, pending.Subject, pending.EpisodeKey),
             RuleId: rule.Id,
             Subject: pending.Subject,
+            SubjectKind: pending.SubjectKind,
             EpisodeKey: pending.EpisodeKey,
             Severity: rule.Severity,
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: reason,
             Action: action.Describe(),
+            ActionName: action.Name,
+            ActionInstance: action.TargetInstance,
             // Nothing is dispatched in this build, and the record says so rather than leaving a
             // reader to infer it from the mode.
             ActionState: ActionState.None,
@@ -313,9 +330,10 @@ internal sealed class RuleEngine : BackgroundService
             DecidedAt: now,
             Source: pending.Source);
 
+        DecisionChange change;
         try
         {
-            _decisions.Record(decision);
+            change = _decisions.Record(decision);
             Recorded++;
 
             if (outcome == DecisionOutcome.Fired)
@@ -332,9 +350,22 @@ internal sealed class RuleEngine : BackgroundService
         }
         catch (Exception ex)
         {
+            // The ledger is where the gate reads its own history from, so a decision that could not be
+            // recorded must not be announced either — a journal line for a decision the suppression
+            // window has never heard of would let the same thing fire again on the next sweep.
             _logger.LogError(ex, "Could not record {Rule}'s decision about {Subject}.",
                 rule.Id, pending.Subject);
+            return;
         }
+
+        // Only a transition. The ledger folds a re-evaluated episode into one row that gets better
+        // informed; the journal appends, and a condition that has held all afternoon is one judgment,
+        // not one every thirty seconds.
+        if (change == DecisionChange.Unchanged)
+            return;
+
+        if (await _emitter.EmitAsync(decision, token).ConfigureAwait(false))
+            Emitted++;
     }
 
     /// <summary>

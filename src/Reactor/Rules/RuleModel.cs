@@ -108,12 +108,34 @@ internal abstract record ReactorAction
     /// <summary>What this would do, in a few words, for the decision record.</summary>
     public abstract string Describe();
 
+    /// <summary>
+    /// The stable name of the action, for a reader that switches on it rather than reads it.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Describe"/> because that one is prose and free to be reworded; this
+    /// one is compared against by other programs, and rewording it would silently stop matching.
+    /// </remarks>
+    public abstract string Name { get; }
+
+    /// <summary>
+    /// The server this would operate on, or <see langword="null"/> when it operates on none.
+    /// </summary>
+    /// <remarks>
+    /// Not the same question as what the rule judged: a rule that decides about a host sensor can
+    /// still propose something about a server.
+    /// </remarks>
+    public abstract string? TargetInstance { get; }
+
     /// <summary>A rule that reports and proposes nothing.</summary>
     public sealed record Nothing : ReactorAction
     {
         public override bool ChangesServerState => false;
 
         public override string Describe() => "nothing";
+
+        public override string Name => "none";
+
+        public override string? TargetInstance => null;
     }
 
     /// <summary>Capture an instance's state as a pinned backup.</summary>
@@ -124,6 +146,10 @@ internal abstract record ReactorAction
         public override bool ChangesServerState => false;
 
         public override string Describe() => $"take a pinned backup of {Instance}";
+
+        public override string Name => "create_backup";
+
+        public override string? TargetInstance => Instance;
     }
 
     /// <summary>
@@ -131,10 +157,10 @@ internal abstract record ReactorAction
     /// failure.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The target is described, not named.</b> Resolving it to a backup id needs the manifest to
-    /// record why each archive was taken, which it does not yet — and resolving it by recency would be
-    /// actively wrong, because once <c>give_up_backup</c> is acting the newest archive at this moment
-    /// is the broken post-update state that rule just captured.
+    /// ⚠ <b>The target is described, not named.</b> It is resolved at dispatch by the manifest's
+    /// <c>reason</c>, never by recency — once <c>give_up_backup</c> is acting, the newest archive at
+    /// this moment is the broken post-update state that rule has just captured. An archive written
+    /// before the manifest carried a reason reads back unknown, and an unknown one is not a candidate.
     /// </remarks>
     /// <param name="Instance">The instance to roll back.</param>
     public sealed record ProposeRestore(string Instance) : ReactorAction
@@ -142,6 +168,10 @@ internal abstract record ReactorAction
         public override bool ChangesServerState => true;
 
         public override string Describe() => $"restore {Instance} to its pre-update backup";
+
+        public override string Name => "propose_restore";
+
+        public override string? TargetInstance => Instance;
     }
 }
 

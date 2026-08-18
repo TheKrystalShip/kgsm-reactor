@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using TheKrystalShip.Kgsm.Reactor.Engine;
+using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
@@ -113,6 +114,10 @@ internal sealed class Program
         // observations one — and answering them through two connections is how a reader comes to see a
         // half-written view of one file.
         builder.Services.AddSingleton<DecisionStore>();
+
+        // Decisions go on the journal as well as in the ledger, because the ledger is this leaf's own
+        // working state and the journal is what the rest of the host can read.
+        builder.Services.AddSingleton<IDecisionEmitter, DecisionEmitter>();
         builder.Services.AddSingleton<IWorldView, WatchdogWorldView>();
         builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
 

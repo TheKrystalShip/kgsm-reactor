@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Engine;
+using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.KGSM.Core.Interfaces;
@@ -98,10 +100,23 @@ public class RuleEngineTests : IDisposable
 
     private static RuleEngine Build(
         FakeEvents events, ObservationLedger ledger, IWorldView world, ReactorOptions options,
-        FakeTimeProvider clock) =>
-        new(events, ledger, new DecisionStore(ledger), world, new LedgerRuleHistory(ledger),
+        FakeTimeProvider clock, IDecisionEmitter? emitter = null) =>
+        new(events, ledger, new DecisionStore(ledger), emitter ?? new RecordingEmitter(), world,
+            new LedgerRuleHistory(ledger),
             Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<RuleEngine>.Instance);
+
+    /// <summary>An emitter that keeps what it was handed, so a test can ask what was announced.</summary>
+    private sealed class RecordingEmitter : IDecisionEmitter
+    {
+        public List<Decision> Emitted { get; } = [];
+
+        public ValueTask<bool> EmitAsync(Decision decision, CancellationToken token = default)
+        {
+            Emitted.Add(decision);
+            return ValueTask.FromResult(true);
+        }
+    }
 
     /// <summary>A clock the test moves by hand.</summary>
     private sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider
@@ -378,4 +393,37 @@ public class RuleEngineTests : IDisposable
             try { File.Delete(file); } catch (IOException) { /* a temp file the OS still holds */ }
         }
     }
+
+    [Fact]
+    public async Task A_decision_is_announced_once_however_often_its_episode_is_re_read()
+    {
+        // End to end through the engine, because the ledger folding a re-evaluation and the engine
+        // deciding not to announce it are two separate pieces and only one of them is exercised by the
+        // store's own tests. The same event at the same journal position is one episode: judged again,
+        // reaching the same verdict, and worth saying exactly once.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        var emitter = new RecordingEmitter();
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(), clock, emitter);
+        var position = new EventPosition("kgsm-watchdog", "s.ndjson", 10);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"), position, TimeSpan.FromMinutes(2));
+
+        await events.EmitAsync(Failed("Ketchup"), position);
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Equal(2, engine.Recorded);
+        Assert.Equal(1, engine.Emitted);
+
+        Decision announced = Assert.Single(emitter.Emitted);
+        Assert.Equal("give_up_backup", announced.RuleId);
+        Assert.Equal(SubjectKind.Instance, announced.SubjectKind);
+        Assert.Equal("create_backup", announced.ActionName);
+        Assert.Equal("Ketchup", announced.ActionInstance);
+    }
+
 }

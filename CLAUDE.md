@@ -38,7 +38,8 @@ a reactor that came up and then failed to open its ledger.
 
 1. **It is never the only record.** The journals are the record; an observation is derived. A reactor
    that was down during an incident must not be why nobody can reconstruct it.
-2. **It never fabricates an actor.** Origin `reactor`, actor the rule id — never a person, never null.
+2. **It never fabricates an actor.** Origin `reactor`, actor the rule id — written `rule:<id>`, in the
+   ecosystem's `provider:name` actor shape. Never a person, never null.
 3. **It never acts on what another supervisor owns.** The watchdog owns crash-restart, autostart and
    caps; the scheduler owns timed restarts, scheduled backups and update sweeps. The reactor acts on
    what the watchdog has **given up** on.
@@ -67,6 +68,17 @@ a reactor that came up and then failed to open its ledger.
 - **`EventClass` is a reporting bucket, not a judgment, and nothing may start gating on it.** What
   matters about an event is decided per rule against the plan's seven questions, never inherited from
   a bucket assigned at ingest.
+- **⚠ The reactor tails its own journal**, so every `reactor_decided` it writes comes straight back to
+  it. That is fine and the events are recorded like any other; the loop is stopped by the rule that
+  **no rule may wake on a `reactor_*` event**, which `RuleCatalogTests` fails the build over.
+- **The ledger upserts, the journal appends.** A state rule re-reads its episode every sweep and the
+  ledger folds those into one row, so `DecisionStore.Record` returns a `DecisionChange` and only a
+  transition is announced. Emitting per evaluation would make the journal a record of how often the
+  reactor looked rather than what it concluded.
+- **Writing an event needs nothing from kgsm-lib.** `IEventJournalWriter.AppendAsync` takes a
+  `JsonElement`, so emission is local and costs no package release. **Typed consumption is the part
+  that does** — kgsm-bot reads through `RegisterHandler<T>() where T : KgsmEventDataBase`, which needs
+  the class in the library and in `KgsmJsonContext`.
 - **⚠ `BackgroundService.StartAsync` returning does not mean `ExecuteAsync` has begun.** A test that
   acts immediately after `StartAsync` can reach a service that has not registered its handler yet —
   which passes alone and fails under a parallel run. `EventIngestServiceTests.StartAndStopAsync` takes

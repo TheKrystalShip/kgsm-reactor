@@ -7,6 +7,37 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-18
+
+Decisions leave this leaf. What it judges is now a line on the journal, where the rest of the host can
+read it; still nothing is dispatched.
+
+### Added
+
+- **`reactor_decided`** — a rule's verdict as an event, carrying the rule, the subject and what kind of
+  thing it is, the severity, the mode, the outcome, the reason, the action it would take and the server
+  that action names, the decision's id, when the condition opened, and the position of the journal line
+  it was all derived from. The field set is what kgsm-bot's `ServerAnnouncement` and kgsm-api's
+  `NotificationEvent` each need to render from **one event**, with no second lookup.
+- **`SubjectKind` on a decision**, carried from where the subject was observed rather than derived from
+  its name. kgsm-bot routes on an instance name, and a host-scoped subject like `k10temp/Tctl` has no
+  channel to follow — it has to know that rather than discover it by failing to find one.
+- **`EventClass.Reactor`**, so this leaf's own events are classified and recorded like any other. The
+  loop is stopped where it belongs instead: **no rule may wake on a `reactor_*` event**, and a test
+  fails the build if one does.
+- A stable `Name` and `TargetInstance` on every `ReactorAction`, for a reader that switches on the
+  action rather than reading its prose.
+
+### Changed
+
+- **`DecisionStore.Record` reports what it changed.** The ledger folds every re-evaluation of one
+  episode into a single row that gets better informed; a journal appends. An event is written on a
+  transition — the first evaluation, or a changed verdict — so a condition that has held all afternoon
+  is one judgment rather than one every thirty seconds.
+- A ledger written by an earlier build gains the three new columns on startup. Existing rows read
+  `unknown` for the subject's kind and the action's name, because those readings were not taken and
+  taking them late would be a guess indistinguishable from a measurement afterwards.
+
 ## [0.2.0] - 2026-08-18
 
 The judging half. Rules evaluate and record; nothing is dispatched, and that is how a rule earns the

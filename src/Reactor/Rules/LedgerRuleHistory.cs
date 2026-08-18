@@ -1,3 +1,4 @@
+using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
 namespace TheKrystalShip.Kgsm.Reactor.Rules;
@@ -44,7 +45,8 @@ internal sealed class LedgerRuleHistory(ObservationLedger ledger) : IRuleHistory
         // them would make one look like a repeat of the other.
         return ledger.Query(
             """
-            SELECT o.subject, MAX(o.occurred_at) AS opened_at, o.producer, o.segment, o.offset
+            SELECT o.subject, o.subject_kind, MAX(o.occurred_at) AS opened_at,
+                   o.producer, o.segment, o.offset
             FROM observations o
             WHERE o.event_type = $opens AND o.occurred_at >= $since
             GROUP BY o.subject
@@ -61,8 +63,9 @@ internal sealed class LedgerRuleHistory(ObservationLedger ledger) : IRuleHistory
             },
             reader => new OpenEpisode(
                 reader.GetString(0),
-                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(1)),
-                new EventSource(reader.GetString(2), reader.GetString(3), reader.GetInt64(4))));
+                ParseSubjectKind(reader.GetString(1)),
+                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(2)),
+                new EventSource(reader.GetString(3), reader.GetString(4), reader.GetInt64(5))));
     }
 
     public (TimeSpan P95, int Samples) EpisodeDuration(
@@ -111,4 +114,16 @@ internal sealed class LedgerRuleHistory(ObservationLedger ledger) : IRuleHistory
         int rank = (int)Math.Ceiling(0.95 * durations.Count) - 1;
         return (TimeSpan.FromMilliseconds(durations[Math.Clamp(rank, 0, durations.Count - 1)]), durations.Count);
     }
+
+    /// <summary>
+    /// Read back a subject kind the ledger stored.
+    /// </summary>
+    /// <remarks>
+    /// A value this build does not recognise reads as <see cref="SubjectKind.Unknown"/> rather than
+    /// throwing: the row is real and its subject is real, and refusing the whole episode because one
+    /// column has an unfamiliar spelling would lose a condition that is genuinely open.
+    /// </remarks>
+    private static SubjectKind ParseSubjectKind(string stored) =>
+        Enum.TryParse(stored, ignoreCase: true, out SubjectKind kind) ? kind : SubjectKind.Unknown;
+
 }

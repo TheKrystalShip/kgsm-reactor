@@ -1,0 +1,128 @@
+namespace TheKrystalShip.Kgsm.Reactor.Events;
+
+/// <summary>
+/// What the reactor writes to its own journal.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>These describe the decision, not the incident.</b> The incident is already a line in some
+/// producer's journal, and every decision carries the position of that line — so a reader can go and
+/// check what the reactor judged instead of taking this leaf's word for what happened.
+/// </para>
+/// <para>
+/// <b>Two events, not one.</b> A decision and an action are separate immutable facts, exactly as a
+/// threshold breach and its clear are. Collapsed into one, "it decided and the action failed" has no
+/// spelling.
+/// </para>
+/// </remarks>
+internal static class ReactorEvents
+{
+    /// <summary>
+    /// <c>reactor_decided</c> — a rule reached a verdict about a subject.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Written on a transition, not on an evaluation.</b> A state rule re-evaluates one episode
+    /// every sweep and the ledger folds those into a single row that gets better informed; a journal
+    /// appends. Emitting per evaluation would write a line every thirty seconds about a condition that
+    /// has not changed, and the history would read as how often the reactor looked rather than what it
+    /// concluded.
+    /// </remarks>
+    public const string Decided = "reactor_decided";
+
+    /// <summary>
+    /// <c>reactor_acted</c> — a decision was carried out, however it ended.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Nothing emits this yet.</b> The reactor dispatches nothing, so writing one would be a claim
+    /// about work that did not happen. It exists here because the vocabulary is decided as a whole —
+    /// the shape is settled and the emitter arrives with act mode.
+    /// </remarks>
+    public const string Acted = "reactor_acted";
+
+    /// <summary>The prefix every event this leaf writes shares.</summary>
+    /// <remarks>
+    /// The reactor tails every producer's journal, its own included, so what it writes comes back to
+    /// it. This prefix is how that is recognised — see <c>RuleCatalog</c>, where no rule may wake on
+    /// one, and the test that enforces it.
+    /// </remarks>
+    public const string Prefix = "reactor_";
+}
+
+/// <summary>The payload field names, spelled once.</summary>
+/// <remarks>
+/// ⚠ <b>A field name is a contract the moment something reads it.</b> These are free to change while
+/// the reactor is the only thing that has ever written or read them; once kgsm-lib carries the typed
+/// classes and a consumer deserializes one, renaming a field silently empties it for every reader
+/// built against the old spelling.
+/// </remarks>
+internal static class ReactorEventFields
+{
+    /// <summary>The rule that decided. Also the actor an audit row would carry.</summary>
+    public const string Rule = "Rule";
+
+    /// <summary>What was judged: a server name, a sensor reference, a component.</summary>
+    public const string Subject = "Subject";
+
+    /// <summary>
+    /// What sort of thing the subject is — <c>instance</c>, <c>host</c>, <c>leaf</c>, <c>unknown</c>.
+    /// </summary>
+    /// <remarks>
+    /// Carried rather than left to be derived, because a consumer that derives it does so by looking
+    /// the name up and seeing what it finds. kgsm-bot routes on the instance name; a host-scoped
+    /// subject has no channel to follow, and it needs to know that rather than discover it by failing
+    /// to find one.
+    /// </remarks>
+    public const string SubjectKind = "SubjectKind";
+
+    /// <summary>How loudly the rule speaks: <c>info</c>, <c>warning</c>, <c>danger</c>.</summary>
+    public const string Severity = "Severity";
+
+    /// <summary>The authority it ran under: <c>observe</c>, <c>propose</c>, <c>act</c>.</summary>
+    public const string Mode = "Mode";
+
+    /// <summary>
+    /// What was decided: <c>fired</c>, <c>settled</c>, <c>suppressed</c>, <c>ceilinged</c>,
+    /// <c>superseded</c>, <c>unreadable</c>.
+    /// </summary>
+    public const string Outcome = "Outcome";
+
+    /// <summary>Why, in one line. Always present.</summary>
+    public const string Reason = "Reason";
+
+    /// <summary>What the rule would do: <c>none</c>, <c>create_backup</c>, <c>propose_restore</c>.</summary>
+    public const string Action = "Action";
+
+    /// <summary>
+    /// The server the action would operate on, or null when it operates on none.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="Subject"/>, which is what was judged. They are the same string for
+    /// today's three rules and will not stay that way: a rule judging a host sensor can still propose
+    /// something about a server.
+    /// </remarks>
+    public const string ActionInstance = "ActionInstance";
+
+    /// <summary>The decision's own identity, which <c>reactor_acted</c> refers back to.</summary>
+    public const string DecisionId = "DecisionId";
+
+    /// <summary>When the condition opened. The envelope's timestamp is when it was decided.</summary>
+    public const string OpenedAt = "OpenedAt";
+
+    /// <summary>Whose journal the originating line is in.</summary>
+    public const string SourceProducer = "SourceProducer";
+
+    /// <summary>Which segment file of it.</summary>
+    public const string SourceSegment = "SourceSegment";
+
+    /// <summary>The byte offset in that segment.</summary>
+    public const string SourceOffset = "SourceOffset";
+
+    /// <summary>Whether the action succeeded. <c>reactor_acted</c> only.</summary>
+    public const string Ok = "Ok";
+
+    /// <summary>What the action produced — a backup id — or null. <c>reactor_acted</c> only.</summary>
+    public const string Artifact = "Artifact";
+
+    /// <summary>What went wrong, or what else is worth reading. <c>reactor_acted</c> only.</summary>
+    public const string Detail = "Detail";
+}
