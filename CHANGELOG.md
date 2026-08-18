@@ -7,6 +7,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-18
+
+### Added — every journal line now carries its own id
+
+Every event this leaf writes carries an `Id`: a UUIDv7 the shared writer mints per line, inherited by pinning
+kgsm-lib 4.41.0. Nothing in this repo changed but the pin.
+
+Why it exists: every durable reference to an event on this host is a byte offset into a named segment,
+which holds only while a segment is appended to and deleted whole (conformance §2·l). An id makes a
+rewrite **detectable** — a reference carrying both finds the line by position and proves it is the
+right one by id, where before a shifted offset resolved to a real, parseable event of the wrong kind
+with nothing to notice.
+
+⚠ Optional and optional forever: lines written before this are on disk for as long as retention holds
+them, and **absent means unknown, never a mismatch**. Authority: `journal-entry-id-plan.md`.
+
 ## [0.7.0] - 2026-08-18
 
 A stored position is only as good as the promise that segments are never rewritten. This checks.
