@@ -10,6 +10,7 @@ using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Status;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Extensions;
@@ -30,6 +31,16 @@ internal sealed class Program
         if (args.Length > 0 && args[0] is "--report" or "report")
             return Report(args);
 
+        // Anything else is refused rather than ignored. Without this, a mistyped flag starts a SECOND
+        // daemon against the same SQLite ledger — two writers, one of them unsupervised, and no
+        // message to say so.
+        if (args.Length > 0)
+        {
+            Console.Error.WriteLine($"unrecognised argument: {args[0]}");
+            Console.Error.WriteLine("usage: kgsm-reactor [--report [--days N] [--ledger PATH]]");
+            return 2;
+        }
+
         // ContentRootPath is pinned to the binary's own directory rather than left to default to the
         // process working directory. The builder installs its own appsettings.json providers with
         // reloadOnChange:true, which hangs a RECURSIVE FileSystemWatcher off the content root. Rooted
@@ -37,7 +48,7 @@ internal sealed class Program
         // fs.inotify.max_user_watches budget the game servers on this host draw from; a game that
         // cannot get a watch fails to boot. AppContext.BaseDirectory is the one directory that is
         // correct no matter where the process was started from.
-        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
             Args = args,
             ContentRootPath = AppContext.BaseDirectory,
@@ -121,10 +132,67 @@ internal sealed class Program
         builder.Services.AddSingleton<IWorldView, WatchdogWorldView>();
         builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
 
-        builder.Services.AddHostedService<EventIngestService>();
-        builder.Services.AddHostedService<RuleEngine>();
+        // Registered as singletons and then handed to the host, rather than AddHostedService<T>()
+        // alone: that registers them only as IHostedService, and the status endpoint has to be able to
+        // ask the actual instances what they are holding.
+        builder.Services.AddSingleton<EventIngestService>();
+        builder.Services.AddSingleton<RuleEngine>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<EventIngestService>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<RuleEngine>());
 
-        IHost host = builder.Build();
+        builder.Services.AddSingleton(sp => new StatusReporter(
+            sp.GetRequiredService<EventIngestService>(),
+            sp.GetRequiredService<RuleEngine>(),
+            sp.GetRequiredService<IOptions<ReactorOptions>>(),
+            sp.GetRequiredService<TimeProvider>(),
+            startedAt));
+
+        // Server to client only, and only over a unix socket — no TCP anywhere. Nothing off this host
+        // has any business asking a leaf what it is thinking, so the socket's filesystem permissions
+        // are the entire access boundary rather than one layer of several.
+        if (options.StatusSocketPath.Length > 0)
+        {
+            builder.WebHost.ConfigureKestrel(kestrel =>
+            {
+                // A socket file left behind by a killed process would otherwise make the bind fail and
+                // take the daemon down over an artefact of the last run.
+                if (File.Exists(options.StatusSocketPath))
+                    File.Delete(options.StatusSocketPath);
+
+                kestrel.ListenUnixSocket(options.StatusSocketPath);
+            });
+        }
+
+        WebApplication host = builder.Build();
+
+        if (options.StatusSocketPath.Length > 0)
+        {
+            // The socket only exists once the host is listening, so the mode is set here rather than
+            // before Run — which would be an ENOENT on a file that is not there yet.
+            host.Lifetime.ApplicationStarted.Register(() =>
+            {
+                try
+                {
+                    if (OperatingSystem.IsLinux() && File.Exists(options.StatusSocketPath))
+                        File.SetUnixFileMode(options.StatusSocketPath, options.StatusSocketMode);
+                }
+                catch (Exception ex)
+                {
+                    host.Logger.LogWarning(
+                        ex, "could not set mode on {Socket}", options.StatusSocketPath);
+                }
+            });
+
+            // Liveness. Deliberately not an alias for /status: this answers "the process is up and
+            // serving", and a reactor that is up while unable to read its ledger must still be able to
+            // say so on /status rather than failing this and looking dead.
+            host.MapGet("/health", () => Results.Text("ok\n"));
+
+            // What it is doing right now — the counters, the live rules and their modes, and the
+            // evaluations waiting out their settle windows.
+            host.MapGet("/status", (StatusReporter reporter) =>
+                Results.Json(reporter.Read(), ReactorStatusJsonContext.Default.ReactorStatus));
+        }
 
         // Before anything evaluates. The table is created here rather than lazily so a permission
         // problem on the ledger fails the start, where a first decision hours later would fail

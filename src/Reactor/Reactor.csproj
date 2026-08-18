@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -33,10 +33,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <!-- Hosting, configuration, logging and Kestrel all arrive with the Web SDK's framework
+         reference. Naming them here again pins versions the framework already owns, which is how a
+         package and the runtime beneath it come to disagree. The status endpoint is a unix socket and
+         never a port — the same shape kgsm-monitor serves its scrape from. -->
     <!-- 4.39.0 for AddKgsmJournalFederation (every producer's journal behind one IEventSource) and
          IEventService.RegisterRawHandler (every envelope, known type or not — which is what lets
          this leaf record an event no consumer has a type for yet). -->

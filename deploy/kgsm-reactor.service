@@ -29,6 +29,18 @@ EnvironmentFile=-/etc/kgsm-reactor/kgsm-reactor.env
 StateDirectory=kgsm-reactor
 StateDirectoryMode=0750
 
+# The status socket the endpoint listens on. systemd creates /run/kgsm-reactor on start and removes
+# it on stop, which is exactly the lifetime a socket wants: a file left behind by a crashed process
+# can never be mistaken for a reactor that is answering.
+#
+# 0750 with Group=kgsm for the same reason the state directory is: a socket cannot be connected to
+# without execute on every directory above it, and a runtime directory closed to the group hides it
+# from a co-located service that is entitled to ask.
+RuntimeDirectory=kgsm-reactor
+RuntimeDirectoryMode=0750
+Environment=Reactor__StatusSocketPath=/run/kgsm-reactor/status.sock
+Environment=Reactor__StatusSocketMode=660
+
 # The reactor READS every producer's journal under /var/lib. It writes only its own state directory,
 # and it will eventually dispatch actions through kgsm — so the filesystem is left readable and the
 # process is denied the ability to gain privilege it did not start with.

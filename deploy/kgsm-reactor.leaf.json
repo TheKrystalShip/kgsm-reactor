@@ -122,6 +122,26 @@
       "risk": "wiring"
     },
     {
+      "key": "statusSocket",
+      "env": "Reactor__StatusSocketPath",
+      "label": "Status socket",
+      "description": "Where the reactor answers questions about what it is doing right now. A local socket, readable by anything in its group; it is never exposed on the network.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/run/kgsm-reactor/status.sock",
+      "risk": "wiring"
+    },
+    {
+      "key": "statusSocketMode",
+      "env": "Reactor__StatusSocketMode",
+      "label": "Status socket permissions",
+      "description": "Who may read the status socket, as octal permission bits. The default lets a service in the same group ask; it is not readable by everyone on the host.",
+      "group": "wiring",
+      "type": "string",
+      "default": "660",
+      "risk": "safe"
+    },
+    {
       "key": "retentionDays",
       "env": "Reactor__RetentionDays",
       "label": "Keep observations for",

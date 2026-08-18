@@ -131,6 +131,33 @@ internal sealed class ReactorSettings
         Risk = LeafRisk.Wiring)]
     public string WatchdogSocketPath { get; set; } = "/run/kgsm-watchdog/control.sock";
 
+    /// <summary>
+    /// The unix socket the status endpoint listens on.
+    /// </summary>
+    /// <remarks>
+    /// A socket rather than a port: nothing off this host has any business asking a leaf what it is
+    /// thinking, and the filesystem permissions are the whole access boundary. It lives in the
+    /// systemd runtime directory, so it is created on start and gone on stop — a stale socket file
+    /// can never be mistaken for a running reactor.
+    /// </remarks>
+    /// <panel>Where the reactor answers questions about what it is doing right now. A local socket,
+    /// readable by anything in its group; it is never exposed on the network.</panel>
+    [LeafField("statusSocket", "Status socket", Group = "wiring", Type = LeafType.Path,
+        Risk = LeafRisk.Wiring)]
+    public string StatusSocketPath { get; set; } = "/run/kgsm-reactor/status.sock";
+
+    /// <summary>
+    /// Permission bits set on the socket once it exists, as an octal string.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Written as text (<c>660</c>) rather than a number, because a leading zero in JSON is not
+    /// legal and an unquoted <c>660</c> read as decimal would be a different mode entirely.
+    /// </remarks>
+    /// <panel>Who may read the status socket, as octal permission bits. The default lets a service in
+    /// the same group ask; it is not readable by everyone on the host.</panel>
+    [LeafField("statusSocketMode", "Status socket permissions", Group = "wiring")]
+    public string StatusSocketMode { get; set; } = "660";
+
     /// <summary>Rules that evaluate and record, dispatching nothing.</summary>
     /// <remarks>
     /// The rule catalog ships in code; this decides which of it is live. A rule named in none of the

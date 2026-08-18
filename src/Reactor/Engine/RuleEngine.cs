@@ -93,6 +93,31 @@ internal sealed class RuleEngine : BackgroundService
     /// </remarks>
     internal long Emitted { get; private set; }
 
+    /// <summary>
+    /// When the last sweep finished, or null before the first one has.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than the start time. A reactor whose first sweep has not landed has not evaluated
+    /// anything, and reporting its start time here would read as a sweep that happened.
+    /// </remarks>
+    internal DateTimeOffset? LastSweepAt { get; private set; }
+
+    /// <summary>Every rule that is live, in catalog order.</summary>
+    internal IReadOnlyList<Rule> Active => _active;
+
+    /// <summary>
+    /// The evaluations woken and waiting out their settle windows, soonest first.
+    /// </summary>
+    /// <remarks>
+    /// A snapshot, not the live dictionary: the sweep mutates that from another thread, and handing a
+    /// reader something being written underneath it is how a status endpoint comes to report an
+    /// evaluation that had already run.
+    /// </remarks>
+    internal IReadOnlyList<(string Rule, string Subject, DateTimeOffset DueAt)> PendingEvaluations =>
+        [.. _pending.Values
+            .Select(p => (p.Rule.Id, p.Subject, p.DueAt))
+            .OrderBy(p => p.DueAt)];
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _active = ResolveActiveRules();
@@ -252,6 +277,11 @@ internal sealed class RuleEngine : BackgroundService
                     now, token).ConfigureAwait(false);
             }
         }
+
+        // Stamped at the end rather than the start, so it answers "when did a sweep last complete"
+        // rather than "when was one last attempted" — a sweep that hung partway through would
+        // otherwise keep reporting itself as recent.
+        LastSweepAt = _clock.GetUtcNow();
     }
 
     /// <summary>

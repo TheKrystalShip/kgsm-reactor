@@ -47,6 +47,16 @@
     // "cannot tell" and stops the evaluation — never as "the condition does not hold".
     "WatchdogSocketPath": "/run/kgsm-watchdog/control.sock",
 
+    // The unix socket the status endpoint listens on. A socket rather than a port: nothing off this
+    // host has business asking a leaf what it is thinking, and the filesystem permissions are the
+    // whole boundary. It lives in the systemd runtime directory, so it is created on start and gone
+    // on stop and a stale file can never look like a running reactor.
+    "StatusSocketPath": "/run/kgsm-reactor/status.sock",
+
+    // Permission bits set on that socket, as an OCTAL STRING. Quoted because a leading zero is not
+    // legal JSON and an unquoted 660 would be read as decimal — a different mode entirely.
+    "StatusSocketMode": "660",
+
     // Which rules evaluate and record, dispatching nothing. The catalog ships in code; this decides
     // which of it is live. A rule named in none of the three lists is off, and one named in more
     // than one gets the SAFEST of them.

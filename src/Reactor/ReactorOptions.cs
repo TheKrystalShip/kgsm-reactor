@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
 namespace TheKrystalShip.Kgsm.Reactor;
@@ -60,6 +62,12 @@ internal sealed record ReactorOptions
     public required int RetentionDays { get; init; }
     public required int FlushIntervalSeconds { get; init; }
     public required string WatchdogSocketPath { get; init; }
+
+    /// <summary>Where the status endpoint listens. Blank means it does not listen at all.</summary>
+    public required string StatusSocketPath { get; init; }
+
+    /// <summary>Permission bits applied to the status socket once it exists.</summary>
+    public required UnixFileMode StatusSocketMode { get; init; }
     public required int SweepIntervalSeconds { get; init; }
     public required int SuppressionWindowMinutes { get; init; }
     public required int MaxActionsPerHour { get; init; }
@@ -72,6 +80,38 @@ internal sealed record ReactorOptions
     /// </summary>
     public Rules.RuleMode? ModeFor(string ruleId) =>
         RuleModes.TryGetValue(ruleId, out Rules.RuleMode mode) ? mode : null;
+
+    /// <summary>The status socket's mode when nothing configures one: owner and group, read/write.</summary>
+    private const UnixFileMode DefaultSocketMode =
+        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.GroupWrite;
+
+    /// <summary>
+    /// Read permission bits written as octal text.
+    /// </summary>
+    /// <remarks>
+    /// Anything unparseable falls back to the default rather than throwing or widening. A typo in a
+    /// permission string must not be able to open a socket wider than it was meant to be, and a
+    /// daemon that refused to start over one would be a worse answer than one that started safe and
+    /// said so.
+    /// </remarks>
+    private static UnixFileMode ParseMode(string? octal) =>
+        !Blank(octal) && TryOctal(octal.Trim(), out int bits)
+            ? (UnixFileMode)bits
+            : DefaultSocketMode;
+
+    private static bool TryOctal(string text, out int value)
+    {
+        value = 0;
+        try
+        {
+            value = Convert.ToInt32(text, 8);
+            return value is > 0 and <= 0b111_111_111;
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
+        {
+            return false;
+        }
+    }
 
     public static ReactorOptions FromSettings(ReactorSettings settings)
     {
@@ -94,6 +134,10 @@ internal sealed record ReactorOptions
             WatchdogSocketPath = Blank(settings.WatchdogSocketPath)
                 ? "/run/kgsm-watchdog/control.sock"
                 : settings.WatchdogSocketPath.Trim(),
+            StatusSocketPath = Blank(settings.StatusSocketPath)
+                ? string.Empty
+                : settings.StatusSocketPath.Trim(),
+            StatusSocketMode = ParseMode(settings.StatusSocketMode),
             SweepIntervalSeconds =
                 AtLeast(settings.SweepIntervalSeconds ?? DefaultSweepIntervalSeconds, MinSweepIntervalSeconds),
             SuppressionWindowMinutes =
@@ -158,7 +202,12 @@ internal sealed record ReactorOptions
         return Path.Combine(state, LedgerFileName);
     }
 
-    private static bool Blank(string? value) => string.IsNullOrWhiteSpace(value);
+    /// <remarks>
+    /// The attribute is what lets every caller dereference the argument in the false branch without a
+    /// null-forgiving operator — which is otherwise sprinkled through this file and silences real
+    /// warnings along with the noise.
+    /// </remarks>
+    private static bool Blank([NotNullWhen(false)] string? value) => string.IsNullOrWhiteSpace(value);
 
     private static int AtLeast(int value, int floor) => value < floor ? floor : value;
 }

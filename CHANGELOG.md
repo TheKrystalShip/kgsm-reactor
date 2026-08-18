@@ -7,6 +7,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-18
+
+A way to ask what it is doing right now.
+
+### Added
+
+- **A status endpoint on a unix socket** (`/run/kgsm-reactor/status.sock`), Kestrel on the slim
+  builder — the same shape kgsm-monitor serves its scrape from. `GET /status` reports the running
+  build, uptime, the gate's tuning as it is actually running, per-rule modes as **resolved** rather
+  than as configured, and the evaluations woken and waiting out their settle windows. `GET /health` is
+  liveness, deliberately not an alias: a reactor that is up but cannot read its ledger has to be able
+  to say so on `/status` rather than failing liveness and looking dead.
+  - The socket is never a port. Its filesystem permissions are the whole access boundary, so the mode
+    is configurable as octal text and an unparseable value falls back rather than widening.
+  - A blank `StatusSocketPath` turns the endpoint off and leaves the reactor judging as normal.
+- **Ingest drops are surfaced.** A non-zero `droppedSinceStart` means the ledger is missing events
+  that really happened and every rate derived from it under-reports — which would otherwise be
+  indistinguishable from a quiet host.
+
+### Changed
+
+- **An unrecognised argument is refused.** `kgsm-reactor --version` used to fall through and start a
+  second daemon against the same SQLite ledger, silently.
+- Hosting, configuration, logging and Kestrel come from the Web SDK's framework reference instead of
+  four pinned `PackageReference`s, which is how a package and the runtime beneath it come to disagree.
+
 ## [0.3.0] - 2026-08-18
 
 Decisions leave this leaf. What it judges is now a line on the journal, where the rest of the host can

@@ -11,6 +11,9 @@ holds the phases, the boundary contract and every decision still open.
 ## Commands
 
 ```bash
+# What it is doing right now. A unix socket, never a port.
+curl --unix-socket /run/kgsm-reactor/status.sock http://localhost/status | jq
+
 dotnet build kgsm-reactor.slnx -c Release
 dotnet test  kgsm-reactor.slnx                          # hermetic; no host, no journals, no engine
 dotnet test  kgsm-reactor.slnx --filter "FullyQualifiedName~EventClassifier"
@@ -30,9 +33,9 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 ```
 
 `deploy.sh` verifies against the **`leaf_ready` line this leaf writes to its own journal**, taking a
-`READY_SINCE` stamp before the start so a line from the previous run cannot satisfy the check. That
-matters: this daemon serves no socket and no port, so "systemd launched it" would also be satisfied by
-a reactor that came up and then failed to open its ledger.
+`READY_SINCE` stamp before the start so a line from the previous run cannot satisfy the check. That is
+a stronger check than the status socket would be: `/health` answering only proves Kestrel is listening,
+where the journal line is written after the ledger is open and the rules are resolved.
 
 ## The invariants (from the plan — these do not get re-decided)
 
