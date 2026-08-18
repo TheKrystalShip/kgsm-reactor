@@ -29,7 +29,22 @@ internal sealed class Program
         // before the host is built so it works on a machine where the daemon is not running, which is
         // most of the times somebody wants to read it.
         if (args.Length > 0 && args[0] is "--report" or "report")
-            return Report(args);
+            return Report(args, ReportKind.Population);
+
+        // The review the plan gates propose and act mode behind. A mode of the binary for the same
+        // reason the population report is: it is read by a person deciding whether the reactor's
+        // judgment is sound, and a gate whose only tooling is a hand-written SQL session is a gate
+        // that becomes a formality.
+        if (args.Length > 0 && args[0] is "--decisions" or "decisions")
+            return Report(args, ReportKind.Decisions);
+
+        // Asking what the binary does is not a mistake, and answering it with exit 2 sends somebody
+        // looking for a problem that does not exist.
+        if (args.Length > 0 && args[0] is "--help" or "-h" or "help")
+        {
+            Console.WriteLine(Usage);
+            return 0;
+        }
 
         // Anything else is refused rather than ignored. Without this, a mistyped flag starts a SECOND
         // daemon against the same SQLite ledger — two writers, one of them unsupervised, and no
@@ -37,7 +52,7 @@ internal sealed class Program
         if (args.Length > 0)
         {
             Console.Error.WriteLine($"unrecognised argument: {args[0]}");
-            Console.Error.WriteLine("usage: kgsm-reactor [--report [--days N] [--ledger PATH]]");
+            Console.Error.WriteLine(Usage);
             return 2;
         }
 
@@ -224,7 +239,7 @@ internal sealed class Program
     /// another service. It opens the same ledger the daemon writes; SQLite in WAL mode is happy with
     /// a reader alongside the writer, so it needs nothing stopped.
     /// </remarks>
-    private static int Report(string[] args)
+    private static int Report(string[] args, ReportKind kind)
     {
         int days = DefaultReportDays;
         string? ledgerPath = null;
@@ -242,12 +257,11 @@ internal sealed class Program
                     i++;
                     break;
                 case "--help" or "-h":
-                    Console.WriteLine(
-                        "usage: kgsm-reactor --report [--days N] [--ledger PATH]");
+                    Console.WriteLine(Usage);
                     return 0;
                 default:
                     Console.Error.WriteLine($"unrecognised argument: {args[i]}");
-                    Console.Error.WriteLine("usage: kgsm-reactor --report [--days N] [--ledger PATH]");
+                    Console.Error.WriteLine(Usage);
                     return 2;
             }
         }
@@ -278,7 +292,30 @@ internal sealed class Program
         }
 
         using var ledger = new ObservationLedger(ledgerPath);
-        Console.Write(PopulationReport.Render(ledger, days, DateTimeOffset.UtcNow));
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        Console.Write(kind switch
+        {
+            ReportKind.Decisions => DecisionReport.Render(ledger, days, now),
+            _ => PopulationReport.Render(ledger, days, now),
+        });
+
         return 0;
     }
+
+    /// <summary>Which of the two readings the binary was asked for.</summary>
+    private enum ReportKind
+    {
+        /// <summary>What this host does — the input to the rule table.</summary>
+        Population,
+
+        /// <summary>What the reactor made of it — the input to the review gate.</summary>
+        Decisions,
+    }
+
+    private const string Usage =
+        """
+        usage: kgsm-reactor --report    [--days N] [--ledger PATH]   what this host does
+               kgsm-reactor --decisions [--days N] [--ledger PATH]   what the reactor made of it
+        """;
 }

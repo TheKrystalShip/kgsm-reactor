@@ -7,6 +7,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-18
+
+The review that propose and act mode are gated behind, as something that can be performed.
+
+### Added
+
+- **`kgsm-reactor --decisions [--days N]`** — every judgment the reactor has reached, laid out to be
+  argued with. Five readings: what each rule concluded and the share that never fired; the busiest
+  rolling hour of fired decisions, which is what a ceiling has to tolerate; the gap between a rule's
+  repeat fires on one subject, which is what a suppression window is derived from; **the rules that
+  decided nothing at all**; and the decisions themselves, each carrying the journal position it was
+  derived from so disagreeing with a verdict is a lookup rather than an archaeology.
+  - Like the population report it **reports and does not recommend**. No window or ceiling is
+    suggested — a printed figure carries an authority the arithmetic behind it has not earned.
+  - An absent measurement is said out loud rather than rendered as a zero: one fire yields no repeat
+    spacing, and the report says a window derived from it would be derived from nothing.
+
 ## [0.4.0] - 2026-08-18
 
 A way to ask what it is doing right now.

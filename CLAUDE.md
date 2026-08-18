@@ -23,6 +23,9 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 
 # The population report, off the live ledger. Needs nothing stopped.
 /opt/kgsm-reactor/kgsm-reactor --report --days 7
+
+# The decision review — what the reactor MADE of it. The gate before any action mode.
+/opt/kgsm-reactor/kgsm-reactor --decisions --days 7
 ```
 
 ## Deploying
