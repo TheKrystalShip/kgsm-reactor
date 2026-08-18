@@ -7,6 +7,46 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-18
+
+The judging half. Rules evaluate and record; nothing is dispatched, and that is how a rule earns the
+right to act rather than a stage on the way to it.
+
+### Added
+
+- **A rule table, shipped in code.** Three rules, each having answered the seven questions in
+  `kgsm-reactor-plan.md` §P2: `give_up_backup` (edge), `update_regression` (edge + correlation) and
+  `threshold_stuck` (state). Configuration enables a rule, sets its mode and tunes its windows; it
+  cannot invent one.
+- **A three-valued `Verdict`** — holds, does not hold, or no judgment could be formed. The third
+  value is the point: "cannot tell" must not be able to masquerade as "no", which would be silence,
+  or as "yes", which would be acting blind.
+- **A closed `ReactorAction` union**, so the never-list is enforced by the type system rather than by
+  the discretion of whoever writes the next rule.
+- **The `decisions` table.** Every evaluation is recorded with its reason, including the ones that
+  decided not to act — those are the data the windows and the ceiling are tuned from. Each row
+  carries the journal position it came from, so a decision being derived rather than a record is a
+  column rather than a promise.
+- **The gate**: settle window, suppression per (rule, subject), a host-wide hourly ceiling, and
+  composition by severity — with one carve-out, that a purely additive action competes with nothing,
+  because a regression wants the broken state preserved *and* the rollback offered.
+- **Run state read from the supervisor** before every judgment. An event says what happened; only a
+  read says what is true now, and an unreachable watchdog reads as "cannot tell" rather than as a
+  condition that resolved itself.
+- 26 further tests, 82 in total.
+
+### Notes
+
+- ⚠ **Every window and ceiling is a placeholder** until the population report has a week behind it.
+  They are wired now so the gate's outcomes are recorded from the start, which turns "is 30 minutes
+  the right window" from an opinion into a query.
+- ⚠ **Propose and act are unbuilt.** A rule configured into either is clamped to observe and said out
+  loud, because an operator who believes the host is acting when it is not is worse off than one who
+  was refused.
+- ⚠ `give_up_backup` cannot leave observe until a backup manifest records why an archive was taken
+  and whether it may be pruned, and `update_regression` cannot name its target for the same reason.
+
+
 ### Fixed — a first setup on a host where nothing is installed yet completes
 
 `deploy/setup.sh` enables its unit at boot and starts it only when something exists at the unit's
@@ -53,5 +93,6 @@ The observing half — the leaf runs, watches and records. It decides nothing an
   of those out of this leaf's own journal, bounded by a stamp taken before the service starts.
 - 56 tests, hermetic.
 
-[Unreleased]: https://github.com/TheKrystalShip/kgsm-reactor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/TheKrystalShip/kgsm-reactor/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/TheKrystalShip/kgsm-reactor/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TheKrystalShip/kgsm-reactor/releases/tag/v0.1.0

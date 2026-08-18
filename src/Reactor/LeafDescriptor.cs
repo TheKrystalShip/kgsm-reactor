@@ -9,12 +9,14 @@ using TheKrystalShip.KGSM.LeafConfig;
     id: "reactor",
     displayName: "Reactor",
     unit: "kgsm-reactor.service",
-    role: "Watches every component's event journal and records what happened, so the conditions worth "
-        + "acting on are derived from what this host actually does rather than guessed at.")]
+    role: "Watches every component's event journal, judges what it sees against a table of rules, and "
+        + "records what it would do about it. Every rule observes and dispatches nothing, which is how "
+        + "one earns the right to act.")]
 
 [assembly: LeafGroup("general", "General", 1)]
 [assembly: LeafGroup("wiring", "Connections", 2)]
 [assembly: LeafGroup("retention", "Observations", 3)]
+[assembly: LeafGroup("rules", "Rules", 4)]
 
 // Lowest precedence first — the same order the daemon resolves them in.
 [assembly: LeafFloorSource("appsettings", "/opt/kgsm-reactor/kgsm-reactor.settings.json")]

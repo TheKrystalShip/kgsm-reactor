@@ -210,11 +210,23 @@ internal sealed class ObservationLedger : IDisposable
         }
     }
 
-    private void Execute(string sql)
+    /// <summary>
+    /// Runs a statement under the same lock every other access takes.
+    /// </summary>
+    /// <remarks>
+    /// Internal so the decision store can own its own table and its own SQL while sharing this
+    /// connection. One connection rather than two: the gate's questions cross both tables, and two
+    /// connections to one file is how a reader comes to see a half-written view of them.
+    /// </remarks>
+    internal void Execute(string sql, Action<SqliteCommand>? bind = null)
     {
-        using SqliteCommand command = _connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
+        lock (_gate)
+        {
+            using SqliteCommand command = _connection.CreateCommand();
+            command.CommandText = sql;
+            bind?.Invoke(command);
+            command.ExecuteNonQuery();
+        }
     }
 
     public void Dispose()

@@ -1,3 +1,5 @@
+using TheKrystalShip.Kgsm.Reactor.Rules;
+
 namespace TheKrystalShip.Kgsm.Reactor;
 
 /// <summary>
@@ -26,6 +28,18 @@ internal sealed record ReactorOptions
     /// <summary>The default commit interval.</summary>
     public const int DefaultFlushIntervalSeconds = 5;
 
+    /// <summary>The shortest sweep. Below this the engine spends more time waking than judging.</summary>
+    public const int MinSweepIntervalSeconds = 5;
+
+    /// <summary>How often rules are evaluated by default.</summary>
+    public const int DefaultSweepIntervalSeconds = 30;
+
+    /// <summary>⚠ PLACEHOLDER — derived from the population report, not chosen.</summary>
+    public const int DefaultSuppressionWindowMinutes = 30;
+
+    /// <summary>⚠ PLACEHOLDER — derived from the population report, not chosen.</summary>
+    public const int DefaultMaxActionsPerHour = 4;
+
     /// <summary>The environment variable systemd exports from <c>StateDirectory=</c>.</summary>
     private const string StateDirectoryVariable = "STATE_DIRECTORY";
 
@@ -45,6 +59,19 @@ internal sealed record ReactorOptions
     public required string LedgerPath { get; init; }
     public required int RetentionDays { get; init; }
     public required int FlushIntervalSeconds { get; init; }
+    public required string WatchdogSocketPath { get; init; }
+    public required int SweepIntervalSeconds { get; init; }
+    public required int SuppressionWindowMinutes { get; init; }
+    public required int MaxActionsPerHour { get; init; }
+
+    /// <summary>Rule ids by the mode each was configured in.</summary>
+    public required IReadOnlyDictionary<string, Rules.RuleMode> RuleModes { get; init; }
+
+    /// <summary>
+    /// The mode a rule runs in, or <see langword="null"/> when it is not enabled at all.
+    /// </summary>
+    public Rules.RuleMode? ModeFor(string ruleId) =>
+        RuleModes.TryGetValue(ruleId, out Rules.RuleMode mode) ? mode : null;
 
     public static ReactorOptions FromSettings(ReactorSettings settings)
     {
@@ -64,8 +91,49 @@ internal sealed record ReactorOptions
             RetentionDays = AtLeast(settings.RetentionDays ?? DefaultRetentionDays, MinRetentionDays),
             FlushIntervalSeconds =
                 AtLeast(settings.FlushIntervalSeconds ?? DefaultFlushIntervalSeconds, MinFlushIntervalSeconds),
+            WatchdogSocketPath = Blank(settings.WatchdogSocketPath)
+                ? "/run/kgsm-watchdog/control.sock"
+                : settings.WatchdogSocketPath.Trim(),
+            SweepIntervalSeconds =
+                AtLeast(settings.SweepIntervalSeconds ?? DefaultSweepIntervalSeconds, MinSweepIntervalSeconds),
+            SuppressionWindowMinutes =
+                AtLeast(settings.SuppressionWindowMinutes ?? DefaultSuppressionWindowMinutes, 0),
+            MaxActionsPerHour = AtLeast(settings.MaxActionsPerHour ?? DefaultMaxActionsPerHour, 0),
+            RuleModes = ResolveModes(settings),
         };
     }
+
+    /// <summary>
+    /// Which rules are enabled, and in which mode.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A rule named in more than one list gets the safest of them.</b> Two lists disagreeing is a
+    /// configuration mistake, and the only safe way to resolve one is downwards — an operator who
+    /// meant to grant more authority will notice that nothing acted, where one who meant to grant less
+    /// would not notice that something did.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, RuleMode> ResolveModes(ReactorSettings settings)
+    {
+        Dictionary<string, RuleMode> modes = new(StringComparer.OrdinalIgnoreCase);
+
+        // Written most-permissive first, so the safer assignment below always wins on a collision.
+        foreach ((string list, RuleMode mode) in new[]
+                 {
+                     (settings.RulesAct, RuleMode.Act),
+                     (settings.RulesPropose, RuleMode.Propose),
+                     (settings.RulesObserve, RuleMode.Observe),
+                 })
+        {
+            foreach (string id in Split(list))
+                modes[id] = mode;
+        }
+
+        return modes;
+    }
+
+    private static IEnumerable<string> Split(string? csv) =>
+        (csv ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>
     /// Where the ledger lives: what was configured, else the directory systemd made for this service.

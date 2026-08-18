@@ -4,9 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
+using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Extensions;
@@ -69,6 +71,11 @@ internal sealed class Program
         // is misconfigured fails at startup rather than at the moment it matters.
         builder.Services.AddKgsmServices(options.KgsmPath);
 
+        // The supervisor, which owns the answer to "is this actually running". Every rule re-derives
+        // from it rather than trusting the event that woke it — an event says what happened, and only
+        // a read says what is true now.
+        builder.Services.AddKgsmWatchdogClient(options.WatchdogSocketPath);
+
         // Every producer's journal behind one IEventSource, read from the TAIL with NO cursor.
         //
         // ⚠ Both halves of that are deliberate and neither is a default worth changing casually.
@@ -101,9 +108,23 @@ internal sealed class Program
         // producing a daemon that reports itself up and records nothing.
         builder.Services.AddSingleton(_ => new ObservationLedger(options.LedgerPath));
 
+        // One connection, two tables. The gate's questions cross both — "has this rule fired for this
+        // subject lately" is a decisions query and "since when has the condition held" is an
+        // observations one — and answering them through two connections is how a reader comes to see a
+        // half-written view of one file.
+        builder.Services.AddSingleton<DecisionStore>();
+        builder.Services.AddSingleton<IWorldView, WatchdogWorldView>();
+        builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
+
         builder.Services.AddHostedService<EventIngestService>();
+        builder.Services.AddHostedService<RuleEngine>();
 
         IHost host = builder.Build();
+
+        // Before anything evaluates. The table is created here rather than lazily so a permission
+        // problem on the ledger fails the start, where a first decision hours later would fail
+        // quietly and look like a host with nothing to decide about.
+        host.Services.GetRequiredService<DecisionStore>().Initialize();
 
         // The last thing this daemon says. A consumer reading it knows the reactor went away because
         // somebody stopped it, rather than because it died while watching.

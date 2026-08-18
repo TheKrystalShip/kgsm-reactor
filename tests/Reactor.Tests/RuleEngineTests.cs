@@ -1,0 +1,381 @@
+using System.Text.Json;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+using TheKrystalShip.Kgsm.Reactor.Engine;
+using TheKrystalShip.Kgsm.Reactor.Ledger;
+using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.KGSM.Core.Interfaces;
+using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Events;
+
+namespace TheKrystalShip.Kgsm.Reactor.Tests;
+
+/// <summary>
+/// The gate, and what it records.
+/// </summary>
+/// <remarks>
+/// These are the behaviours that decide whether the observing phase produces data worth tuning
+/// against. A gate that silently collapsed "cannot tell" into "settled", or that suppressed a rule
+/// against its own open episode, would still look like it was working — the ledger would simply be
+/// full of decisions nobody could trust.
+/// </remarks>
+public class RuleEngineTests : IDisposable
+{
+    private readonly string _path = Path.Combine(
+        Path.GetTempPath(), $"kgsm-reactor-engine-{Guid.NewGuid():N}.db");
+
+    private static readonly DateTimeOffset Now = new(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>An event service that replays to whoever registered.</summary>
+    private sealed class FakeEvents : IEventService
+    {
+        private readonly List<Func<EventWrapper, EventPosition, Task>> _raw = [];
+
+        public void Initialize() { }
+
+        public void Initialize(EventStartPosition startPosition) { }
+
+        public void RegisterHandler<T>(Func<T, Task> handler) where T : KgsmEventDataBase { }
+
+        public void RegisterRawHandler(Func<EventWrapper, EventPosition, Task> handler) => _raw.Add(handler);
+
+        public void RegisterGapHandler(Func<EventJournalGap, Task> handler) { }
+
+        public bool HasRawHandler => _raw.Count > 0;
+
+        public async Task EmitAsync(EventWrapper wrapper, EventPosition position)
+        {
+            foreach (var handler in _raw)
+                await handler(wrapper, position);
+        }
+
+        public void Dispose() => GC.SuppressFinalize(this);
+
+        public ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>A world that answers whatever the test says, including refusing to answer.</summary>
+    private sealed class FakeWorld : IWorldView
+    {
+        public Reading<InstanceRunState> Answer { get; set; } =
+            Reading<InstanceRunState>.Measured(new InstanceRunState("failed", true, 5));
+
+        public ValueTask<Reading<InstanceRunState>> InstanceAsync(string instance, CancellationToken token) =>
+            ValueTask.FromResult(Answer);
+    }
+
+    private static EventWrapper Failed(string instance) => new()
+    {
+        EventType = "instance_failed",
+        Data = JsonDocument.Parse($$"""{"InstanceName":"{{instance}}","ExitCode":"137","Restarts":"5"}""").RootElement,
+        Timestamp = Now,
+        Actor = "system:watchdog",
+        Origin = "system",
+    };
+
+    private ObservationLedger OpenLedger()
+    {
+        var ledger = new ObservationLedger(_path);
+        new DecisionStore(ledger).Initialize();
+        return ledger;
+    }
+
+    private static ReactorOptions Options(
+        string observe = "give_up_backup", int suppressionMinutes = 30, int ceiling = 4) =>
+        ReactorOptions.FromSettings(new ReactorSettings
+        {
+            RulesObserve = observe,
+            SuppressionWindowMinutes = suppressionMinutes,
+            MaxActionsPerHour = ceiling,
+            LedgerPath = "/unused",
+        });
+
+    private static RuleEngine Build(
+        FakeEvents events, ObservationLedger ledger, IWorldView world, ReactorOptions options,
+        FakeTimeProvider clock) =>
+        new(events, ledger, new DecisionStore(ledger), world, new LedgerRuleHistory(ledger),
+            Microsoft.Extensions.Options.Options.Create(options), clock,
+            NullLogger<RuleEngine>.Instance);
+
+    /// <summary>A clock the test moves by hand.</summary>
+    private sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset _now = now;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan by) => _now += by;
+    }
+
+    private static List<Decision> Decisions(ObservationLedger ledger) =>
+        [.. new DecisionStore(ledger).Since(DateTimeOffset.MinValue)];
+
+    /// <summary>Wakes a rule and evaluates it, without waiting on a real timer.</summary>
+    private static async Task WakeAndSweepAsync(
+        RuleEngine engine, FakeEvents events, FakeTimeProvider clock, EventWrapper wrapper,
+        EventPosition position, TimeSpan settle)
+    {
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+        await events.EmitAsync(wrapper, position);
+        clock.Advance(settle);
+        await engine.SweepAsync(CancellationToken.None);
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        // ⚠ BackgroundService.StartAsync returning does not mean ExecuteAsync has begun — a test that
+        // emits immediately can reach an engine that has not registered yet.
+        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition())
+                return;
+            await Task.Delay(5);
+        }
+
+        Assert.Fail("the rule engine did not start within 10s");
+    }
+
+    [Fact]
+    public async Task A_give_up_that_is_still_failed_after_the_settle_window_fires()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal("give_up_backup", decision.RuleId);
+        Assert.Equal("Ketchup", decision.Subject);
+        Assert.Equal(DecisionOutcome.Fired, decision.Outcome);
+        // Nothing is dispatched in this build, and the record says so rather than leaving it inferred.
+        Assert.Equal(ActionState.None, decision.ActionState);
+        Assert.Equal(RuleMode.Observe, decision.Mode);
+        Assert.Contains("pinned backup", decision.Action);
+    }
+
+    [Fact]
+    public async Task A_failure_the_operator_already_restarted_settles_instead_of_firing()
+    {
+        // The whole point of the settle window: somebody saw the alert and acted, so there is nothing
+        // to decide — and a backup taken over an instance coming back up would be a hot archive where
+        // a cold one was intended.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var world = new FakeWorld
+        {
+            Answer = Reading<InstanceRunState>.Measured(new InstanceRunState("running", true, 0)),
+        };
+        var engine = Build(events, ledger, world, Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal(DecisionOutcome.Settled, decision.Outcome);
+        Assert.Contains("no longer given up on", decision.Reason);
+    }
+
+    [Fact]
+    public async Task An_unreadable_world_is_recorded_as_unreadable_and_never_as_settled()
+    {
+        // The distinction invariant 5 exists for. Collapsed into Settled, a supervisor that could not
+        // be reached would read back as a condition that resolved itself — silence dressed as a
+        // decision, and indistinguishable from it forever after.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var world = new FakeWorld
+        {
+            Answer = Reading<InstanceRunState>.Unavailable("the supervisor could not be reached"),
+        };
+        var engine = Build(events, ledger, world, Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal(DecisionOutcome.Unreadable, decision.Outcome);
+        Assert.Contains("could not be read", decision.Reason);
+    }
+
+    [Fact]
+    public async Task A_second_failure_inside_the_window_is_suppressed()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 30), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+
+        // A different episode — a second give-up ten minutes later, at a different journal position.
+        clock.Advance(TimeSpan.FromMinutes(10));
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 900));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        List<Decision> decisions = Decisions(ledger);
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(1, decisions.Count(d => d.Outcome == DecisionOutcome.Fired));
+        Decision suppressed = Assert.Single(decisions, d => d.Outcome == DecisionOutcome.Suppressed);
+        Assert.Contains("inside the 30m window", suppressed.Reason);
+    }
+
+    [Fact]
+    public async Task A_rule_does_not_suppress_itself_against_its_own_open_episode()
+    {
+        // The window exists to stop the NEXT occurrence being announced as news, not to stop this one
+        // being refined. Keyed without excluding the episode, the second sweep over one still-open
+        // condition would suppress the decision that was already standing.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 30), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+
+        // Same position, so the same episode: re-woken and re-evaluated.
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        // One decision, still fired — refined rather than duplicated or suppressed.
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal(DecisionOutcome.Fired, decision.Outcome);
+    }
+
+    [Fact]
+    public async Task The_host_ceiling_stops_a_storm()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        // No suppression, so the ceiling is the only thing that can stop the second decision.
+        var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 0, ceiling: 1), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+
+        foreach ((string instance, long offset) in new[] { ("alpha", 10L), ("beta", 900L) })
+        {
+            await events.EmitAsync(Failed(instance), new EventPosition("kgsm-watchdog", "s.ndjson", offset));
+            clock.Advance(TimeSpan.FromMinutes(2));
+            await engine.SweepAsync(CancellationToken.None);
+        }
+
+        await engine.StopAsync(CancellationToken.None);
+
+        List<Decision> decisions = Decisions(ledger);
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(1, decisions.Count(d => d.Outcome == DecisionOutcome.Fired));
+        Decision ceilinged = Assert.Single(decisions, d => d.Outcome == DecisionOutcome.Ceilinged);
+        Assert.Contains("ceiling of 1", ceilinged.Reason);
+    }
+
+    [Fact]
+    public async Task An_additive_action_is_never_superseded()
+    {
+        // The carve-out. A regression wants the broken state preserved AND the rollback offered, so a
+        // backup must not lose to the proposal beside it — both rules key on the same failure at the
+        // same journal position, which is the same episode.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(
+            events, ledger, new FakeWorld(),
+            Options(observe: "give_up_backup,update_regression", suppressionMinutes: 0), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        List<Decision> decisions = Decisions(ledger);
+        Decision backup = Assert.Single(decisions, d => d.RuleId == "give_up_backup");
+        Assert.Equal(DecisionOutcome.Fired, backup.Outcome);
+
+        // update_regression does not hold here — no update preceded this failure — so it settles
+        // rather than competing. What matters is that the backup fired regardless.
+        Decision regression = Assert.Single(decisions, d => d.RuleId == "update_regression");
+        Assert.Equal(DecisionOutcome.Settled, regression.Outcome);
+    }
+
+    [Fact]
+    public async Task A_rule_that_is_enabled_nowhere_never_runs()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(observe: "threshold_stuck"), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Empty(Decisions(ledger));
+    }
+
+    [Fact]
+    public async Task The_decision_carries_the_journal_line_it_came_from()
+    {
+        // Invariant 1 as a column: a decision is derived, and anything reading one later must be able
+        // to go and read the line it was made from rather than trust this leaf's description of it.
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "2026-08-18.ndjson", 4096), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal("kgsm-watchdog", decision.Source.Producer);
+        Assert.Equal("2026-08-18.ndjson", decision.Source.Segment);
+        Assert.Equal(4096, decision.Source.Offset);
+    }
+
+    public void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        foreach (string file in new[] { _path, _path + "-wal", _path + "-shm" })
+        {
+            try { File.Delete(file); } catch (IOException) { /* a temp file the OS still holds */ }
+        }
+    }
+}

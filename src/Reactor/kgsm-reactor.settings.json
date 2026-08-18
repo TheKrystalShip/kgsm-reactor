@@ -40,7 +40,37 @@
     // How often buffered observations are committed, in seconds. They are batched rather than
     // written one transaction per event: a busy evening is hundreds of player events an hour and
     // this daemon must not be why the host's disk is busy.
-    "FlushIntervalSeconds": 5
+    "FlushIntervalSeconds": 5,
+
+    // The watchdog's control socket. Every rule re-derives from the live world before deciding, and
+    // the supervisor is the authority on whether a native instance is running. Unreachable reads as
+    // "cannot tell" and stops the evaluation — never as "the condition does not hold".
+    "WatchdogSocketPath": "/run/kgsm-watchdog/control.sock",
+
+    // Which rules evaluate and record, dispatching nothing. The catalog ships in code; this decides
+    // which of it is live. A rule named in none of the three lists is off, and one named in more
+    // than one gets the SAFEST of them.
+    "RulesObserve": "give_up_backup,update_regression,threshold_stuck",
+
+    // Which rules may stage an action for a human to confirm. UNBUILT — a rule named here is
+    // clamped to observe, loudly, rather than silently doing nothing.
+    "RulesPropose": "",
+
+    // Which rules may perform their action. UNBUILT — clamped to observe, loudly.
+    "RulesAct": "",
+
+    // How often rules are evaluated, in seconds.
+    "SweepIntervalSeconds": 30,
+
+    // How long one rule stays quiet about one subject after firing, in minutes.
+    // ⚠ PLACEHOLDER until the population report has a week behind it: this should be derived from
+    // the measured spacing between repeat events per subject, not chosen.
+    "SuppressionWindowMinutes": 30,
+
+    // The most decisions that may fire host-wide in a rolling hour. Zero disables the ceiling.
+    // ⚠ PLACEHOLDER, and the one figure already measured argues against guessing — a single
+    // `kgsm install` produced 22 events in one minute.
+    "MaxActionsPerHour": 4
   },
 
   "Logging": {

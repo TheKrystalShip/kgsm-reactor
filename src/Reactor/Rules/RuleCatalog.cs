@@ -1,0 +1,214 @@
+namespace TheKrystalShip.Kgsm.Reactor.Rules;
+
+/// <summary>
+/// Every rule this build ships, and nothing else.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Three, and each survived the seven questions in <c>kgsm-reactor-plan.md</c> §P2: which events
+/// exactly and what their fields hold here, what the false-positive shape is, what a human does
+/// today, who owns the action, whether it is reversible, what happens if it fires for every instance
+/// at once, and how long the condition must persist to be real.
+/// </para>
+/// <para>
+/// <b>The rejections are the more useful half of that exercise</b> and are recorded in the plan, each
+/// against the question it failed — a rule that restated a fact the give-up already carried, two that
+/// reached into what the watchdog and the firewall own, and one whose false positive is visible to
+/// players.
+/// </para>
+/// <para>
+/// ⚠ <b>Every window here is a placeholder</b> until the population report has a week behind it.
+/// They are labelled as such individually. A number chosen before the measurement is a guess wearing
+/// a default's clothing, and the one figure already measured — a single <c>kgsm install</c> producing
+/// 22 events in one minute — says intuition is not to be trusted on this host.
+/// </para>
+/// </remarks>
+internal static class RuleCatalog
+{
+    /// <summary>
+    /// How long a failure is left alone before it is judged.
+    /// </summary>
+    /// <remarks>
+    /// PLACEHOLDER, pending the population report. It is doing real work meanwhile: an operator who
+    /// sees the alert and restarts the server within the window makes the rule settle rather than
+    /// fire, which is the correct outcome — they have decided, and a backup taken over an instance
+    /// that is coming back up is a hot archive mislabelled as the cold one it would have been.
+    /// </remarks>
+    private static readonly TimeSpan FailureSettle = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// How soon after an update a failure is still that update's fault.
+    /// </summary>
+    /// <remarks>PLACEHOLDER, pending the population report's update→failure spacing.</remarks>
+    private static readonly TimeSpan RegressionWindow = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// The fewest closed episodes that count as a distribution.
+    /// </summary>
+    /// <remarks>
+    /// Below this, <c>threshold_stuck</c> answers <see cref="VerdictKind.Unreadable"/> rather than
+    /// comparing against a percentile drawn from a handful of samples. "I do not have enough history
+    /// to say" is a true statement; a p95 over three episodes is not.
+    /// </remarks>
+    private const int MinimumEpisodeSamples = 5;
+
+    /// <summary>How far back a rule may look. Bounded by the ledger's own retention regardless.</summary>
+    private static readonly TimeSpan LookBack = TimeSpan.FromDays(30);
+
+    public static IReadOnlyList<Rule> All { get; } =
+    [
+        GiveUpBackup(),
+        UpdateRegression(),
+        ThresholdStuck(),
+    ];
+
+    public static Rule? ById(string id) =>
+        All.FirstOrDefault(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The supervisor gave up on an instance — capture what it died as, before anybody debugs it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this is the first rule allowed to act.</b> It only ever <em>creates</em>: a false
+    /// positive costs disk, never a running server, which is the property that should decide what
+    /// acts first rather than which rule is most valuable.
+    /// </para>
+    /// <para>
+    /// <b>Q4, ownership.</b> The scheduler owns <em>scheduled</em> backups; an event-triggered one is
+    /// nobody's today. The watchdog is finished with the instance by the time this fires — a give-up
+    /// is a persisted latch and nothing on a timer leaves it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Q6, blast radius, and the number is real.</b> The largest backup on this host is 4.5 GB.
+    /// A host OOM takes every instance down at once, so pinned-forever archives across a fleet fill
+    /// the disk — and a full disk takes the fleet down, which is worse than the problem being solved.
+    /// The cap and the free-space precondition belong with the dispatch at P5; in observe mode there
+    /// is nothing yet to bound.
+    /// </para>
+    /// </remarks>
+    private static Rule GiveUpBackup() => new(
+        Id: "give_up_backup",
+        Shape: RuleShape.Edge,
+        Wakes: ["instance_failed"],
+        Severity: Severity.Danger,
+        Settle: FailureSettle,
+        Holds: async (ctx, token) =>
+        {
+            var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
+            if (reading.State != KGSM.Core.Models.ReadingState.Measured)
+                return Verdict.Unreadable($"the supervisor could not be read: {reading.Reason ?? "no reason given"}");
+
+            InstanceRunState state = reading.Value;
+
+            // Re-asserted here rather than trusted from the event, and the settle window is exactly
+            // the gap this closes: an operator start clears the give-up latch at any moment, and a
+            // backup taken over an instance that is coming back up is a hot archive where a cold one
+            // was intended — no error, just a quieter and worse result.
+            return state.GaveUp
+                ? Verdict.Holds($"still given up on after {(int)FailureSettle.TotalSeconds}s ({state.Restarts} consecutive failures)")
+                : Verdict.DoesNotHold($"no longer given up on — the supervisor reports {state.Phase}");
+        },
+        Action: instance => new ReactorAction.CreateBackup(instance));
+
+    /// <summary>
+    /// An instance that failed shortly after an update — offer the archive taken before it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A judgment nothing else on this host makes. The engine records the update and the supervisor
+    /// records the failure; nobody joins them, and the join is the whole answer at three in the
+    /// morning.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Proposes, never acts.</b> A restore overwrites live state, which puts it permanently on
+    /// the wrong side of "reversible".
+    /// </para>
+    /// </remarks>
+    private static Rule UpdateRegression() => new(
+        Id: "update_regression",
+        Shape: RuleShape.Edge,
+        Wakes: ["instance_failed", "instance_crashed"],
+        Severity: Severity.Danger,
+        Settle: FailureSettle,
+        Holds: async (ctx, token) =>
+        {
+            HistoryEvent? update = ctx.History.LastOccurrence(
+                "instance_update_finished", ctx.Subject, ctx.Now - RegressionWindow);
+
+            if (update is null)
+                return Verdict.DoesNotHold(
+                    $"no update finished on {ctx.Subject} in the last {(int)RegressionWindow.TotalMinutes} minutes");
+
+            var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
+            if (reading.State != KGSM.Core.Models.ReadingState.Measured)
+                return Verdict.Unreadable($"the supervisor could not be read: {reading.Reason ?? "no reason given"}");
+
+            if (reading.Value.Running)
+                return Verdict.DoesNotHold("it is running again");
+
+            var since = ctx.Now - update.Value.OccurredAt;
+            return Verdict.Holds(
+                $"failed {(int)since.TotalMinutes}m after an update finished, and is not running");
+        },
+        Action: instance => new ReactorAction.ProposeRestore(instance));
+
+    /// <summary>
+    /// A threshold episode open far longer than episodes of its kind usually last on this host.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The rule that could not exist without the ledger.</b> The monitor reports breached and
+    /// cleared; kgsm-api alerts on breached. Neither knows what normal is <em>here</em> — this reads
+    /// the distribution of episodes that already closed and speaks only when one is well outside it.
+    /// </para>
+    /// <para>
+    /// <b>State-shaped, so it cannot be missed.</b> It rediscovers open episodes from the ledger on
+    /// every sweep instead of depending on having seen the breach go by.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>The reading that would retire it:</b> if episode durations here turn out to vary wildly,
+    /// there is no "unusually long" to detect and this is noise. It stays in observe until the
+    /// population report says otherwise.
+    /// </para>
+    /// </remarks>
+    private static Rule ThresholdStuck() => new(
+        Id: "threshold_stuck",
+        Shape: RuleShape.State,
+        Wakes: ["host_threshold_breached"],
+        Severity: Severity.Warning,
+        Settle: TimeSpan.Zero,
+        Subjects: (history, _) =>
+        {
+            IReadOnlyList<OpenEpisode> open = history.OpenEpisodes(
+                "host_threshold_breached", "host_threshold_cleared", DateTimeOffset.UtcNow - LookBack);
+            return ValueTask.FromResult<IReadOnlyList<string>>([.. open.Select(e => e.Subject)]);
+        },
+        Holds: (ctx, _) =>
+        {
+            IReadOnlyList<OpenEpisode> open = ctx.History.OpenEpisodes(
+                "host_threshold_breached", "host_threshold_cleared", ctx.Now - LookBack);
+
+            OpenEpisode episode = open.FirstOrDefault(e => e.Subject == ctx.Subject);
+            if (episode.Subject is null)
+                return ValueTask.FromResult(Verdict.DoesNotHold("no episode is open"));
+
+            (TimeSpan p95, int samples) = ctx.History.EpisodeDuration(
+                "host_threshold_breached", "host_threshold_cleared", ctx.Subject, ctx.Now - LookBack);
+
+            if (samples < MinimumEpisodeSamples)
+                return ValueTask.FromResult(Verdict.Unreadable(
+                    $"only {samples} closed episode(s) on record for {ctx.Subject} — too few to say what unusual is"));
+
+            TimeSpan openFor = ctx.Now - episode.OpenedAt;
+            return ValueTask.FromResult(openFor > p95
+                ? Verdict.Holds(
+                    $"open for {Format(openFor)}, past the p95 of {Format(p95)} over {samples} closed episodes")
+                : Verdict.DoesNotHold(
+                    $"open for {Format(openFor)}, within the p95 of {Format(p95)}"));
+        },
+        Action: _ => new ReactorAction.Nothing());
+
+    private static string Format(TimeSpan span) =>
+        span.TotalMinutes < 90 ? $"{span.TotalMinutes:F0}m" : $"{span.TotalHours:F1}h";
+}

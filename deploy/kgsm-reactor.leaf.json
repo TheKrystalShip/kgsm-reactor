@@ -3,7 +3,7 @@
   "id": "reactor",
   "displayName": "Reactor",
   "unit": "kgsm-reactor.service",
-  "role": "Watches every component's event journal and records what happened, so the conditions worth acting on are derived from what this host actually does rather than guessed at.",
+  "role": "Watches every component's event journal, judges what it sees against a table of rules, and records what it would do about it. Every rule observes and dispatches nothing, which is how one earns the right to act.",
   "onDemand": false,
   "applyMode": "restart",
   "floorSources": [
@@ -35,6 +35,11 @@
       "id": "retention",
       "label": "Observations",
       "order": 3
+    },
+    {
+      "id": "rules",
+      "label": "Rules",
+      "order": 4
     }
   ],
   "fields": [
@@ -107,6 +112,16 @@
       "risk": "wiring"
     },
     {
+      "key": "watchdogSocket",
+      "env": "Reactor__WatchdogSocketPath",
+      "label": "Watchdog control socket",
+      "description": "The watchdog's control socket. The reactor asks it how a server actually stands before deciding anything, so this has to match the path the watchdog listens on.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/run/kgsm-watchdog/control.sock",
+      "risk": "wiring"
+    },
+    {
       "key": "retentionDays",
       "env": "Reactor__RetentionDays",
       "label": "Keep observations for",
@@ -128,6 +143,69 @@
       "default": "5",
       "min": 1,
       "unit": "s",
+      "risk": "safe"
+    },
+    {
+      "key": "rulesObserve",
+      "env": "Reactor__RulesObserve",
+      "label": "Rules in observe",
+      "description": "Which rules are watching. They record what they would have done and change nothing, which is how a rule earns the right to act.",
+      "group": "rules",
+      "type": "csv",
+      "default": "give_up_backup,update_regression,threshold_stuck",
+      "risk": "safe"
+    },
+    {
+      "key": "rulesPropose",
+      "env": "Reactor__RulesPropose",
+      "label": "Rules in propose",
+      "description": "Which rules may propose an action for you to approve. Nothing happens without your confirmation.",
+      "group": "rules",
+      "type": "csv",
+      "risk": "safe"
+    },
+    {
+      "key": "rulesAct",
+      "env": "Reactor__RulesAct",
+      "label": "Rules in act",
+      "description": "Which rules may act on their own. Only put a rule here once you have read what it decided while it was only watching.",
+      "group": "rules",
+      "type": "csv",
+      "risk": "wiring"
+    },
+    {
+      "key": "sweepIntervalSec",
+      "env": "Reactor__SweepIntervalSeconds",
+      "label": "Evaluate rules every",
+      "description": "How often the reactor re-checks the conditions it is watching.",
+      "group": "rules",
+      "type": "int",
+      "default": "30",
+      "min": 5,
+      "unit": "s",
+      "risk": "safe"
+    },
+    {
+      "key": "suppressionWindowMin",
+      "env": "Reactor__SuppressionWindowMinutes",
+      "label": "Stay quiet for",
+      "description": "How long a rule stays quiet about the same server after it has spoken once. Too short and you hear the same thing repeatedly; too long and the second occurrence goes unmentioned.",
+      "group": "rules",
+      "type": "int",
+      "default": "30",
+      "min": 0,
+      "unit": "min",
+      "risk": "safe"
+    },
+    {
+      "key": "maxDecisionsPerHour",
+      "env": "Reactor__MaxActionsPerHour",
+      "label": "Decisions per hour",
+      "description": "The most the reactor may decide in an hour, across the whole host. A host that loses every server at once is one story, and this is what stops it becoming forty.",
+      "group": "rules",
+      "type": "int",
+      "default": "4",
+      "min": 0,
       "risk": "safe"
     }
   ]
