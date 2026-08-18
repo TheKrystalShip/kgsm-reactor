@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "id": "reactor",
+  "displayName": "Reactor",
+  "unit": "kgsm-reactor.service",
+  "role": "Watches every component's event journal and records what happened, so the conditions worth acting on are derived from what this host actually does rather than guessed at.",
+  "onDemand": false,
+  "applyMode": "restart",
+  "floorSources": [
+    {
+      "kind": "appsettings",
+      "path": "/opt/kgsm-reactor/kgsm-reactor.settings.json"
+    },
+    {
+      "kind": "systemd-unit",
+      "path": "/etc/kgsm-reactor/systemd/kgsm-reactor.service"
+    },
+    {
+      "kind": "env-file",
+      "path": "/etc/kgsm-reactor/kgsm-reactor.env"
+    }
+  ],
+  "groups": [
+    {
+      "id": "general",
+      "label": "General",
+      "order": 1
+    },
+    {
+      "id": "wiring",
+      "label": "Connections",
+      "order": 2
+    },
+    {
+      "id": "retention",
+      "label": "Observations",
+      "order": 3
+    }
+  ],
+  "fields": [
+    {
+      "key": "logLevel",
+      "env": "Logging__LogLevel__Default",
+      "label": "Log level",
+      "description": "Minimum severity this leaf logs.",
+      "group": "general",
+      "type": "enum",
+      "values": [
+        "Trace",
+        "Debug",
+        "Information",
+        "Warning",
+        "Error",
+        "Critical"
+      ],
+      "default": "Information",
+      "risk": "safe"
+    },
+    {
+      "key": "reactorEnabled",
+      "env": "Reactor__Enabled",
+      "label": "Observe events",
+      "description": "Whether the reactor watches the host's events at all. With this off it keeps running and records nothing, which is how you silence it without stopping the service.",
+      "group": "general",
+      "type": "bool",
+      "default": "true",
+      "risk": "safe"
+    },
+    {
+      "key": "kgsmPath",
+      "env": "Reactor__KgsmPath",
+      "label": "KGSM executable",
+      "description": "Path to the KGSM executable. The reactor re-reads the world through it before deciding anything, so it is checked at startup and the daemon refuses to run if nothing is there.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/usr/bin/kgsm",
+      "risk": "wiring"
+    },
+    {
+      "key": "journalDir",
+      "env": "Reactor__JournalDir",
+      "label": "Engine event journal",
+      "description": "Where the KGSM engine writes its event journal. Every other component's journal is found automatically; the engine's is the one that has to be named.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/var/lib/kgsm/events",
+      "risk": "wiring"
+    },
+    {
+      "key": "stateRoot",
+      "env": "Reactor__StateRoot",
+      "label": "Component state root",
+      "description": "Where the host keeps each KGSM component's state directory. The reactor scans it to find every component's event journal, so pointing it elsewhere makes the reactor deaf to everything except the engine.",
+      "group": "wiring",
+      "type": "path",
+      "default": "",
+      "risk": "wiring"
+    },
+    {
+      "key": "ledgerPath",
+      "env": "Reactor__LedgerPath",
+      "label": "Observation ledger",
+      "description": "The database file the reactor records what it saw in. Leave it blank to keep it in this service's own state directory, which is what a normal install wants.",
+      "group": "wiring",
+      "type": "path",
+      "default": "",
+      "risk": "wiring"
+    },
+    {
+      "key": "retentionDays",
+      "env": "Reactor__RetentionDays",
+      "label": "Keep observations for",
+      "description": "How long the reactor keeps what it observed. This is working data, not a record: every row restates something a component's own journal already holds, so shortening it loses nothing except how far back the reactor can measure its own thresholds.",
+      "group": "retention",
+      "type": "int",
+      "default": "30",
+      "min": 1,
+      "unit": "days",
+      "risk": "safe"
+    },
+    {
+      "key": "flushIntervalSec",
+      "env": "Reactor__FlushIntervalSeconds",
+      "label": "Commit observations every",
+      "description": "How often the reactor commits what it has seen. Longer means fewer, larger writes; the only thing at risk is the last few seconds of working data, never a record.",
+      "group": "retention",
+      "type": "int",
+      "default": "5",
+      "min": 1,
+      "unit": "s",
+      "risk": "safe"
+    }
+  ]
+}

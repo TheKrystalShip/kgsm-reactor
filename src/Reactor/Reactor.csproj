@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>TheKrystalShip.Kgsm.Reactor</RootNamespace>
+    <AssemblyName>kgsm-reactor</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Native AOT, like every other resident daemon leaf on this host. The reactor sits idle most
+         of the day on a box whose RAM is reserved for game servers, so it should cost as little as
+         one can. Nothing it does needs the exemption: the ledger is raw ADO SQLite (EF Core is what
+         is not AOT-safe), and journal reads and writes go through kgsm-lib, which is reflection-free
+         by construction. -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <Version>0.1.0</Version>
+
+    <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
+         generator works between; the attribute source, the documentation file the <panel> tags
+         travel in, and the build step all come with the package below. -->
+    <LeafSettingsFile>kgsm-reactor.settings.json</LeafSettingsFile>
+    <LeafDescriptorFile>$(MSBuildProjectDirectory)/../../deploy/kgsm-reactor.leaf.json</LeafDescriptorFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Build-only: the descriptor attributes arrive as source and the generator as a tool, and the
+         package declares no dependencies, so nothing here reaches the AOT publish. -->
+    <PackageReference Include="TheKrystalShip.KGSM.LeafConfig" Version="2.2.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <!-- 4.39.0 for AddKgsmJournalFederation (every producer's journal behind one IEventSource) and
+         IEventService.RegisterRawHandler (every envelope, known type or not — which is what lets
+         this leaf record an event no consumer has a type for yet). -->
+    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="4.39.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Raw ADO SQLite for the observation ledger. Microsoft.Data.Sqlite (NOT EF Core — EF is not
+         AOT-safe) bundles the e_sqlite3 native lib via SQLitePCLRaw.bundle_e_sqlite3, which the AOT
+         publish emits alongside the binary. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
+  </ItemGroup>
+
+  <!-- Scoped NuGet-audit suppression (NOT a blanket NuGetAudit=off): GHSA-2m69-gcr7-jv3q is an
+       advisory on the native SQLite lib pulled TRANSITIVELY by Microsoft.Data.Sqlite
+       (SQLitePCLRaw.lib.e_sqlite3), the latest published build of it, with no fixed version to move
+       to. Exposure is minimal: the ledger holds this host's own observations, on a trusted host, with
+       no untrusted SQL and no network database. DELETE this when a patched bundle ships. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Reactor.Tests" />
+  </ItemGroup>
+
+  <Target Name="SetSourceRevisionId" BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo;CoreCompile"
+          Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse --short=12 HEAD"
+          ConsoleToMSBuild="true" ContinueOnError="true" StandardErrorImportance="low" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitShortSha" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitExitCode" />
+    </Exec>
+    <PropertyGroup Condition="'$(_GitExitCode)' == '0' and '$(_GitShortSha)' != ''">
+      <SourceRevisionId>$(_GitShortSha)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,39 @@
+[Unit]
+Description=KGSM Reactor (event-triggered judgment leaf)
+After=network.target
+
+[Service]
+Type=exec
+User=kgsm
+Group=kgsm
+ExecStart=/opt/kgsm-reactor/kgsm-reactor
+# Start the daemon in its own install prefix so the process working directory is never "/". The
+# daemon pins its content root in code and does not depend on this, but a service left at "/" makes
+# any future default-rooted file provider walk the whole filesystem — which, for a provider that
+# watches (reloadOnChange), silently consumes one inotify watch per directory out of the same
+# per-user budget the game servers on this host draw from.
+WorkingDirectory=/opt/kgsm-reactor
+Restart=always
+RestartSec=5s
+EnvironmentFile=-/etc/kgsm-reactor/kgsm-reactor.env
+
+# systemd creates /var/lib/kgsm-reactor owned by this user, persistent across reboots. Two things
+# live there and both must survive a restart: this leaf's own event journal, and the observation
+# ledger every gate decision is made from.
+#
+# 0750 with Group=kgsm rather than 0700: a producer's journal is read by every other component on
+# the host, which may run as a different service account, and a directory cannot be entered without
+# execute on every directory above it. A state directory closed to the group hides the journal
+# inside it — and hides it silently, because a reader that cannot traverse in sees no journal rather
+# than a permission error, which is indistinguishable from a leaf that has recorded nothing.
+StateDirectory=kgsm-reactor
+StateDirectoryMode=0750
+
+# The reactor READS every producer's journal under /var/lib. It writes only its own state directory,
+# and it will eventually dispatch actions through kgsm — so the filesystem is left readable and the
+# process is denied the ability to gain privilege it did not start with.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,51 @@
+{
+  // === KGSM Reactor — configuration ===
+  //
+  // This file declares the daemon's WHOLE configurable surface, each key with its default. It is
+  // the floor; an environment variable overrides one key of it by spelling that key's path with
+  // "__" — Reactor__RetentionDays, Logging__LogLevel__Default. A variable naming a key that is not
+  // declared here binds to nothing.
+  //
+  // Every key below maps 1:1 onto a property of ReactorSettings, which the daemon binds in one
+  // step. A test fails the build if the two ever disagree, in either direction.
+
+  "Reactor": {
+    // Whether the reactor observes at all. False leaves the daemon running and recording nothing,
+    // which is how to silence it without stopping the service — and it still reports leaf_ready,
+    // so a host can tell "deliberately quiet" from "broken".
+    "Enabled": true,
+
+    // Path to the KGSM executable. Nothing in the observing half calls it; re-reading the world
+    // before deciding anything does. Checked at startup so a host where this is wrong fails now
+    // rather than at the moment it matters.
+    "KgsmPath": "/usr/bin/kgsm",
+
+    // Where the engine's own event journal lives. Every other producer's journal is discovered by
+    // scanning state directories; the engine's is the one that has to be named.
+    "JournalDir": "/var/lib/kgsm/events",
+
+    // Where each producer's state directory lives, each holding its journal in an "events"
+    // subdirectory. Blank uses the ecosystem default (/var/lib).
+    "StateRoot": "",
+
+    // The observation ledger. Blank resolves to reactor.db inside the systemd state directory
+    // ($STATE_DIRECTORY, /var/lib/kgsm-reactor), which is where it belongs on a real host.
+    "LedgerPath": "",
+
+    // How long an observation is kept, in days. The ledger is DERIVED — every row restates a line
+    // still held in some producer's own journal — so pruning it loses no record. What it costs is
+    // how far back the reactor can measure its own windows.
+    "RetentionDays": 30,
+
+    // How often buffered observations are committed, in seconds. They are batched rather than
+    // written one transaction per event: a busy evening is hundreds of player events an hour and
+    // this daemon must not be why the host's disk is busy.
+    "FlushIntervalSeconds": 5
+  },
+
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information"
+    }
+  }
+}

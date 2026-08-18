@@ -1,0 +1,33 @@
+{
+  "project": "kgsm-reactor",
+  "leafId": "reactor",
+  "role": "leaf",
+  "runtime": {
+    "kind": "native-aot",
+    "note": "A single native binary. The host needs no .NET runtime. SQLite is bundled: Microsoft.Data.Sqlite carries the e_sqlite3 native lib, which the AOT publish emits beside the binary."
+  },
+  "commands": [
+    { "name": "kgsm", "package": "kgsm", "required": true, "probe": "kgsm --version", "why": "the reactor re-reads the world through kgsm-lib before deciding whether a condition still holds" },
+
+    { "name": "python3", "package": "python", "required": false, "probe": "python3 --version", "why": "deploy.sh's health probe reads the leaf_ready line out of this leaf's own journal, which bash parses badly", "without": "the probe degrades to `systemctl is-active` and says so rather than claiming a stronger check" }
+  ],
+  "services": [
+    { "name": "kgsm-watchdog.service", "required": false, "why": "the watchdog is the producer of the crash, give-up and player events the reactor exists to observe", "without": "the reactor observes every other producer and simply never sees a fault, because nothing is emitting one" },
+
+    { "name": "kgsm-monitor.service", "required": false, "why": "produces the host_threshold_* episodes", "without": "no threshold observation is recorded — the reactor cannot measure a condition nobody reports" }
+  ],
+  "system": [
+    { "feature": "journal-readable", "required": true, "probe": "test -x /var/lib/kgsm/events", "why": "the reactor reads every producer's event journal, and a directory cannot be entered without execute on every directory above it", "note": "each producer's StateDirectoryMode is 0750 with Group=kgsm, so the reactor's service account has to be in that group." }
+  ],
+  "units": {
+    "system": ["kgsm-reactor.service"],
+    "user": []
+  },
+  "paths": {
+    "prefix": "/opt/kgsm-reactor",
+    "state": ["/var/lib/kgsm-reactor"],
+    "runtime": [],
+    "config": ["/etc/kgsm-reactor/kgsm-reactor.env"],
+    "descriptor": "/var/lib/kgsm/leaves/reactor.json"
+  }
+}
