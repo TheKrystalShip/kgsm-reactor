@@ -70,6 +70,13 @@ internal sealed class ObservationLedger : IDisposable
         Execute("PRAGMA journal_mode=WAL;");
         Execute("PRAGMA synchronous=NORMAL;");
 
+        // WAL lets a reader and the writer coexist; it does not let TWO writers do so, and there are
+        // two whenever a backfill runs against the ledger of a daemon that is still observing. Without
+        // a busy timeout the loser of that race gets SQLITE_BUSY immediately and drops its batch —
+        // which on the daemon's side is silently lost observations. Waiting is the right answer for
+        // both: the batches are small and the contention is a burst, not a steady state.
+        Execute("PRAGMA busy_timeout=10000;");
+
         Execute($"PRAGMA user_version={SchemaVersion};");
 
         Execute("""

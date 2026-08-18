@@ -26,6 +26,9 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 
 # The decision review — what the reactor MADE of it. The gate before any action mode.
 /opt/kgsm-reactor/kgsm-reactor --decisions --days 7
+
+# Read journal history the reactor was not running for. Observations only; idempotent; safe live.
+/opt/kgsm-reactor/kgsm-reactor --backfill --days 60
 ```
 
 ## Deploying
@@ -63,6 +66,10 @@ where the journal line is written after the ledger is open and the rules are res
   or not, and the subject is pulled out of the payload `JsonElement` by property name. A typed path
   would silently skip exactly the events a later rule might be about, and the skip would look like an
   event that never happened.
+- **⚠ A backfill fills OBSERVATIONS and never decisions.** Reading a line late changes nothing about
+  the line; a decision is a judgment made against a world that answered at the time, and the rules ask
+  the *live* world. Re-deriving old decisions would record judgments that were never made, on evidence
+  that no longer exists, and nothing afterwards could tell them from the real ones.
 - **Tail, no cursor — deliberate, and it is the ecosystem's rule for a consumer that acts** (a
   replayed action is performed again for real). What it costs is events arriving while the process is
   down. The fix for that is *not* a cursor: it is expressing the rules that matter as **state** a rule

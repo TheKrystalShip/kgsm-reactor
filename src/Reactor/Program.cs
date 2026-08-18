@@ -38,6 +38,12 @@ internal sealed class Program
         if (args.Length > 0 && args[0] is "--decisions" or "decisions")
             return Report(args, ReportKind.Decisions);
 
+        // The reactor tails, so it knows only what has happened since it started; the journals are
+        // older than it is. This reads them into the ledger so the population report describes weeks
+        // of this host rather than the hours since the last deploy.
+        if (args.Length > 0 && args[0] is "--backfill" or "backfill")
+            return Backfill(args);
+
         // Asking what the binary does is not a mistake, and answering it with exit 2 sends somebody
         // looking for a problem that does not exist.
         if (args.Length > 0 && args[0] is "--help" or "-h" or "help")
@@ -269,18 +275,7 @@ internal sealed class Program
         // The same resolution the daemon uses, so reading the report on the host needs no arguments:
         // the settings file beside the binary, then the environment, then the state directory.
         if (string.IsNullOrWhiteSpace(ledgerPath))
-        {
-            IConfigurationRoot configuration = new ConfigurationBuilder()
-                .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "kgsm-reactor.settings.json"),
-                    optional: true, reloadOnChange: false)
-                .AddEnvironmentVariables()
-                .Build();
-
-            ReactorSettings settings =
-                configuration.GetSection(ReactorSettings.Section).Get<ReactorSettings>()
-                ?? new ReactorSettings();
-            ledgerPath = ReactorOptions.FromSettings(settings).LedgerPath;
-        }
+            ledgerPath = ResolveOptions().LedgerPath;
 
         if (!File.Exists(ledgerPath))
         {
@@ -303,6 +298,118 @@ internal sealed class Program
         return 0;
     }
 
+    /// <summary>
+    /// Reads journal history into the ledger and prints what it did.
+    /// </summary>
+    /// <remarks>
+    /// A mode of the binary rather than a script beside it, for one reason that matters: it classifies
+    /// through the same <see cref="Classification.EventClassifier"/> the daemon uses. A second copy of
+    /// that logic is how two readers of the same journal come to disagree about what a line meant, and
+    /// the disagreement would be invisible — both would look like they had read the host correctly.
+    /// </remarks>
+    private static int Backfill(string[] args)
+    {
+        int days = DefaultReportDays;
+        string? ledgerPath = null;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--days" when i + 1 < args.Length && int.TryParse(args[i + 1], out int parsed):
+                    days = Math.Max(1, parsed);
+                    i++;
+                    break;
+                case "--ledger" when i + 1 < args.Length:
+                    ledgerPath = args[i + 1];
+                    i++;
+                    break;
+                case "--help" or "-h":
+                    Console.WriteLine(Usage);
+                    return 0;
+                default:
+                    Console.Error.WriteLine($"unrecognised argument: {args[i]}");
+                    Console.Error.WriteLine(Usage);
+                    return 2;
+            }
+        }
+
+        ReactorOptions options = ResolveOptions();
+        ledgerPath = string.IsNullOrWhiteSpace(ledgerPath) ? options.LedgerPath : ledgerPath;
+
+        IReadOnlyList<string> directories =
+            Ingest.JournalBackfill.Discover(options.StateRoot ?? "/var/lib", options.JournalDir);
+
+        if (directories.Count == 0)
+        {
+            Console.Error.WriteLine("no journal directories found — nothing to read.");
+            return 1;
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        Console.WriteLine($"reading {directories.Count} journal(s) into {ledgerPath}");
+
+        // The ledger is created if it is not there: unlike the report, this is a WRITE mode, and a
+        // host that has never run the daemon is exactly where a backfill is most useful.
+        using var ledger = new ObservationLedger(ledgerPath);
+
+        Ingest.JournalBackfill.BackfillResult result = Ingest.JournalBackfill.Run(
+            ledger,
+            directories,
+            notBefore: now.AddDays(-days),
+            retentionDays: options.RetentionDays,
+            now: now);
+
+        Console.WriteLine();
+        Console.WriteLine($"   {result.Files,6}  segment(s) read");
+        Console.WriteLine($"   {result.Lines,6}  line(s)");
+        Console.WriteLine($"   {result.Inserted,6}  new observation(s)");
+        Console.WriteLine($"   {result.Skipped,6}  already held (a position is only recorded once)");
+
+        if (result.Unreadable > 0)
+            Console.WriteLine($"   {result.Unreadable,6}  line(s) that were not an event envelope");
+
+        if (result.Earliest is { } earliest)
+            Console.WriteLine($"   earliest event now on record: {earliest:yyyy-MM-dd HH:mm:ss} UTC");
+
+        if (result.BeyondRetention > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine(
+                $"⚠  {result.BeyondRetention} of these are older than the {options.RetentionDays}-day "
+                + "retention window and");
+            Console.WriteLine(
+                "   the next prune will remove them. Raise Reactor__RetentionDays before reading a");
+            Console.WriteLine(
+                "   report that depends on them, or the window will close under the reading.");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Observations only — no rule was evaluated and no event was written.");
+
+        return 0;
+    }
+
+    /// <summary>The daemon's own configuration, resolved the way the daemon resolves it.</summary>
+    /// <remarks>
+    /// Shared by the read-only modes so running one on the host needs no arguments: the settings file
+    /// beside the binary, then the environment, then the state directory.
+    /// </remarks>
+    private static ReactorOptions ResolveOptions()
+    {
+        IConfigurationRoot configuration = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "kgsm-reactor.settings.json"),
+                optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables()
+            .Build();
+
+        ReactorSettings settings =
+            configuration.GetSection(ReactorSettings.Section).Get<ReactorSettings>()
+            ?? new ReactorSettings();
+
+        return ReactorOptions.FromSettings(settings);
+    }
+
     /// <summary>Which of the two readings the binary was asked for.</summary>
     private enum ReportKind
     {
@@ -317,5 +424,10 @@ internal sealed class Program
         """
         usage: kgsm-reactor --report    [--days N] [--ledger PATH]   what this host does
                kgsm-reactor --decisions [--days N] [--ledger PATH]   what the reactor made of it
+               kgsm-reactor --backfill  [--days N] [--ledger PATH]   read journal history into the ledger
+
+        --backfill fills OBSERVATIONS only. It evaluates no rule and writes no event: an
+        observation restates a line that exists, where a decision is a judgment made against a
+        world that answered at the time, and that world is gone.
         """;
 }

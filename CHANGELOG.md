@@ -7,6 +7,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-18
+
+The reactor tails, so it knew only what had happened since it started. The journals are older than it
+is.
+
+### Added
+
+- **`kgsm-reactor --backfill [--days N]`** — reads every producer's journal history into the
+  observation ledger. Six weeks of this host, instead of the hours since the last deploy.
+  - ⚠ **Observations only. No rule is evaluated and no event is written**, and that is not a
+    limitation to be lifted. An observation restates a line that exists, so reading it late changes
+    nothing about it; a decision is a judgment made against a world that answered at the time, and the
+    rules ask the *live* world. Re-deriving old decisions would record judgments that were never made,
+    on evidence that no longer exists, and afterwards they would be indistinguishable from the real
+    ones.
+  - Idempotent by construction: a row's identity is its position, so a segment read twice costs
+    nothing and the mode can be re-run as history accrues with nobody tracking what was covered.
+  - It classifies through the daemon's own `EventClassifier`. A second copy of that logic is how two
+    readers of one journal come to disagree invisibly, both looking correct.
+  - Rows older than the retention window are counted and reported rather than written silently — a
+    backfill whose result disappears overnight is worse than one that refused.
+
+### Fixed
+
+- **The ledger waits rather than dropping a batch when two writers meet.** WAL lets a reader and the
+  writer coexist; it does not let two writers do so, and there are two whenever a backfill runs against
+  a daemon that is still observing. Without a busy timeout the loser got `SQLITE_BUSY` at once and
+  dropped its batch — on the daemon's side, silently lost observations.
+
 ## [0.5.0] - 2026-08-18
 
 The review that propose and act mode are gated behind, as something that can be performed.
