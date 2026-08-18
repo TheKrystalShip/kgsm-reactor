@@ -51,7 +51,7 @@ public class DecisionReportTests : IDisposable
             ActionState: ActionState.None,
             OpenedAt: at.AddMinutes(-1),
             DecidedAt: at,
-            Source: new EventSource("kgsm-watchdog", "s.ndjson", 1)));
+            Source: new EventSource("kgsm-watchdog", "s.ndjson", 1, null)));
 
     private string Render(ObservationLedger ledger, int days = 7) =>
         DecisionReport.Render(ledger, days, Now);

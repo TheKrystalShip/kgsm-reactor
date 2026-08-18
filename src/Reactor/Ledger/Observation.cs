@@ -20,10 +20,23 @@ namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 /// same second into one row — the engine's own index has that defect, and a rate measured from a
 /// ledger with it would under-report exactly the bursts the ceiling is meant to bound.
 /// </para>
+/// <para>
+/// <b><see cref="EventId"/> is carried, and is not the key.</b> The producer's minted id names the
+/// line durably where the position only locates it, which is what lets <c>--verify</c> tell a shifted
+/// offset from an intact one even when both lines are the same event type. Keying on it instead is a
+/// separate question with a real trade the other way — a positional key duplicates when a segment is
+/// rewritten, an id key collapses if a producer ever repeats an id — and it waits on measuring how
+/// often the first actually happens.
+/// </para>
 /// </remarks>
 /// <param name="Producer">Whose journal it came from.</param>
 /// <param name="Segment">The segment file it was read from.</param>
 /// <param name="Offset">Its byte offset in that segment.</param>
+/// <param name="EventId">
+/// The id the line's producer minted for it. Null when the line carries none — every line written
+/// before the field existed, and every line from a producer that cannot mint one — and absence is
+/// unknown, never a mismatch.
+/// </param>
 /// <param name="EventType">The event type, underscore-separated.</param>
 /// <param name="Class">The reporting bucket. Not a judgment — see <see cref="EventClass"/>.</param>
 /// <param name="SubjectKind">Whether it is about a server, the host, or a component.</param>
@@ -37,6 +50,7 @@ internal sealed record Observation(
     string Producer,
     string Segment,
     long Offset,
+    string? EventId,
     string EventType,
     EventClass Class,
     SubjectKind SubjectKind,

@@ -25,7 +25,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 internal sealed class ObservationLedger : IDisposable
 {
     /// <summary>The schema this build expects. Bumped when a migration becomes necessary.</summary>
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private readonly SqliteConnection _connection;
     private readonly Lock _gate = new();
@@ -84,6 +84,7 @@ internal sealed class ObservationLedger : IDisposable
                 producer     TEXT    NOT NULL,
                 segment      TEXT    NOT NULL,
                 offset       INTEGER NOT NULL,
+                event_id     TEXT,
                 event_type   TEXT    NOT NULL,
                 class        TEXT    NOT NULL,
                 subject_kind TEXT    NOT NULL,
@@ -101,6 +102,34 @@ internal sealed class ObservationLedger : IDisposable
         Execute("CREATE INDEX IF NOT EXISTS ix_obs_type_time ON observations (event_type, occurred_at);");
         Execute("CREATE INDEX IF NOT EXISTS ix_obs_subject_time ON observations (subject, occurred_at);");
         Execute("CREATE INDEX IF NOT EXISTS ix_obs_time ON observations (occurred_at);");
+
+        // For a ledger that predates the column. CREATE TABLE IF NOT EXISTS leaves an existing table
+        // exactly as it is, so a host carrying weeks of backfilled observations would otherwise be
+        // told its schema is version 2 while the column is absent — and the next INSERT would throw.
+        // Rebuilding instead would be safe (every row is derived) and would throw away the one thing
+        // that cannot be re-derived: how long ago the reactor read each line.
+        AddColumnIfMissing("observations", "event_id", "TEXT");
+    }
+
+    /// <summary>
+    /// Adds a column to an existing table when it is not already there.
+    /// </summary>
+    /// <remarks>
+    /// The whole migration mechanism, and it stays this small on purpose: every column this ledger has
+    /// ever added has been nullable and additive, because a row here restates a journal line and a new
+    /// reading is something older rows simply do not carry. A migration that had to backfill values
+    /// would be a different kind of change and would deserve a different mechanism.
+    /// </remarks>
+    internal void AddColumnIfMissing(string table, string column, string declaration)
+    {
+        bool present = Query(
+            $"PRAGMA table_info({table});",
+            _ => { },
+            reader => reader.GetString(1))
+            .Any(name => string.Equals(name, column, StringComparison.Ordinal));
+
+        if (!present)
+            Execute($"ALTER TABLE {table} ADD COLUMN {column} {declaration};");
     }
 
     /// <summary>
@@ -121,15 +150,16 @@ internal sealed class ObservationLedger : IDisposable
             command.Transaction = transaction;
             command.CommandText = """
                 INSERT OR IGNORE INTO observations
-                    (producer, segment, offset, event_type, class, subject_kind, subject,
+                    (producer, segment, offset, event_id, event_type, class, subject_kind, subject,
                      actor, origin, occurred_at, observed_at)
-                VALUES ($producer, $segment, $offset, $type, $class, $subjectKind, $subject,
+                VALUES ($producer, $segment, $offset, $eventId, $type, $class, $subjectKind, $subject,
                         $actor, $origin, $occurred, $observed);
                 """;
 
             SqliteParameter producer = command.Parameters.Add("$producer", SqliteType.Text);
             SqliteParameter segment = command.Parameters.Add("$segment", SqliteType.Text);
             SqliteParameter offset = command.Parameters.Add("$offset", SqliteType.Integer);
+            SqliteParameter eventId = command.Parameters.Add("$eventId", SqliteType.Text);
             SqliteParameter type = command.Parameters.Add("$type", SqliteType.Text);
             SqliteParameter cls = command.Parameters.Add("$class", SqliteType.Text);
             SqliteParameter subjectKind = command.Parameters.Add("$subjectKind", SqliteType.Text);
@@ -145,6 +175,9 @@ internal sealed class ObservationLedger : IDisposable
                 producer.Value = row.Producer;
                 segment.Value = row.Segment;
                 offset.Value = row.Offset;
+                // DBNull, not "": absence is a spelling every reader here already handles, and an
+                // empty string is a third state that compares unequal to both.
+                eventId.Value = (object?)row.EventId ?? DBNull.Value;
                 type.Value = row.EventType;
                 cls.Value = row.Class.ToString();
                 subjectKind.Value = row.SubjectKind.ToString();

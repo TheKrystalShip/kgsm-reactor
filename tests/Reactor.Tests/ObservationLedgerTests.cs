@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
@@ -19,10 +21,117 @@ public class ObservationLedgerTests : IDisposable
         long offset = 0,
         string type = "instance_started",
         string subject = "factorio",
+        string? eventId = null,
         DateTimeOffset? occurredAt = null) =>
-        new(producer, segment, offset, type, EventClass.Lifecycle, SubjectKind.Instance, subject,
+        new(producer, segment, offset, eventId, type, EventClass.Lifecycle, SubjectKind.Instance, subject,
             Actor: "system:watchdog", Origin: "system",
             OccurredAt: occurredAt ?? Now, ObservedAt: occurredAt ?? Now);
+
+    /// <summary>
+    /// Writes the schema as it stood before the line's own id was carried, with one row in it.
+    /// </summary>
+    /// <remarks>
+    /// Built by hand rather than by an older build, because the point of the test is what an existing
+    /// FILE looks like — and a host carrying weeks of backfilled observations has exactly this one.
+    /// </remarks>
+    private void WriteSchemaWithoutTheIdColumn()
+    {
+        using var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = _path, Pooling = false }.ToString());
+        connection.Open();
+
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            PRAGMA user_version=1;
+            CREATE TABLE observations (
+                producer     TEXT    NOT NULL,
+                segment      TEXT    NOT NULL,
+                offset       INTEGER NOT NULL,
+                event_type   TEXT    NOT NULL,
+                class        TEXT    NOT NULL,
+                subject_kind TEXT    NOT NULL,
+                subject      TEXT    NOT NULL,
+                actor        TEXT,
+                origin       TEXT,
+                occurred_at  INTEGER NOT NULL,
+                observed_at  INTEGER NOT NULL,
+                PRIMARY KEY (producer, segment, offset)
+            ) WITHOUT ROWID;
+            INSERT INTO observations VALUES
+                ('kgsm', 'old.ndjson', 0, 'instance_started', 'Lifecycle', 'Instance', 'factorio',
+                 NULL, NULL, 1755518400000, 1755518400000);
+            """;
+        command.ExecuteNonQuery();
+    }
+
+    [Fact]
+    public void A_ledger_written_before_the_id_column_gains_it_and_keeps_its_rows()
+    {
+        // ⚠ CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so without a
+        // migration this host would be stamped schema 2 with no column — and the next insert would
+        // throw. The rows are what makes rebuilding the wrong answer: every one is derived and could
+        // be re-read, except observed_at, which is when the reactor SAW the line and cannot be
+        // recovered once thrown away.
+        WriteSchemaWithoutTheIdColumn();
+
+        using ObservationLedger ledger = Open();
+
+        Assert.Equal(1, ledger.Count());
+
+        Assert.Contains(
+            "event_id",
+            ledger.Query("PRAGMA table_info(observations);", _ => { }, r => r.GetString(1)),
+            StringComparer.Ordinal);
+
+        // The pre-existing row reads as unknown rather than as anything invented for it.
+        Assert.All(
+            ledger.Query("SELECT event_id FROM observations;", _ => { }, r => r.IsDBNull(0)),
+            Assert.True);
+
+        // And the ledger works: a new row with an id goes in beside the old one.
+        Assert.Equal(1, ledger.Record([Row(segment: "new.ndjson", eventId: "01a016e9-d535-7b03-8a6a-b26ae718064c")]));
+        Assert.Equal(2, ledger.Count());
+    }
+
+    [Fact]
+    public void The_migration_runs_once_and_a_second_open_is_a_no_op()
+    {
+        // ALTER TABLE ADD COLUMN throws on a column that is already there, so the guard is what makes
+        // every restart after the first one work at all.
+        WriteSchemaWithoutTheIdColumn();
+
+        using (ObservationLedger first = Open())
+            Assert.Equal(1, first.Count());
+
+        using ObservationLedger second = Open();
+        Assert.Equal(1, second.Count());
+    }
+
+    [Fact]
+    public void An_id_is_stored_and_read_back_verbatim()
+    {
+        const string id = "01a016e9-d535-7b03-8a6a-b26ae718064c";
+
+        using ObservationLedger ledger = Open();
+        ledger.Record([Row(eventId: id)]);
+
+        Assert.Equal(
+            [id],
+            ledger.Query("SELECT event_id FROM observations;", _ => { }, r => r.GetString(0)));
+    }
+
+    [Fact]
+    public void A_line_with_no_id_is_stored_as_null_and_not_as_an_empty_string()
+    {
+        // The same absent-is-one-spelling rule the journals hold to. An empty string is a third state
+        // that compares unequal to both, and --verify compares these.
+        using ObservationLedger ledger = Open();
+        ledger.Record([Row()]);
+
+        Assert.All(
+            ledger.Query("SELECT event_id FROM observations;", _ => { }, r => r.IsDBNull(0)),
+            Assert.True);
+    }
 
     [Fact]
     public void Recording_the_same_position_twice_is_a_no_op()
@@ -113,8 +222,8 @@ public class ObservationLedgerTests : IDisposable
         using ObservationLedger ledger = Open();
 
         ledger.Record([
-            new Observation("kgsm", "s.ndjson", 0, "instance_started", EventClass.Lifecycle,
-                SubjectKind.Instance, "factorio", Actor: null, Origin: null, Now, Now),
+            new Observation("kgsm", "s.ndjson", 0, null, "instance_started", EventClass.Lifecycle,
+                SubjectKind.Instance, "factorio", null, null, Now, Now),
         ]);
 
         List<(string? Actor, string? Origin)> read = ledger.Query(

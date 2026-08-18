@@ -194,6 +194,7 @@ internal sealed class EventIngestService : BackgroundService
             Producer: producer,
             Segment: position.Segment ?? string.Empty,
             Offset: position.Offset,
+            EventId: position.EventId,
             EventType: wrapper.EventType,
             Class: facts.Class,
             SubjectKind: facts.SubjectKind,

@@ -117,6 +117,18 @@ internal static class ReactorEventFields
     /// <summary>The byte offset in that segment.</summary>
     public const string SourceOffset = "SourceOffset";
 
+    /// <summary>
+    /// The id the originating line's producer minted for it, or null when that line carries none.
+    /// </summary>
+    /// <remarks>
+    /// Beside the position rather than instead of it, and both are needed. The position <em>finds</em>
+    /// the line, cheaply, without reading a segment end to end; the id <em>proves</em> it is the right
+    /// one. A consumer that follows the pointer and finds the two disagree has caught a rewritten
+    /// segment, where following the position alone would hand it a real, parseable event of the wrong
+    /// kind with nothing to notice.
+    /// </remarks>
+    public const string SourceEventId = "SourceEventId";
+
     /// <summary>Whether the action succeeded. <c>reactor_acted</c> only.</summary>
     public const string Ok = "Ok";
 

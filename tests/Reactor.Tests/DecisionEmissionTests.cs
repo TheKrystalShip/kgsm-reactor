@@ -43,7 +43,7 @@ public class DecisionEmissionTests : IDisposable
             ActionState: ActionState.None,
             OpenedAt: Now.AddMinutes(-1),
             DecidedAt: Now,
-            Source: new EventSource("kgsm-watchdog", "s.ndjson", 8748));
+            Source: new EventSource("kgsm-watchdog", "s.ndjson", 8748, null));
 
     private ObservationLedger OpenLedger()
     {
@@ -135,6 +135,36 @@ public class DecisionEmissionTests : IDisposable
         Assert.Equal("kgsm-watchdog", payload.GetProperty("SourceProducer").GetString());
         Assert.Equal("s.ndjson", payload.GetProperty("SourceSegment").GetString());
         Assert.Equal(8748, payload.GetProperty("SourceOffset").GetInt64());
+    }
+
+    [Fact]
+    public void The_source_pointer_carries_the_line_s_own_id()
+    {
+        // The position finds the line; the id proves it is the right one. A consumer following the
+        // pointer into a rewritten segment finds the two disagree, where a position alone would hand
+        // it a real, parseable event with nothing to notice.
+        const string id = "01a016e9-d535-7b03-8a6a-b26ae718064c";
+
+        JsonElement payload = JsonSerializer.SerializeToElement(
+            DecisionEmitter.PayloadFor(Sample() with
+            {
+                Source = new EventSource("kgsm-watchdog", "s.ndjson", 8748, id),
+            }),
+            ReactorJsonContext.Default.DecidedPayload);
+
+        Assert.Equal(id, payload.GetProperty("SourceEventId").GetString());
+    }
+
+    [Fact]
+    public void A_source_line_with_no_id_is_written_as_null_rather_than_omitted()
+    {
+        // Same rule as ActionInstance, for the same reason: a property that disappeared when it had no
+        // value would make a consumer distinguish "the line had no id" from "an older reactor that did
+        // not carry this field". Both mean unknown; neither is a mismatch.
+        JsonElement payload = JsonSerializer.SerializeToElement(
+            DecisionEmitter.PayloadFor(Sample()), ReactorJsonContext.Default.DecidedPayload);
+
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("SourceEventId").ValueKind);
     }
 
     [Fact]

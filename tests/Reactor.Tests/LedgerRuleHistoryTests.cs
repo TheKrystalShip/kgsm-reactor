@@ -25,7 +25,7 @@ public class LedgerRuleHistoryTests : IDisposable
 
     private void Record(ObservationLedger ledger, string type, string subject, DateTimeOffset at) =>
         ledger.Record([
-            new Observation("kgsm-monitor", "s.ndjson", _offset++, type, EventClass.Threshold,
+            new Observation("kgsm-monitor", "s.ndjson", _offset++, null, type, EventClass.Threshold,
                 SubjectKind.Host, subject, null, null, at, at),
         ]);
 

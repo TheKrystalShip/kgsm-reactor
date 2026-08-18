@@ -7,6 +7,48 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — a reference names the line as well as locating it
+
+An observation and a decision's source pointer both carry the id their line's producer minted, beside
+the position rather than instead of it. The position finds the line without reading a segment end to
+end; the id proves it is the right one.
+
+- `reactor_decided` gains **`SourceEventId`**, null when the originating line carries none.
+- `observations.event_id` and `decisions.src_event_id` — both nullable, both migrated in place.
+- `--backfill` reads the id off the line, so history read late gets the same name reading it live
+  would have. Lines from before the field existed record null, never a derived stand-in: a plausible
+  id is indistinguishable from a real one afterwards.
+
+### Changed — `--verify` compares ids, and reports `IdMismatch` apart from `WrongEvent`
+
+⚠ **The check it could not make before.** Comparing event types catches a shift onto a different kind
+of event and misses one onto the same kind — and that is the likely case, not the unlikely one: a
+journal is mostly repetitions of a handful of types, so a deleted line usually shifts the next
+position onto another `instance_started`. The id is unique per line, so it catches the shift whatever
+it landed on.
+
+A decision's pointer is now checked as strictly as an observation. It records where a decision came
+from and nothing about what was there, so before an id the strongest honest statement about one was
+that the offset still starts a readable event.
+
+Where either side has no id the check falls back to the type. Absence is unknown, never a mismatch —
+six weeks of this host's observations predate the field.
+
+`IdMismatch` is reported separately because it is the case a type comparison cannot see: a host
+showing these and no `WrongEvent` would otherwise read as clean.
+
+### Migration — the ledger takes both columns in place, keeping every row
+
+`CREATE TABLE IF NOT EXISTS` leaves an existing table exactly as it is, so a ledger written by an
+earlier build would have been stamped schema 2 with no column and thrown on the next insert.
+`ObservationLedger.AddColumnIfMissing` is now the one mechanism for both tables; `DecisionStore` keeps
+its documented column list and calls it.
+
+Rebuilding instead would have been safe — every row is derived — and would have thrown away the one
+reading that cannot be recovered: `observed_at`, when the reactor actually saw the line.
+
+Verified on this host's live ledger: **3,664 observations and 8 decisions before and after**.
+
 ## [0.8.0] - 2026-08-18
 
 ### Added — every journal line now carries its own id

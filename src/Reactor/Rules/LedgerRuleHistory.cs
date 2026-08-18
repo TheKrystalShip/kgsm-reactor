@@ -46,7 +46,7 @@ internal sealed class LedgerRuleHistory(ObservationLedger ledger) : IRuleHistory
         return ledger.Query(
             """
             SELECT o.subject, o.subject_kind, MAX(o.occurred_at) AS opened_at,
-                   o.producer, o.segment, o.offset
+                   o.producer, o.segment, o.offset, o.event_id
             FROM observations o
             WHERE o.event_type = $opens AND o.occurred_at >= $since
             GROUP BY o.subject
@@ -65,7 +65,9 @@ internal sealed class LedgerRuleHistory(ObservationLedger ledger) : IRuleHistory
                 reader.GetString(0),
                 ParseSubjectKind(reader.GetString(1)),
                 DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(2)),
-                new EventSource(reader.GetString(3), reader.GetString(4), reader.GetInt64(5))));
+                new EventSource(
+                    reader.GetString(3), reader.GetString(4), reader.GetInt64(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6))));
     }
 
     public (TimeSpan P95, int Samples) EpisodeDuration(

@@ -24,7 +24,7 @@ public class PopulationReportTests : IDisposable
     private static Observation At(
         DateTimeOffset when, string type, string subject, long offset,
         EventClass cls = EventClass.Lifecycle) =>
-        new("kgsm", "seg.ndjson", offset, type, cls, SubjectKind.Instance, subject,
+        new("kgsm", "seg.ndjson", offset, null, type, cls, SubjectKind.Instance, subject,
             Actor: null, Origin: null, OccurredAt: when, ObservedAt: when);
 
     [Fact]

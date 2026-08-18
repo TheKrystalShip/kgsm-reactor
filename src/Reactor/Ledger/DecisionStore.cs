@@ -54,7 +54,8 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             decided_at    INTEGER NOT NULL,
             src_producer  TEXT    NOT NULL,
             src_segment   TEXT    NOT NULL,
-            src_offset    INTEGER NOT NULL
+            src_offset    INTEGER NOT NULL,
+            src_event_id  TEXT    NULL
         ) WITHOUT ROWID;
 
         CREATE INDEX IF NOT EXISTS ix_dec_rule_subject ON decisions (rule_id, subject, decided_at);
@@ -74,13 +75,6 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     /// </remarks>
     private void AddMissingColumns()
     {
-        HashSet<string> present = new(
-            ledger.Query(
-                "SELECT name FROM pragma_table_info('decisions');",
-                _ => { },
-                reader => reader.GetString(0)),
-            StringComparer.Ordinal);
-
         (string Column, string Definition)[] wanted =
         [
             ("subject_kind", "TEXT NOT NULL DEFAULT 'Unknown'"),
@@ -88,13 +82,13 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             // machine name yet. Defaulting it to 'none' would claim the rule proposed nothing.
             ("action_name", "TEXT NOT NULL DEFAULT 'unknown'"),
             ("action_inst", "TEXT NULL"),
+            // No default at all. A decision recorded before ids existed points at a line whose name
+            // nobody knows, and null is how this leaf spells that everywhere else.
+            ("src_event_id", "TEXT NULL"),
         ];
 
         foreach ((string column, string definition) in wanted)
-        {
-            if (!present.Contains(column))
-                ledger.Execute($"ALTER TABLE decisions ADD COLUMN {column} {definition};");
-        }
+            ledger.AddColumnIfMissing("decisions", column, definition);
     }
 
     /// <summary>
@@ -126,10 +120,10 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             INSERT INTO decisions
                 (id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
                  action, action_name, action_inst, action_state, opened_at, decided_at,
-                 src_producer, src_segment, src_offset)
+                 src_producer, src_segment, src_offset, src_event_id)
             VALUES ($id, $rule, $subject, $subjectKind, $episode, $severity, $mode, $outcome, $reason,
                     $action, $actionName, $actionInstance, $actionState, $openedAt, $decidedAt,
-                    $producer, $segment, $offset)
+                    $producer, $segment, $offset, $eventId)
             ON CONFLICT(id) DO UPDATE SET
                 outcome      = excluded.outcome,
                 reason       = excluded.reason,
@@ -157,6 +151,8 @@ internal sealed class DecisionStore(ObservationLedger ledger)
                 command.Parameters.AddWithValue("$producer", decision.Source.Producer);
                 command.Parameters.AddWithValue("$segment", decision.Source.Segment);
                 command.Parameters.AddWithValue("$offset", decision.Source.Offset);
+                command.Parameters.AddWithValue(
+                    "$eventId", (object?)decision.Source.EventId ?? DBNull.Value);
             });
 
         return change;
@@ -231,7 +227,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             """
             SELECT id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
                    action, action_name, action_inst, action_state, opened_at, decided_at,
-                   src_producer, src_segment, src_offset
+                   src_producer, src_segment, src_offset, src_event_id
             FROM decisions WHERE decided_at >= $since ORDER BY decided_at DESC;
             """,
             command => command.Parameters.AddWithValue("$since", since.ToUnixTimeMilliseconds()),
@@ -258,5 +254,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
         ActionState: Enum.Parse<ActionState>(reader.GetString(12)),
         OpenedAt: DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(13)),
         DecidedAt: DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(14)),
-        Source: new EventSource(reader.GetString(15), reader.GetString(16), reader.GetInt64(17)));
+        Source: new EventSource(
+            reader.GetString(15), reader.GetString(16), reader.GetInt64(17),
+            reader.IsDBNull(18) ? null : reader.GetString(18)));
 }

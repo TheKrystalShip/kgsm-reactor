@@ -80,12 +80,27 @@ where the journal line is written after the ledger is open and the rules are res
 - **⚠ A rewritten segment silently invalidates the ledger.** A position is right only while segments
   are appended to and deleted whole. Deleting one line shifts every byte after it, and a stored
   position then resolves to a real, parseable event of the *wrong kind* — no error, nothing to notice.
-  `--verify` is the detector; `tks/journal-entry-id-plan.md` is the fix. Do not clean test entries out
-  of a journal: that is the record, not a view of it.
+  `--verify` is the detector. Do not clean test entries out of a journal: that is the record, not a
+  view of it.
 - **The row's identity is its position** — `(producer, segment, offset)` — not its content.
   Content-derived ids collapse two identical events in the same second into one row, which is a real
   defect in the engine's own index, and a rate measured from a ledger with it would under-report
   exactly the bursts a ceiling has to be set above.
+- **The line's own id is carried beside the position, and is not the key.** `observations.event_id`,
+  `decisions.src_event_id` and `reactor_decided`'s `SourceEventId` all hold the UUIDv7 the line's
+  producer minted. The position *finds* the line; the id *proves* it is the right one. ⚠ **This is
+  what makes `--verify` real:** comparing event types misses a shift that lands on the same kind of
+  event, which is the likely case — a journal is mostly repetitions of a handful of types. Where
+  either side has no id the check falls back to the type, because absence is unknown and never a
+  mismatch. Whether the id should become the primary key is open, and waits on `--verify` measuring
+  how often a rewrite actually happens: a positional key duplicates on a rewrite, an id key collapses
+  if a producer ever repeats an id.
+- **The ledger migrates in place, additively.** `ObservationLedger.AddColumnIfMissing` is the whole
+  mechanism, for both tables. Every column added here has been nullable, because a row restates a
+  journal line and a new reading is something older rows simply do not carry. ⚠ `CREATE TABLE IF NOT
+  EXISTS` leaves an existing table alone, so a new column without a migration means a host stamped
+  with the new schema version and no column — throwing on the next insert. Rebuilding instead is safe
+  (every row is derived) and throws away `observed_at`, the one reading that cannot be recovered.
 - **`EventClass` is a reporting bucket, not a judgment, and nothing may start gating on it.** What
   matters about an event is decided per rule against the plan's seven questions, never inherited from
   a bucket assigned at ingest.

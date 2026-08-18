@@ -267,6 +267,7 @@ internal static class JournalBackfill
                 Producer: producer,
                 Segment: segment,
                 Offset: offset,
+                EventId: Text(root, "Id"),
                 EventType: eventType,
                 Class: facts.Class,
                 SubjectKind: facts.SubjectKind,

@@ -49,6 +49,10 @@ public class JournalBackfillTests : IDisposable
         string actor = "system:watchdog") =>
         $$"""{"V":1,"EventType":"{{type}}","Data":{"InstanceName":"{{instance}}"},"Timestamp":"{{timestamp}}","Actor":"{{actor}}","Origin":"system"}""";
 
+    private static string Named(
+        string type, string instance, string id, string timestamp = "2026-08-18T10:00:00.000Z") =>
+        $$"""{"V":1,"Id":"{{id}}","EventType":"{{type}}","Data":{"InstanceName":"{{instance}}"},"Timestamp":"{{timestamp}}","Actor":"system:watchdog","Origin":"system"}""";
+
     private JournalBackfill.BackfillResult Run(int days = 3650, int retentionDays = 30)
     {
         using ObservationLedger ledger = OpenLedger();
@@ -248,6 +252,43 @@ public class JournalBackfillTests : IDisposable
         IReadOnlyList<string> found = JournalBackfill.Discover(Path.Combine(_root, "state"), engineDir);
 
         Assert.Single(found);
+    }
+
+    [Fact]
+    public void A_backfilled_row_keeps_the_id_the_line_carries()
+    {
+        // History read late is still history: a line's name is on the line, so reading it in September
+        // recovers the same id reading it live in August would have. This is what lets --verify check
+        // rows the reactor was not running for — which is most of them on a host that has backfilled.
+        const string id = "01a016e9-d535-7b03-8a6a-b26ae718064c";
+
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Named("instance_crashed", "starbound", id));
+
+        Run();
+
+        Assert.Equal([id], Ids());
+    }
+
+    [Fact]
+    public void A_backfilled_row_from_a_line_with_no_id_is_null_and_not_a_guess()
+    {
+        // Six weeks of this host's journals predate the field. Deriving something plausible — a hash of
+        // the line, the position spelled as a uuid — would be indistinguishable from a real id
+        // afterwards, and --verify would then compare a row against a name nobody minted.
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("instance_crashed", "starbound"));
+
+        Run();
+
+        Assert.Equal([null], Ids());
+    }
+
+    private List<string?> Ids()
+    {
+        using ObservationLedger ledger = OpenLedger();
+        return ledger.Query(
+            "SELECT event_id FROM observations ORDER BY producer, offset;",
+            _ => { },
+            reader => reader.IsDBNull(0) ? null : reader.GetString(0));
     }
 
     public void Dispose()

@@ -219,7 +219,8 @@ internal sealed class RuleEngine : BackgroundService
         if (facts.Subject.Length == 0)
             return Task.CompletedTask;
 
-        var source = new EventSource(producer, position.Segment ?? string.Empty, position.Offset);
+        var source = new EventSource(
+            producer, position.Segment ?? string.Empty, position.Offset, position.EventId);
         DateTimeOffset occurredAt = wrapper.Timestamp ?? _clock.GetUtcNow();
 
         foreach (Rule rule in _active)

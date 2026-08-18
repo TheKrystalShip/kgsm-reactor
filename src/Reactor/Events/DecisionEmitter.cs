@@ -76,6 +76,10 @@ internal sealed record DecidedPayload
 
     [JsonPropertyName(ReactorEventFields.SourceOffset)]
     public required long SourceOffset { get; init; }
+
+    /// <summary>Null when the originating line carries no id — never an empty string standing in.</summary>
+    [JsonPropertyName(ReactorEventFields.SourceEventId)]
+    public string? SourceEventId { get; init; }
 }
 
 /// <summary>
@@ -164,6 +168,7 @@ internal sealed class DecisionEmitter(
         SourceProducer = decision.Source.Producer,
         SourceSegment = decision.Source.Segment,
         SourceOffset = decision.Source.Offset,
+        SourceEventId = decision.Source.EventId,
     };
 
     /// <summary>
