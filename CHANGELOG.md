@@ -7,6 +7,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — the decision review is served, not only printed
+
+`GET /decisions` on the status socket answers the same four readings `--decisions` prints: what each
+rule concluded and how often, the busiest rolling hour of fired decisions, how far apart a rule's
+repeats on one subject were, and the rules that decided nothing at all — plus the decisions
+themselves, newest first, each carrying the journal position it was derived from.
+
+**The point is the gate.** Nothing moves to propose or act until a week of decisions has been read
+against what a person would actually have done, and until now that review existed only as text on a
+terminal on the host. `?days=` defaults to seven for exactly that reason. It is clamped to the
+ledger's own retention rather than refused: a caller asking for a year is asking for everything, and
+answering the retention span is the true reading where a 400 would be a smaller surface declining a
+question it can answer.
+
+`DecisionReview` now holds the arithmetic and `DecisionReport` only renders it, so the terminal and
+the Control Panel read one measurement rather than two implementations of it. The text output is
+unchanged.
+
+⚠ **`?limit=` caps the log and never the readings.** Every figure is computed over every row in the
+window; only the list at the end is trimmed. A busiest hour measured over a truncated sample would
+under-report exactly the peak a ceiling has to clear, and it would do so silently.
+
 ### Changed — the gate runs on measured values instead of placeholders
 
 Thirty days of this host's journals (3687 observations, test instances excluded) answered the three

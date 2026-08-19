@@ -23,6 +23,30 @@ internal sealed class Program
     /// <summary>How many days the population report covers when nothing says otherwise.</summary>
     private const int DefaultReportDays = 30;
 
+    /// <summary>
+    /// How many days the decision review covers when the caller names none.
+    /// </summary>
+    /// <remarks>
+    /// A week, because that is the span the plan's review gate is stated over — nothing moves to
+    /// propose or act until a week of decisions has been read against what a person would have done.
+    /// The default answering exactly that question is what makes the gate the easy thing to perform.
+    /// </remarks>
+    private const int DefaultReviewDays = 7;
+
+    /// <summary>How many decisions the review carries when the caller names no limit.</summary>
+    private const int DefaultReviewLimit = 200;
+
+    /// <summary>
+    /// The most decisions one review will carry.
+    /// </summary>
+    /// <remarks>
+    /// A bound on the response rather than on the reading: every figure in the review is computed
+    /// over the whole window regardless, and only the log at the end is trimmed. What this protects
+    /// is the socket — a busy month is thousands of rows, and serialising all of them to answer
+    /// "what has it been deciding" would make a status surface the most expensive thing on the host.
+    /// </remarks>
+    private const int MaxReviewLimit = 1000;
+
     private static async Task<int> Main(string[] args)
     {
         // The report reads the ledger and nothing else: no host, no journals, no engine. Handled
@@ -219,6 +243,31 @@ internal sealed class Program
             // evaluations waiting out their settle windows.
             host.MapGet("/status", (StatusReporter reporter) =>
                 Results.Json(reporter.Read(), ReactorStatusJsonContext.Default.ReactorStatus));
+
+            // What it MADE of what it saw — the review the gate before any action mode is performed
+            // against. The same four readings `--decisions` prints, off the same arithmetic, so a
+            // browser and a terminal cannot disagree about the busiest hour a ceiling is set from.
+            //
+            // ⚠ The window is clamped rather than refused. A caller asking for a year is asking for
+            // everything, and the ledger's retention already bounds what everything is — answering
+            // the retention span is the true reading, where a 400 would be a smaller surface saying
+            // no to a question it can in fact answer.
+            host.MapGet("/decisions", (
+                ObservationLedger ledger,
+                TimeProvider clock,
+                IOptions<ReactorOptions> reactorOptions,
+                int? days,
+                int? limit) =>
+            {
+                int window = Math.Clamp(
+                    days ?? DefaultReviewDays, 1, reactorOptions.Value.RetentionDays);
+
+                DecisionReview review = DecisionReview.Read(
+                    ledger, window, clock.GetUtcNow(),
+                    Math.Clamp(limit ?? DefaultReviewLimit, 1, MaxReviewLimit));
+
+                return Results.Json(review, DecisionReviewJsonContext.Default.DecisionReview);
+            });
         }
 
         // Before anything evaluates. The table is created here rather than lazily so a permission

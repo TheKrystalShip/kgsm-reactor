@@ -14,6 +14,10 @@ holds the phases, the boundary contract and every decision still open.
 # What it is doing right now. A unix socket, never a port.
 curl --unix-socket /run/kgsm-reactor/status.sock http://localhost/status | jq
 
+# What it MADE of what it saw — the same review --decisions prints, as JSON.
+# ?days= defaults to 7 and is clamped to the ledger's retention; ?limit= caps the log, never the readings.
+curl --unix-socket /run/kgsm-reactor/status.sock 'http://localhost/decisions?days=7' | jq
+
 dotnet build kgsm-reactor.slnx -c Release
 dotnet test  kgsm-reactor.slnx                          # hermetic; no host, no journals, no engine
 dotnet test  kgsm-reactor.slnx --filter "FullyQualifiedName~EventClassifier"
