@@ -224,7 +224,7 @@
       "description": "The most the reactor may decide in an hour, across the whole host. A host that loses every server at once is one story, and this is what stops it becoming forty.",
       "group": "rules",
       "type": "int",
-      "default": "4",
+      "default": "12",
       "min": 0,
       "risk": "safe"
     }

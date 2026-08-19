@@ -72,15 +72,20 @@
     // How often rules are evaluated, in seconds.
     "SweepIntervalSeconds": 30,
 
-    // How long one rule stays quiet about one subject after firing, in minutes.
-    // ⚠ PLACEHOLDER until the population report has a week behind it: this should be derived from
-    // the measured spacing between repeat events per subject, not chosen.
+    // How long one rule stays quiet about one subject after firing, in minutes. The host-wide
+    // fallback, measured from the spacing between repeat events for one subject: a crash repeats
+    // every 25s at p50, which this covers comfortably. A rule whose waking event repeats on a
+    // different scale carries its own window in the rule table and ignores this — `/status` reports
+    // each rule's window as resolved, which is the one that is actually in force.
     "SuppressionWindowMinutes": 30,
 
     // The most decisions that may fire host-wide in a rolling hour. Zero disables the ceiling.
-    // ⚠ PLACEHOLDER, and the one figure already measured argues against guessing — a single
-    // `kgsm install` produced 22 events in one minute.
-    "MaxActionsPerHour": 4
+    // Counted in DECISIONS, not events, and the two differ by a lot: the busiest hour measured held
+    // 36 events a rule wakes on but across only 4 subjects, because most of it was one server
+    // crash-looping and suppression collapses that to one decision. This covers the whole fleet
+    // failing at once with room for host sensors beside it — a host that lost every server is the
+    // story a ceiling most needs to let through, not the one it should cut off.
+    "MaxActionsPerHour": 12
   },
 
   "Logging": {

@@ -29,17 +29,79 @@ internal static class RuleCatalog
     /// How long a failure is left alone before it is judged.
     /// </summary>
     /// <remarks>
-    /// PLACEHOLDER, pending the population report. It is doing real work meanwhile: an operator who
-    /// sees the alert and restarts the server within the window makes the rule settle rather than
-    /// fire, which is the correct outcome — they have decided, and a backup taken over an instance
-    /// that is coming back up is a hot archive mislabelled as the cold one it would have been.
+    /// <para>
+    /// Measured: a give-up that ends on its own takes at least 83 seconds to do it (p50 3.1m, p95
+    /// 7.9m over 30 days of this host). Anything below that fires on every give-up that was about to
+    /// fix itself, which is the one failure a settle window exists to prevent.
+    /// </para>
+    /// <para>
+    /// Above the minimum and below the median rather than at p95, deliberately. A backup's value
+    /// decays as the failed state gets overwritten, and this rule's action only ever creates — its
+    /// false positive costs disk where its false negative costs the rollback candidate. So it is
+    /// tuned toward capturing the failure promptly, at roughly six archives a month on this host.
+    /// </para>
+    /// <para>
+    /// It still does the work the window is for: an operator who sees the alert and restarts inside
+    /// it makes the rule settle rather than fire, which is correct — they have decided, and a backup
+    /// taken over an instance that is coming back up is a hot archive mislabelled as the cold one it
+    /// would have been.
+    /// </para>
     /// </remarks>
-    private static readonly TimeSpan FailureSettle = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan GiveUpSettle = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How long a crash is given to turn back into a running server before it is judged.
+    /// </summary>
+    /// <remarks>
+    /// Measured: a crash that the supervisor rides out reaches <c>instance_ready</c> again in 6.1
+    /// seconds at p50 and 38 seconds at p95. A minute sits above the p95, so ordinary crash-restart
+    /// never reaches an evaluation — which is the whole point, since crash-restart is the watchdog's
+    /// job and this rule is only about what survives it.
+    /// </remarks>
+    private static readonly TimeSpan CrashSettle = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// How long a threshold breach is given to clear before it counts as stuck.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Measured: <b>every</b> threshold episode on this host cleared on its own — twelve of twelve
+    /// over 30 days, p50 6.2m, the slowest 39.7m. This sits above that slowest one.
+    /// </para>
+    /// <para>
+    /// ⚠ The consequence is that this rule decides nothing here, and that is the measurement rather
+    /// than a fault. A window shorter than the slowest observed self-clear would announce a breach
+    /// that was going to end anyway, and the reading says every one of them was.
+    /// </para>
+    /// </remarks>
+    private static readonly TimeSpan ThresholdSettle = TimeSpan.FromMinutes(45);
+
+    /// <summary>
+    /// How long one rule stays quiet about one subject after firing, where the rule's own repeat
+    /// spacing differs enough from the host-wide setting to matter.
+    /// </summary>
+    /// <remarks>
+    /// A window shorter than the p50 spacing between repeats suppresses nothing; one longer than the
+    /// p95 hides the second occurrence of almost everything. Measured per waking event over 30 days:
+    /// a give-up repeats every 5.5m (p50) / 10.3m (p95), and a threshold breach every 4.1h / 2.0d.
+    /// A crash repeats every 25 seconds, which the host-wide 30 minutes already covers — so
+    /// <c>update_regression</c> names no window and follows the host.
+    /// </remarks>
+    private static readonly TimeSpan GiveUpSuppression = TimeSpan.FromMinutes(15);
+
+    /// <inheritdoc cref="GiveUpSuppression"/>
+    private static readonly TimeSpan ThresholdSuppression = TimeSpan.FromHours(4);
 
     /// <summary>
     /// How soon after an update a failure is still that update's fault.
     /// </summary>
-    /// <remarks>PLACEHOLDER, pending the population report's update→failure spacing.</remarks>
+    /// <remarks>
+    /// ⚠ <b>Not measured, because this host has nothing to measure it from.</b> Thirty days hold two
+    /// updates followed by a fault on the same server at all, at 112 and 168 minutes, and neither is
+    /// plausibly the update's doing — one is a launcher that reported success while dying, the other
+    /// a live server hours later. A window fitted to those two would be a causal claim built from
+    /// coincidence, which is the opposite of what this field asserts.
+    /// </remarks>
     private static readonly TimeSpan RegressionWindow = TimeSpan.FromMinutes(30);
 
     /// <summary>
@@ -92,7 +154,8 @@ internal static class RuleCatalog
         Shape: RuleShape.Edge,
         Wakes: ["instance_failed"],
         Severity: Severity.Danger,
-        Settle: FailureSettle,
+        Settle: GiveUpSettle,
+        Suppression: GiveUpSuppression,
         Holds: async (ctx, token) =>
         {
             var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
@@ -106,7 +169,7 @@ internal static class RuleCatalog
             // backup taken over an instance that is coming back up is a hot archive where a cold one
             // was intended — no error, just a quieter and worse result.
             return state.GaveUp
-                ? Verdict.Holds($"still given up on after {(int)FailureSettle.TotalSeconds}s ({state.Restarts} consecutive failures)")
+                ? Verdict.Holds($"still given up on after {(int)GiveUpSettle.TotalSeconds}s ({state.Restarts} consecutive failures)")
                 : Verdict.DoesNotHold($"no longer given up on — the supervisor reports {state.Phase}");
         },
         Action: instance => new ReactorAction.CreateBackup(instance));
@@ -130,7 +193,8 @@ internal static class RuleCatalog
         Shape: RuleShape.Edge,
         Wakes: ["instance_failed", "instance_crashed"],
         Severity: Severity.Danger,
-        Settle: FailureSettle,
+        // No Suppression: a crash repeats every 25s at p50, which the host-wide window already covers.
+        Settle: CrashSettle,
         Holds: async (ctx, token) =>
         {
             HistoryEvent? update = ctx.History.LastOccurrence(
@@ -177,7 +241,8 @@ internal static class RuleCatalog
         Shape: RuleShape.State,
         Wakes: ["host_threshold_breached"],
         Severity: Severity.Warning,
-        Settle: TimeSpan.Zero,
+        Settle: ThresholdSettle,
+        Suppression: ThresholdSuppression,
         Subjects: (history, _) =>
         {
             IReadOnlyList<OpenEpisode> open = history.OpenEpisodes(

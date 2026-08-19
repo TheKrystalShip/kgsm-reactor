@@ -36,11 +36,32 @@ internal sealed record ReactorOptions
     /// <summary>How often rules are evaluated by default.</summary>
     public const int DefaultSweepIntervalSeconds = 30;
 
-    /// <summary>⚠ PLACEHOLDER — derived from the population report, not chosen.</summary>
+    /// <summary>
+    /// The host-wide fallback for how long a rule stays quiet about one subject after firing.
+    /// </summary>
+    /// <remarks>
+    /// Measured from the spacing between repeat events for one subject: a crash repeats every 25
+    /// seconds at p50, and this covers it comfortably. A rule whose own waking event repeats on a
+    /// different scale names its own window instead — see <c>Rule.Suppression</c>.
+    /// </remarks>
     public const int DefaultSuppressionWindowMinutes = 30;
 
-    /// <summary>⚠ PLACEHOLDER — derived from the population report, not chosen.</summary>
-    public const int DefaultMaxActionsPerHour = 4;
+    /// <summary>The most decisions that may fire host-wide in a rolling hour.</summary>
+    /// <remarks>
+    /// <para>
+    /// Counted in <em>decisions</em>, not events, and the two differ by a lot. The busiest hour in 30
+    /// days held 36 events a rule wakes on — but across only <b>4 distinct subjects</b>, because most
+    /// of it was one server crash-looping, and suppression collapses that to one decision. The daily
+    /// worst is 7 subjects.
+    /// </para>
+    /// <para>
+    /// So this covers the whole fleet failing at once with room for host sensors alongside it, at
+    /// roughly three times the worst hour actually observed. Set at the observed figure instead, a
+    /// host that lost every server would go quiet after the fourth — which is the story the ceiling
+    /// most needs to let through, not the one it should cut off. Zero disables it.
+    /// </para>
+    /// </remarks>
+    public const int DefaultMaxActionsPerHour = 12;
 
     /// <summary>The environment variable systemd exports from <c>StateDirectory=</c>.</summary>
     private const string StateDirectoryVariable = "STATE_DIRECTORY";

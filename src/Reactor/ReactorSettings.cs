@@ -191,9 +191,9 @@ internal sealed class ReactorSettings
 
     /// <summary>How long one rule stays quiet about one subject after firing, in minutes.</summary>
     /// <remarks>
-    /// ⚠ PLACEHOLDER until the population report has a week behind it. The measured spacing between
-    /// repeat events per subject is what this should be derived from; a number chosen before that is a
-    /// guess wearing a default's clothing.
+    /// The host-wide fallback, measured from the spacing between repeat events for one subject. A rule
+    /// whose waking event repeats on a different scale carries its own window in the rule table and
+    /// ignores this.
     /// </remarks>
     /// <panel>How long a rule stays quiet about the same server after it has spoken once. Too short and
     /// you hear the same thing repeatedly; too long and the second occurrence goes unmentioned.</panel>
@@ -202,8 +202,9 @@ internal sealed class ReactorSettings
 
     /// <summary>The most decisions that may fire host-wide in a rolling hour.</summary>
     /// <remarks>
-    /// ⚠ PLACEHOLDER, and the one figure already measured argues loudly against guessing: a single
-    /// <c>kgsm install</c> produced 22 events in one minute. Zero disables the ceiling.
+    /// Counted in decisions rather than events: the busiest hour measured held 36 events a rule wakes
+    /// on across only 4 subjects, since suppression collapses one server's crash-loop into one
+    /// decision. Zero disables the ceiling.
     /// </remarks>
     /// <panel>The most the reactor may decide in an hour, across the whole host. A host that loses
     /// every server at once is one story, and this is what stops it becoming forty.</panel>

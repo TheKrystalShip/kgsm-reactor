@@ -7,6 +7,49 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the gate runs on measured values instead of placeholders
+
+Thirty days of this host's journals (3687 observations, test instances excluded) answered the three
+readings the population report exists for. Every figure below has its basis recorded beside it in
+code, and `RuleCatalogTests` pins them so a later edit is a decision rather than a drift.
+
+| knob | was | is | measured basis |
+|---|---|---|---|
+| `give_up_backup` settle | 60s | **2m** | a give-up that ends on its own takes ≥83.5s (p50 3.1m) |
+| `update_regression` settle | 60s | 60s | `crashed→ready` p95 is 38s — already above it |
+| `threshold_stuck` settle | **0s** | **45m** | `breached→cleared` max 39.7m, 12 of 12 self-cleared |
+| `give_up_backup` suppression | 30m (host) | **15m** | give-ups repeat every 10.3m at p95 |
+| `threshold_stuck` suppression | 30m (host) | **4h** | breaches repeat every 4.1h at p50 |
+| `MaxActionsPerHour` | 4 | **12** | busiest hour: 4 distinct subjects; fleet is 8 |
+
+⚠ **`give_up_backup`'s settle was below the fastest recovery ever observed**, so it fired on every
+give-up that was about to fix itself. ⚠ **`threshold_stuck` had no settle at all**, and every threshold
+episode in the window cleared on its own — it would have announced twelve conditions that all ended
+without help. At 45m it now decides nothing here, which is the measurement rather than a fault.
+
+`MaxActionsPerHour` counts **decisions, not events**. The busiest hour held 36 events a rule wakes on
+but across only 4 subjects — mostly one server crash-looping, which suppression collapses to one
+decision. A ceiling at the observed figure would silence a host that lost every server, which is the
+story it most needs to let through.
+
+### Added — a rule carries its own suppression window
+
+`Rule.Suppression` is optional and overrides the host-wide setting; null follows the host and says so.
+Per rule because the measurement is per rule by three orders of magnitude: 25 seconds between repeat
+crashes against four hours between repeat threshold breaches. One number serving both either collapses
+a day of threshold episodes into a single decision or lets a crash-loop speak nine times.
+
+`/status` reports each rule's settle and suppression **as resolved**, for the same reason it already
+reports mode that way — the gate block shows the host-wide window, and two of the three rules do not
+run under it.
+
+### Unchanged — `RegressionWindow`, because there is nothing to measure it from
+
+Thirty days hold two updates followed by a fault on the same server at all, at 112 and 168 minutes,
+and neither is plausibly the update's doing. A window fitted to those two would be a causal claim
+built from coincidence, which is the opposite of what the field asserts. It stays at 30m and the
+reason is now recorded rather than marked pending.
+
 ### Added — a reference names the line as well as locating it
 
 An observation and a decision's source pointer both carry the id their line's producer minted, beside

@@ -124,11 +124,23 @@ public sealed record DecisionStatus(
 /// <param name="Shape">What wakes it — <c>edge</c> or <c>state</c>.</param>
 /// <param name="Severity">How loudly it speaks, for composition.</param>
 /// <param name="Mode">The authority it runs under.</param>
+/// <param name="SettleSeconds">How long after a wake before it is evaluated.</param>
+/// <param name="SuppressionMinutes">
+/// How long it stays quiet about one subject after firing, <b>as resolved</b> — its own window when it
+/// carries one, the host-wide setting when it does not.
+/// </param>
+/// <remarks>
+/// Resolved rather than configured, for the same reason <see cref="Mode"/> is. The gate block reports
+/// the host-wide window, and a reader seeing only that would take it for the window in force on every
+/// rule — which for two of the three here it is not.
+/// </remarks>
 public sealed record RuleStatus(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("shape")] string Shape,
     [property: JsonPropertyName("severity")] string Severity,
-    [property: JsonPropertyName("mode")] string Mode);
+    [property: JsonPropertyName("mode")] string Mode,
+    [property: JsonPropertyName("settleSeconds")] int SettleSeconds,
+    [property: JsonPropertyName("suppressionMinutes")] int SuppressionMinutes);
 
 /// <summary>One evaluation waiting out its settle window.</summary>
 /// <param name="Rule">Which rule was woken.</param>

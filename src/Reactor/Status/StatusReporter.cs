@@ -56,7 +56,12 @@ internal sealed class StatusReporter(
                     // The mode as resolved, not as configured: a rule named in two lists gets the
                     // safest of them, and reporting what was written in the file would show an
                     // authority the rule does not actually have.
-                    (_options.ModeFor(rule.Id) ?? RuleMode.Observe).ToString().ToLowerInvariant())),
+                    (_options.ModeFor(rule.Id) ?? RuleMode.Observe).ToString().ToLowerInvariant(),
+                    (int)rule.Settle.TotalSeconds,
+                    // Likewise resolved: the gate block below reports the host-wide window, and two of
+                    // the three rules do not run under it.
+                    (int)(rule.Suppression
+                          ?? TimeSpan.FromMinutes(Math.Max(_options.SuppressionWindowMinutes, 0))).TotalMinutes)),
             ],
             Pending =
             [

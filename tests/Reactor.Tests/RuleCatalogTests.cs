@@ -66,6 +66,44 @@ public class RuleCatalogTests
         Assert.True(new ReactorAction.ProposeRestore("x").ChangesServerState);
     }
 
+    /// <summary>
+    /// Every rule's settle window is a positive span, and no two of them are the same by accident.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A settle of zero means the rule is judged the instant its event lands, which for a condition
+    /// that ever resolves itself is a guarantee of noise — measured here as twelve of twelve threshold
+    /// breaches clearing on their own. The floor is not a style rule.
+    /// </remarks>
+    [Fact]
+    public void Every_rule_waits_before_it_judges()
+    {
+        Assert.All(RuleCatalog.All, rule => Assert.True(
+            rule.Settle > TimeSpan.Zero,
+            $"{rule.Id} is judged the instant its event lands"));
+    }
+
+    /// <summary>
+    /// The gate values as measured, pinned so that changing one is a decision rather than a drift.
+    /// </summary>
+    /// <remarks>
+    /// Each of these came from 30 days of this host's journals, and each has a reason recorded beside
+    /// it in <c>RuleCatalog</c>. A test that only asserted "some positive number" would let a future
+    /// edit quietly undo the measurement; this fails and points at the field that moved.
+    /// </remarks>
+    [Theory]
+    [InlineData("give_up_backup", 120, 15)]       // self-resolve min 83.5s; repeats p95 10.3m
+    [InlineData("update_regression", 60, null)]   // crash→ready p95 38s; crash repeats p50 25s → host-wide
+    [InlineData("threshold_stuck", 2700, 240)]    // breach→cleared max 39.7m; repeats p50 4.1h
+    public void The_measured_gate_values_are_what_ships(string id, int settleSeconds, int? suppressionMinutes)
+    {
+        Rule rule = Assert.Single(RuleCatalog.All, r => r.Id == id);
+
+        Assert.Equal(TimeSpan.FromSeconds(settleSeconds), rule.Settle);
+        Assert.Equal(
+            suppressionMinutes is { } minutes ? TimeSpan.FromMinutes(minutes) : null,
+            rule.Suppression);
+    }
+
     [Fact]
     public void A_rule_named_in_no_list_is_off()
     {

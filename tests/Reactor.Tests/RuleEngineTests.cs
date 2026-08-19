@@ -257,7 +257,50 @@ public class RuleEngineTests : IDisposable
         Assert.Equal(2, decisions.Count);
         Assert.Equal(1, decisions.Count(d => d.Outcome == DecisionOutcome.Fired));
         Decision suppressed = Assert.Single(decisions, d => d.Outcome == DecisionOutcome.Suppressed);
-        Assert.Contains("inside the 30m window", suppressed.Reason);
+
+        // give_up_backup carries its own 15m window, measured from how often a give-up repeats on one
+        // subject, so the host-wide 30m configured above is not what stopped this one.
+        Assert.Contains("inside the 15m window", suppressed.Reason);
+    }
+
+    /// <summary>
+    /// A rule's own window overrides the host-wide one, in the direction that lets it speak sooner.
+    /// </summary>
+    /// <remarks>
+    /// The measurement is per rule by three orders of magnitude — 25 seconds between repeat crashes,
+    /// four hours between repeat threshold breaches — so a single host-wide figure is necessarily
+    /// wrong for something. This is the half that would otherwise go unnoticed: a rule whose window is
+    /// SHORTER than the host's stays silent past its own window if the override is ignored, and a
+    /// suppressed decision looks like a considered one.
+    /// </remarks>
+    [Fact]
+    public async Task A_rules_own_window_is_what_governs_it()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        // Host-wide window far longer than give_up_backup's own 15m.
+        var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 240), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await WaitForAsync(() => events.HasRawHandler);
+
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+
+        // A second episode past the rule's 15m but well inside the host's 240m.
+        clock.Advance(TimeSpan.FromMinutes(20));
+        await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 900));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        List<Decision> decisions = Decisions(ledger);
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(2, decisions.Count(d => d.Outcome == DecisionOutcome.Fired));
+        Assert.DoesNotContain(decisions, d => d.Outcome == DecisionOutcome.Suppressed);
     }
 
     [Fact]

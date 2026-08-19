@@ -206,6 +206,22 @@ internal sealed record RuleContext(
 /// For a <see cref="RuleShape.State"/> rule, what to evaluate on each sweep. Null for an edge rule,
 /// whose subject arrives with the event.
 /// </param>
+/// <param name="Suppression">
+/// How long this rule stays quiet about one subject after firing, or null to take the host-wide
+/// setting.
+/// </param>
+/// <remarks>
+/// <para>
+/// Per rule because the measurement is per rule, by three orders of magnitude. The window comes from
+/// the observed spacing between repeat events for one subject, and on this host that is 25 seconds
+/// for a crash and four hours for a threshold breach — one number serving both either collapses a
+/// day of threshold episodes into one decision or lets a crash-loop speak nine times.
+/// </para>
+/// <para>
+/// Null rather than a default, so a rule that has never been measured takes the host-wide value and
+/// says so, instead of carrying a figure someone will later read as a measurement.
+/// </para>
+/// </remarks>
 internal sealed record Rule(
     string Id,
     RuleShape Shape,
@@ -214,4 +230,5 @@ internal sealed record Rule(
     TimeSpan Settle,
     Func<RuleContext, CancellationToken, ValueTask<Verdict>> Holds,
     Func<string, ReactorAction> Action,
-    Func<IRuleHistory, CancellationToken, ValueTask<IReadOnlyList<string>>>? Subjects = null);
+    Func<IRuleHistory, CancellationToken, ValueTask<IReadOnlyList<string>>>? Subjects = null,
+    TimeSpan? Suppression = null);

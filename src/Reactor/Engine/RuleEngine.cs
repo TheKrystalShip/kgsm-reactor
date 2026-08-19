@@ -407,11 +407,21 @@ internal sealed class RuleEngine : BackgroundService
     /// week behind it. They are wired now so the gate's outcomes are recorded from the start — which
     /// is what turns "is 30 minutes the right window" from an opinion into a query.
     /// </remarks>
+    /// <summary>How long <paramref name="rule"/> stays quiet about one subject after firing.</summary>
+    /// <remarks>
+    /// The rule's own measured window when it has one, the host-wide setting when it does not. A rule
+    /// carrying a figure derived from its own repeat spacing should not have it overridden by a number
+    /// chosen for a different rule's event — and one that has never been measured should follow the
+    /// host rather than a default invented for it.
+    /// </remarks>
+    private TimeSpan SuppressionFor(Rule rule) =>
+        rule.Suppression ?? TimeSpan.FromMinutes(Math.Max(_options.SuppressionWindowMinutes, 0));
+
     private (DecisionOutcome, string) Gate(
         Rule rule, Pending pending, ReactorAction action, DateTimeOffset now, string holds)
     {
         DateTimeOffset? lastFired = _decisions.LastFired(rule.Id, pending.Subject, pending.EpisodeKey);
-        var window = TimeSpan.FromMinutes(Math.Max(_options.SuppressionWindowMinutes, 0));
+        TimeSpan window = SuppressionFor(rule);
         if (lastFired is { } fired && now - fired < window)
         {
             return (DecisionOutcome.Suppressed,
