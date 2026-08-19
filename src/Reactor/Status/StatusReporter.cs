@@ -45,23 +45,12 @@ internal sealed class StatusReporter(
                 _options.SweepIntervalSeconds,
                 _options.SuppressionWindowMinutes,
                 _options.MaxActionsPerHour),
+            Honours = RuleEngine.Honours.ToString().ToLowerInvariant(),
             Observations = new IngestStatus(ingest.Recorded, ingest.Dropped),
             Decisions = new DecisionStatus(engine.Recorded, engine.Emitted),
             Rules =
             [
-                .. engine.Active.Select(rule => new RuleStatus(
-                    rule.Id,
-                    rule.Shape.ToString().ToLowerInvariant(),
-                    rule.Severity.ToString().ToLowerInvariant(),
-                    // The mode as resolved, not as configured: a rule named in two lists gets the
-                    // safest of them, and reporting what was written in the file would show an
-                    // authority the rule does not actually have.
-                    (_options.ModeFor(rule.Id) ?? RuleMode.Observe).ToString().ToLowerInvariant(),
-                    (int)rule.Settle.TotalSeconds,
-                    // Likewise resolved: the gate block below reports the host-wide window, and two of
-                    // the three rules do not run under it.
-                    (int)(rule.Suppression
-                          ?? TimeSpan.FromMinutes(Math.Max(_options.SuppressionWindowMinutes, 0))).TotalMinutes)),
+                .. engine.Active.Select(rule => Describe(rule)),
             ],
             Pending =
             [
@@ -69,6 +58,47 @@ internal sealed class StatusReporter(
             ],
             LastSweepAt = engine.LastSweepAt,
         };
+    }
+
+    /// <summary>
+    /// One rule, as it is actually running.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Everything here is resolved rather than configured</b>, and each of the three has a
+    /// different way of going wrong if it is not:
+    /// <list type="bullet">
+    /// <item><description>The <b>mode</b> is what the engine will honour. A rule named in two lists
+    /// gets the safest of them, and one asking for an authority this build has not built observes —
+    /// so the configured value travels beside it rather than in place of it.</description></item>
+    /// <item><description>The <b>suppression window</b> is the rule's own where it carries one and the
+    /// host-wide setting where it does not. The gate block reports the host-wide figure, and a reader
+    /// seeing only that would take it for the window in force on every rule, which for two of the
+    /// three here it is not.</description></item>
+    /// <item><description>What it <b>wakes on</b> and what it <b>would do</b> come from the compiled
+    /// rule, because nothing configures either. They are reported so a reader can tell what a rule is
+    /// for without having the source open.</description></item>
+    /// </list>
+    /// </remarks>
+    private RuleStatus Describe(Rule rule)
+    {
+        RuleMode configured = _options.ModeFor(rule.Id) ?? RuleMode.Observe;
+        RuleMode effective = RuleEngine.Effective(configured);
+
+        return new RuleStatus(
+            rule.Id,
+            rule.Shape.ToString().ToLowerInvariant(),
+            rule.Severity.ToString().ToLowerInvariant(),
+            effective.ToString().ToLowerInvariant(),
+            (int)rule.Settle.TotalSeconds,
+            (int)(rule.Suppression
+                  ?? TimeSpan.FromMinutes(Math.Max(_options.SuppressionWindowMinutes, 0))).TotalMinutes,
+            // Null when they agree: a field that always restates the one beside it invites a surface to
+            // render "configured observe, running observe", which is noise on every healthy host.
+            effective == configured ? null : configured.ToString().ToLowerInvariant(),
+            rule.Wakes,
+            // The action is declared per subject, but its NAME does not vary by one — it is the stable
+            // string other programs compare against, where Describe() is prose that names the instance.
+            rule.Action(string.Empty).Name);
     }
 
     /// <summary>

@@ -7,6 +7,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the status socket reported an authority a rule did not have
+
+A rule configured to `propose` or `act` was reported on `/status` as `propose`/`act`. The engine
+clamps both to observe — those phases are not built — and said so, but only as a warning in the
+journal. So an operator who granted a rule authority, saw it echoed back on a status page and was
+silently observed would believe the host is acting when it is not.
+
+`RuleEngine.Effective` is now the single place that clamp is expressed, `/status` reports what a rule
+may actually do, and the configured value travels beside it as `configuredMode` — null when the two
+agree, so a healthy host does not render "configured observe, running observe". Neither half alone is
+the honest answer: the effective mode hides that somebody asked for more, and the configured one
+shows an authority that does not exist.
+
+### Added — `/status` says what it can honour, and what each rule is for
+
+`honours` reports the most authority this build will let any rule have, so a surface offering a mode
+control does not have to hard-code which phases exist — a panel that did would go on refusing `act`
+after the build that acts is deployed.
+
+Each rule now also carries `wakes` (the event types that bring it to an evaluation) and `actionName`
+(what it would do), so a reader can tell what a rule is for without having the source open.
+
 ### Added — the decision review is served, not only printed
 
 `GET /decisions` on the status socket answers the same four readings `--decisions` prints: what each

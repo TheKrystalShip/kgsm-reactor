@@ -1,3 +1,4 @@
+using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
@@ -129,6 +130,33 @@ public class RuleCatalogTests
         });
 
         Assert.Equal(RuleMode.Observe, options.ModeFor("give_up_backup"));
+    }
+
+    [Fact]
+    public void A_mode_this_build_cannot_honour_is_reported_as_what_it_actually_is()
+    {
+        // ⚠ The failure this guards is a status page contradicting the daemon. Configuring a rule to
+        // act and being silently observed is exactly what the engine refuses to allow quietly — and a
+        // surface that echoed the configured mode would make the refusal invisible, since the warning
+        // it logs lives in a journal nobody reads.
+        ReactorOptions options = ReactorOptions.FromSettings(new ReactorSettings
+        {
+            RulesObserve = string.Empty,
+            RulesAct = "give_up_backup",
+        });
+
+        Assert.Equal(RuleMode.Act, options.ModeFor("give_up_backup"));
+        Assert.Equal(RuleMode.Observe, RuleEngine.Effective(RuleMode.Act));
+        Assert.Equal(RuleMode.Observe, RuleEngine.Effective(RuleMode.Propose));
+    }
+
+    [Fact]
+    public void The_effective_mode_never_raises_what_was_configured()
+    {
+        // Whatever this build grows to honour, the clamp is downwards only: a rule left in observe
+        // must never be lifted by a later phase teaching the engine to act.
+        foreach (RuleMode configured in Enum.GetValues<RuleMode>())
+            Assert.True(RuleEngine.Effective(configured) <= configured);
     }
 
     [Fact]

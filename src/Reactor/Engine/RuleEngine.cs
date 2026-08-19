@@ -106,6 +106,32 @@ internal sealed class RuleEngine : BackgroundService
     internal IReadOnlyList<Rule> Active => _active;
 
     /// <summary>
+    /// The most authority this build can honour.
+    /// </summary>
+    /// <remarks>
+    /// Propose and act are later phases. Until they exist, a rule configured to one of them observes —
+    /// and this is the single place that fact is expressed, so the phase that builds them moves one
+    /// constant rather than hunting for every surface that assumed it.
+    /// </remarks>
+    internal static RuleMode Honours => RuleMode.Observe;
+
+    /// <summary>
+    /// What a rule may actually do, as opposed to what it was configured to do.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>This is the mode a surface must report.</b> Reporting the configured one shows an
+    /// authority the rule does not have: an operator who set a rule to act, saw "act" on a status
+    /// page and was silently observed would believe the host is acting when it is not — which is the
+    /// failure <see cref="ResolveActiveRules"/> refuses to allow quietly, and a page contradicting a
+    /// warning nobody reads in the journal is how it happens anyway.
+    /// <para>
+    /// The enum is ordered safest-first, so the smaller of the two is the answer.
+    /// </para>
+    /// </remarks>
+    internal static RuleMode Effective(RuleMode configured) =>
+        (RuleMode)Math.Min((int)configured, (int)Honours);
+
+    /// <summary>
     /// The evaluations woken and waiting out their settle windows, soonest first.
     /// </summary>
     /// <remarks>
@@ -180,11 +206,12 @@ internal sealed class RuleEngine : BackgroundService
                 continue;
             }
 
-            if (configured != RuleMode.Observe)
+            if (Effective(configured.Value) != configured)
             {
                 _logger.LogWarning(
-                    "Rule {Rule} is configured to {Mode}, but this build only observes — treating it as "
-                    + "observe. Nothing will be staged or performed.", rule.Id, configured);
+                    "Rule {Rule} is configured to {Mode}, but this build honours at most {Honours} — "
+                    + "treating it as {Honours}. Nothing will be staged or performed.",
+                    rule.Id, configured, Honours);
             }
 
             if (rule.Shape == RuleShape.State && rule.Subjects is null)

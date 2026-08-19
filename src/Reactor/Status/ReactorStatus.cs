@@ -63,6 +63,18 @@ public sealed record ReactorStatus
     [JsonPropertyName("decisions")]
     public required DecisionStatus Decisions { get; init; }
 
+    /// <summary>
+    /// The most authority this build will let any rule have.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Reported so a surface does not have to know which phases exist.</b> Propose and act are
+    /// later phases, and a panel that hard-coded "this build only observes" would go on saying it
+    /// after the build that acts is deployed — offering a control that does nothing, or refusing one
+    /// that would work. The leaf is the only thing that knows, so the leaf says.
+    /// </remarks>
+    [JsonPropertyName("honours")]
+    public required string Honours { get; init; }
+
     /// <summary>Every rule that is live, and the authority it runs under.</summary>
     [JsonPropertyName("rules")]
     public required IReadOnlyList<RuleStatus> Rules { get; init; }
@@ -123,7 +135,9 @@ public sealed record DecisionStatus(
 /// <param name="Id">Its stable id.</param>
 /// <param name="Shape">What wakes it — <c>edge</c> or <c>state</c>.</param>
 /// <param name="Severity">How loudly it speaks, for composition.</param>
-/// <param name="Mode">The authority it runs under.</param>
+/// <param name="Mode">
+/// The authority it actually runs under — what this build will let it do, not what the file asked for.
+/// </param>
 /// <param name="SettleSeconds">How long after a wake before it is evaluated.</param>
 /// <param name="SuppressionMinutes">
 /// How long it stays quiet about one subject after firing, <b>as resolved</b> — its own window when it
@@ -134,13 +148,29 @@ public sealed record DecisionStatus(
 /// the host-wide window, and a reader seeing only that would take it for the window in force on every
 /// rule — which for two of the three here it is not.
 /// </remarks>
+/// <param name="ConfiguredMode">
+/// What the configuration asked for, when this build cannot honour it — otherwise <see langword="null"/>.
+/// </param>
+/// <remarks>
+/// ⚠ <b>The pair is the honest answer, and neither half alone is.</b> Reporting only the configured
+/// mode shows an authority the rule does not have; reporting only the effective one hides that
+/// somebody asked for more and did not get it. A surface renders <see cref="Mode"/> as what is in
+/// force and mentions <see cref="ConfiguredMode"/> as what was intended.
+/// </remarks>
+/// <param name="Wakes">The event types that bring it to an evaluation.</param>
+/// <param name="ActionName">
+/// The stable name of what it would do, or <c>none</c> for a rule that reports and proposes nothing.
+/// </param>
 public sealed record RuleStatus(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("shape")] string Shape,
     [property: JsonPropertyName("severity")] string Severity,
     [property: JsonPropertyName("mode")] string Mode,
     [property: JsonPropertyName("settleSeconds")] int SettleSeconds,
-    [property: JsonPropertyName("suppressionMinutes")] int SuppressionMinutes);
+    [property: JsonPropertyName("suppressionMinutes")] int SuppressionMinutes,
+    [property: JsonPropertyName("configuredMode")] string? ConfiguredMode,
+    [property: JsonPropertyName("wakes")] IReadOnlyList<string> Wakes,
+    [property: JsonPropertyName("actionName")] string ActionName);
 
 /// <summary>One evaluation waiting out its settle window.</summary>
 /// <param name="Rule">Which rule was woken.</param>
