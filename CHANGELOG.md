@@ -7,6 +7,51 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — a fourth rule: what a server holds against what its blueprint declares
+
+`memory_declaration_drift` reads kgsm-monitor for what each instance has been *measured* to hold and
+compares it against the `min_ram_mb` its blueprint *declares*. Neither figure is wrong: a blueprint is
+curated from vendor documentation and describes a game, a footprint describes one world with its own
+map, mods and players. The rule reports that two true statements about different things have drifted
+apart, and a person decides what to do about it.
+
+State-shaped, because nothing emits an event when a footprint drifts — it is a slow fact about
+accumulated measurement, not a thing that happens — so the sweep rediscovers it and there is no wake to
+miss. `Wakes` is therefore empty, which is a first: the catalog's reachability test now asks an edge
+rule for events and a state rule for subjects, rather than asking every rule for events.
+
+⚠ **It proposes nothing and acts on nothing.** Rewriting instance config is on this leaf's never-list,
+so the decision record *is* the output — what was declared, what was measured, how much measurement is
+behind it, which way it has been moving. A surface renders that beside the live footprint rather than
+storing a copy of a measurement that would go stale.
+
+**Coverage is two gates, because it is two questions**, and conflating them was a real defect caught by
+simulating the rule against thirty days of a live host before shipping it. Calendar span asks whether
+the observation reaches across enough of a world's life; observed hours ask whether there is enough
+measurement in it. A server played most evenings for a month has 57 hours across 25 days — the
+second-best evidence on that host — and a single gate reading "days" off the sample count calls it two
+days and refuses. Under that gate exactly one instance qualified and the rule fired on nothing.
+
+A third gate wants two independent runs, since one cannot separate an instance's behaviour from a single
+session's. But a run boundary is only counted when this host was watching, so an instance running
+continuously since before the monitor existed reports zero — a week of unbroken operation satisfies it
+instead.
+
+⚠ **A launch line that fixes the heap fixes the measurement with it.** An instance carrying `-Xmx` is
+reported as such and never as a divergence: what was measured is the value of a flag. ⚠ The scan reads
+the arguments KGSM launches with, so a game whose own start script sets the heap — Project Zomboid's
+`install/ProjectZomboid64.json` carries `-Xmx8g` — is invisible to it and will be judged as a measured
+instance. Left to say so in the ledger rather than covered by a heuristic guessed at now.
+
+**Upward and downward are not the same judgment.** An instance holding more than it declares is reported
+on its figures alone, with any OOM kill or memory stall named beside them. Downward carries the extra
+burden of a trend, because a working set still climbing has not found its ceiling and a lower figure
+proposed against a number still in motion is how this rule would do harm rather than noise — and a trend
+that cannot be read blocks it rather than being guessed at.
+
+`MonitorSocketPath` is new configuration. The monitor is a leaf: absent or unreachable, this rule reports
+"cannot tell" and nothing else about the daemon changes.
+
 ### Fixed — the status socket reported an authority a rule did not have
 
 A rule configured to `propose` or `act` was reported on `/status` as `propose`/`act`. The engine

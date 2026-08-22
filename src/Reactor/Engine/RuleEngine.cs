@@ -38,6 +38,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly DecisionStore _decisions;
     private readonly IWorldView _world;
     private readonly IRuleHistory _history;
+    private readonly IFootprintSource _footprint;
     private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
     private readonly TimeProvider _clock;
@@ -61,6 +62,7 @@ internal sealed class RuleEngine : BackgroundService
         IDecisionEmitter emitter,
         IWorldView world,
         IRuleHistory history,
+        IFootprintSource footprint,
         IOptions<ReactorOptions> options,
         TimeProvider clock,
         ILogger<RuleEngine> logger)
@@ -71,6 +73,7 @@ internal sealed class RuleEngine : BackgroundService
         _emitter = emitter;
         _world = world;
         _history = history;
+        _footprint = footprint;
         _options = options.Value;
         _clock = clock;
         _logger = logger;
@@ -291,7 +294,8 @@ internal sealed class RuleEngine : BackgroundService
 
             // A state rule rediscovers its own subjects, which is what makes it immune to a missed
             // event: nothing had to be seen for the condition to be found.
-            IReadOnlyList<string> subjects = await rule.Subjects(_history, token).ConfigureAwait(false);
+            var subjectContext = new SubjectContext(_clock.GetUtcNow(), _world, _history, _footprint);
+            IReadOnlyList<string> subjects = await rule.Subjects(subjectContext, token).ConfigureAwait(false);
 
             foreach (string subject in subjects)
             {
@@ -316,13 +320,36 @@ internal sealed class RuleEngine : BackgroundService
     /// The open episode a state rule's subject belongs to, for its identity and its start.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Read from the ledger rather than held in memory, which is what lets an episode that began
     /// before this daemon started still be judged from when it actually opened.
+    /// </para>
+    /// <para>
+    /// <b>A rule that wakes on nothing identifies its own episodes.</b> Some conditions are not
+    /// episodes at all: a footprint drifting away from a declaration is a standing fact about
+    /// accumulated measurement, and no producer writes a line when it becomes true. Such a rule gets a
+    /// synthetic opening keyed on itself and its subject — stable across sweeps, so re-evaluating one
+    /// refines its decision rather than opening a second, and <c>opened_at</c> keeps the instant it was
+    /// first seen because the upsert deliberately does not overwrite it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>The source it carries names a measurement rather than a journal line, and that is a real
+    /// weakening of invariant 1.</b> A reader can go to the endpoint named and see what is true now,
+    /// which is not the same as reading the line the decision was made from. The reason string is
+    /// therefore load-bearing here in a way it is not for the other rules: it carries the figures, so
+    /// the decision describes itself rather than pointing at something that has since moved on.
+    /// </para>
     /// </remarks>
     private OpenEpisode? OpeningOf(Rule rule, string subject, DateTimeOffset now)
     {
         if (rule.Wakes.Count == 0)
-            return null;
+        {
+            return new OpenEpisode(
+                subject,
+                SubjectKind.Instance,
+                now,
+                new EventSource(rule.Id, subject, 0, null));
+        }
 
         // The closing type is the opening type's counterpart by convention: `_breached` closes with
         // `_cleared`. Derived rather than declared because a rule that named both would be declaring
@@ -344,7 +371,7 @@ internal sealed class RuleEngine : BackgroundService
     private async Task EvaluateAsync(Pending pending, DateTimeOffset now, CancellationToken token)
     {
         Rule rule = pending.Rule;
-        var context = new RuleContext(pending.Subject, now, _world, _history);
+        var context = new RuleContext(pending.Subject, now, _world, _history, _footprint);
 
         Verdict verdict;
         try

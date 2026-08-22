@@ -122,6 +122,16 @@
       "risk": "wiring"
     },
     {
+      "key": "monitorSocket",
+      "env": "Reactor__MonitorSocketPath",
+      "label": "Monitor metrics socket",
+      "description": "The monitor's metrics socket. The reactor reads it for what each server has actually been measured using, which is what the memory-drift rule compares against. With no monitor on this host, that rule simply has nothing to read.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/run/kgsm-monitor/metrics.sock",
+      "risk": "wiring"
+    },
+    {
       "key": "statusSocket",
       "env": "Reactor__StatusSocketPath",
       "label": "Status socket",
@@ -172,7 +182,7 @@
       "description": "Which rules are watching. They record what they would have done and change nothing, which is how a rule earns the right to act.",
       "group": "rules",
       "type": "csv",
-      "default": "give_up_backup,update_regression,threshold_stuck",
+      "default": "give_up_backup,update_regression,threshold_stuck,memory_declaration_drift",
       "risk": "safe"
     },
     {

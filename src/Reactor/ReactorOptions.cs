@@ -84,6 +84,9 @@ internal sealed record ReactorOptions
     public required int FlushIntervalSeconds { get; init; }
     public required string WatchdogSocketPath { get; init; }
 
+    /// <summary>The metrics socket kgsm-monitor serves on.</summary>
+    public required string MonitorSocketPath { get; init; }
+
     /// <summary>Where the status endpoint listens. Blank means it does not listen at all.</summary>
     public required string StatusSocketPath { get; init; }
 
@@ -152,6 +155,9 @@ internal sealed record ReactorOptions
             RetentionDays = AtLeast(settings.RetentionDays ?? DefaultRetentionDays, MinRetentionDays),
             FlushIntervalSeconds =
                 AtLeast(settings.FlushIntervalSeconds ?? DefaultFlushIntervalSeconds, MinFlushIntervalSeconds),
+            MonitorSocketPath = Blank(settings.MonitorSocketPath)
+                ? "/run/kgsm-monitor/metrics.sock"
+                : settings.MonitorSocketPath.Trim(),
             WatchdogSocketPath = Blank(settings.WatchdogSocketPath)
                 ? "/run/kgsm-watchdog/control.sock"
                 : settings.WatchdogSocketPath.Trim(),

@@ -181,6 +181,13 @@ internal sealed class Program
         // working state and the journal is what the rest of the host can read.
         builder.Services.AddSingleton<IDecisionEmitter, DecisionEmitter>();
         builder.Services.AddSingleton<IWorldView, WatchdogWorldView>();
+
+        // What each instance has been measured to hold. A leaf reading a sibling leaf, on the terms
+        // that makes acceptable: absent, one rule reports "cannot tell" and the reactor is otherwise
+        // exactly what it was.
+        builder.Services.AddSingleton<IFootprintSource>(sp => new MonitorFootprintSource(
+            options.MonitorSocketPath,
+            sp.GetRequiredService<ILogger<MonitorFootprintSource>>()));
         builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
 
         // Registered as singletons and then handed to the host, rather than AddHostedService<T>()

@@ -23,6 +23,32 @@ internal readonly record struct InstanceRunState(string Phase, bool DesiredRunni
 }
 
 /// <summary>
+/// What an instance is declared to need, and what would make measuring it meaningless.
+/// </summary>
+/// <remarks>
+/// <b>The declaration describes a game; a measurement describes one world.</b> A blueprint's figures
+/// are curated from vendor documentation and are true of the software; an instance's footprint is true
+/// of its own map, mods and players. A rule comparing them is not correcting one with the other — it
+/// is reporting that two true statements about different things have drifted apart.
+/// </remarks>
+/// <param name="MinRamMb">The blueprint's advisory minimum, or null when it declares none.</param>
+/// <param name="RecommendedRamMb">The blueprint's advisory recommendation, or null.</param>
+/// <param name="HeapFlag">
+/// The maximum-heap argument this instance launches with, when it carries one.
+/// <para>
+/// ⚠ <b>Its presence makes the footprint unusable as a requirement.</b> A JVM with <c>-Xmx4096M</c>
+/// will hold four gigabytes whether or not the world needs them, so what was measured is the value of
+/// a flag rather than a property of the server.
+/// </para>
+/// <para>
+/// ⚠ <b>Null does not mean there is none.</b> This reads the arguments KGSM launches with, and a game
+/// whose own start script sets the heap — Project Zomboid's <c>ProjectZomboid64.json</c> carries
+/// <c>-Xmx8g</c> — is invisible here. Absence is "none found", never "none exists".
+/// </para>
+/// </param>
+internal readonly record struct MemoryDeclaration(int? MinRamMb, int? RecommendedRamMb, string? HeapFlag);
+
+/// <summary>
 /// The live world, read fresh at every evaluation.
 /// </summary>
 /// <remarks>
@@ -42,4 +68,7 @@ internal interface IWorldView
 {
     /// <summary>How the supervisor sees one instance.</summary>
     ValueTask<Reading<InstanceRunState>> InstanceAsync(string instance, CancellationToken token);
+
+    /// <summary>What this instance is declared to need, and whether it can be measured at all.</summary>
+    ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(string instance, CancellationToken token);
 }

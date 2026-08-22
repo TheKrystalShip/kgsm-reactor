@@ -23,9 +23,21 @@ public class RuleCatalogTests
     }
 
     [Fact]
-    public void Every_rule_names_at_least_one_event_that_wakes_it()
+    public void Every_rule_can_be_reached_by_something()
     {
-        Assert.All(RuleCatalog.All, rule => Assert.NotEmpty(rule.Wakes));
+        // Reachability is the invariant; naming an event is one of the two ways to satisfy it. An edge
+        // rule has no other, so an empty wake list makes it permanently silent. A state rule is woken
+        // by the sweep and enumerates its own subjects, so it needs no event at all — and a condition
+        // nothing announces, like a footprint drifting away from a declaration, has none to name.
+        Assert.All(
+            RuleCatalog.All.Where(r => r.Shape == RuleShape.Edge),
+            rule => Assert.NotEmpty(rule.Wakes));
+
+        Assert.All(
+            RuleCatalog.All.Where(r => r.Shape == RuleShape.State),
+            rule => Assert.True(
+                rule.Subjects is not null || rule.Wakes.Count > 0,
+                $"{rule.Id} is a state rule with neither subjects to sweep nor an event to wake on"));
     }
 
     [Fact]

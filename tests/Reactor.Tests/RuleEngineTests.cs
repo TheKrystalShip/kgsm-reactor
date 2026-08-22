@@ -68,8 +68,24 @@ public class RuleEngineTests : IDisposable
         public Reading<InstanceRunState> Answer { get; set; } =
             Reading<InstanceRunState>.Measured(new InstanceRunState("failed", true, 5));
 
+        public Reading<MemoryDeclaration> Declaration { get; set; } =
+            Reading<MemoryDeclaration>.Measured(new MemoryDeclaration(2048, 4096, null));
+
         public ValueTask<Reading<InstanceRunState>> InstanceAsync(string instance, CancellationToken token) =>
             ValueTask.FromResult(Answer);
+
+        public ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(
+            string instance, CancellationToken token) => ValueTask.FromResult(Declaration);
+    }
+
+    /// <summary>A monitor that has measured nothing, which is the ordinary case for these tests.</summary>
+    private sealed class EmptyFootprints : IFootprintSource
+    {
+        public ValueTask<Reading<IReadOnlyList<InstanceFootprint>>> AllAsync(CancellationToken token) =>
+            ValueTask.FromResult(Reading<IReadOnlyList<InstanceFootprint>>.Measured([]));
+
+        public ValueTask<Reading<MemoryTrend>> TrendAsync(string instance, CancellationToken token) =>
+            ValueTask.FromResult(Reading<MemoryTrend>.Unavailable("no series"));
     }
 
     private static EventWrapper Failed(string instance) => new()
@@ -102,7 +118,7 @@ public class RuleEngineTests : IDisposable
         FakeEvents events, ObservationLedger ledger, IWorldView world, ReactorOptions options,
         FakeTimeProvider clock, IDecisionEmitter? emitter = null) =>
         new(events, ledger, new DecisionStore(ledger), emitter ?? new RecordingEmitter(), world,
-            new LedgerRuleHistory(ledger),
+            new LedgerRuleHistory(ledger), new EmptyFootprints(),
             Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<RuleEngine>.Instance);
 

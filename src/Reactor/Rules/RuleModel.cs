@@ -180,11 +180,30 @@ internal abstract record ReactorAction
 /// <param name="Now">The evaluation instant. Passed rather than read, so a test owns the clock.</param>
 /// <param name="World">The live world. Every rule re-derives from it rather than trusting the event.</param>
 /// <param name="History">What has been observed, for the questions a single event cannot answer.</param>
+/// <param name="Footprint">
+/// What kgsm-monitor has measured, for the questions no event answers at all. Reads through it are
+/// three-valued like the rest: the monitor is a leaf and may not be installed.
+/// </param>
 internal sealed record RuleContext(
     string Subject,
     DateTimeOffset Now,
     IWorldView World,
-    IRuleHistory History);
+    IRuleHistory History,
+    IFootprintSource Footprint);
+
+/// <summary>
+/// What a state rule is given to work out which subjects it should evaluate.
+/// </summary>
+/// <remarks>
+/// The same sources as <see cref="RuleContext"/> without the subject, which is the thing being chosen.
+/// A rule whose subjects come from a measurement rather than from an open episode needs to read the
+/// world to find them, and a delegate given only the history could not.
+/// </remarks>
+internal sealed record SubjectContext(
+    DateTimeOffset Now,
+    IWorldView World,
+    IRuleHistory History,
+    IFootprintSource Footprint);
 
 /// <summary>One rule: what wakes it, how it decides, and what it would do about it.</summary>
 /// <remarks>
@@ -194,7 +213,16 @@ internal sealed record RuleContext(
 /// </remarks>
 /// <param name="Id">Stable, and the actor string an audit row will carry.</param>
 /// <param name="Shape">What wakes it.</param>
-/// <param name="Wakes">Event types that bring it to an evaluation.</param>
+/// <param name="Wakes">
+/// Event types that bring it to an evaluation.
+/// <para>
+/// Empty is legal only for a <see cref="RuleShape.State"/> rule, and means the condition is one no
+/// producer announces — a standing fact about accumulated measurement rather than something that
+/// happens. Such a rule is reached by the sweep alone and identifies its own episodes. ⚠ Its decisions
+/// then cite a measurement rather than a journal line, so its reason string has to carry the figures:
+/// nothing else lets a reader reconstruct what it decided on.
+/// </para>
+/// </param>
 /// <param name="Severity">How loudly it speaks, for composition.</param>
 /// <param name="Settle">
 /// How long after the wake before it is evaluated. The window in which a condition that was going to
@@ -230,5 +258,5 @@ internal sealed record Rule(
     TimeSpan Settle,
     Func<RuleContext, CancellationToken, ValueTask<Verdict>> Holds,
     Func<string, ReactorAction> Action,
-    Func<IRuleHistory, CancellationToken, ValueTask<IReadOnlyList<string>>>? Subjects = null,
+    Func<SubjectContext, CancellationToken, ValueTask<IReadOnlyList<string>>>? Subjects = null,
     TimeSpan? Suppression = null);

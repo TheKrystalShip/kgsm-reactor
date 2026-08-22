@@ -47,6 +47,11 @@
     // "cannot tell" and stops the evaluation — never as "the condition does not hold".
     "WatchdogSocketPath": "/run/kgsm-watchdog/control.sock",
 
+    // The monitor's metrics socket. Read for what each instance has been MEASURED to hold, which no
+    // event carries and no other component can answer. The monitor is a leaf: absent or unreachable,
+    // the one rule that reads it reports "cannot tell" and nothing else about this daemon changes.
+    "MonitorSocketPath": "/run/kgsm-monitor/metrics.sock",
+
     // The unix socket the status endpoint listens on. A socket rather than a port: nothing off this
     // host has business asking a leaf what it is thinking, and the filesystem permissions are the
     // whole boundary. It lives in the systemd runtime directory, so it is created on start and gone
@@ -60,7 +65,7 @@
     // Which rules evaluate and record, dispatching nothing. The catalog ships in code; this decides
     // which of it is live. A rule named in none of the three lists is off, and one named in more
     // than one gets the SAFEST of them.
-    "RulesObserve": "give_up_backup,update_regression,threshold_stuck",
+    "RulesObserve": "give_up_backup,update_regression,threshold_stuck,memory_declaration_drift",
 
     // Which rules may stage an action for a human to confirm. UNBUILT — a rule named here is
     // clamped to observe, loudly, rather than silently doing nothing.

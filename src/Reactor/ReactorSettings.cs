@@ -131,6 +131,19 @@ internal sealed class ReactorSettings
         Risk = LeafRisk.Wiring)]
     public string WatchdogSocketPath { get; set; } = "/run/kgsm-watchdog/control.sock";
 
+    /// <summary>The metrics socket kgsm-monitor serves on.</summary>
+    /// <remarks>
+    /// Read for what each instance has been measured to hold, which no event carries and no other
+    /// component can answer. The monitor is a leaf: absent or unreachable, the one rule that reads it
+    /// reports "cannot tell" and nothing else about this daemon changes.
+    /// </remarks>
+    /// <panel>The monitor's metrics socket. The reactor reads it for what each server has actually been
+    /// measured using, which is what the memory-drift rule compares against. With no monitor on this
+    /// host, that rule simply has nothing to read.</panel>
+    [LeafField("monitorSocket", "Monitor metrics socket", Group = "wiring", Type = LeafType.Path,
+        Risk = LeafRisk.Wiring)]
+    public string MonitorSocketPath { get; set; } = "/run/kgsm-monitor/metrics.sock";
+
     /// <summary>
     /// The unix socket the status endpoint listens on.
     /// </summary>
@@ -166,7 +179,7 @@ internal sealed class ReactorSettings
     /// <panel>Which rules are watching. They record what they would have done and change nothing, which
     /// is how a rule earns the right to act.</panel>
     [LeafField("rulesObserve", "Rules in observe", Group = "rules", Type = LeafType.Csv)]
-    public string RulesObserve { get; set; } = "give_up_backup,update_regression,threshold_stuck";
+    public string RulesObserve { get; set; } = "give_up_backup,update_regression,threshold_stuck,memory_declaration_drift";
 
     /// <summary>Rules that stage their action for a human to confirm.</summary>
     /// <remarks>⚠ Unbuilt. A rule named here is clamped to observe, loudly.</remarks>
