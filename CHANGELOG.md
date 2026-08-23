@@ -7,6 +7,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a packaged install enables and starts the reactor (`0.14.0`)
+
+`packaging/kgsm-reactor.install` applies kgsm-base's `50-kgsm.preset` to this project's units in
+`post_install`, so a node comes up with them enabled instead of needing a person to enable each one.
+The node's post-transaction hook starts what is enabled, stopped and configured. `post_upgrade` does
+not preset: an administrator's `disable` survives every later version.
+
+Starting it changes nothing about a host on its own: every rule ships in `observe` mode, so a node
+that came up with the reactor running records what it would have decided and acts on nothing.
+
+`depends=('kgsm-base')`, which carries the `kgsm` account this unit runs as and the `/var/lib/kgsm`
+tree it tails the journals from — so this package no longer ships
+`/usr/lib/sysusers.d/kgsm-reactor.conf`, and `deploy/sysusers.d/` is gone.
+
 ### Added — a fourth rule: what a server holds against what its blueprint declares
 
 `memory_declaration_drift` reads kgsm-monitor for what each instance has been *measured* to hold and
