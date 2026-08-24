@@ -3,10 +3,11 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 `kgsm-reactor` is the **event-triggered** leaf of the KGSM ecosystem — the sibling of
-`kgsm-scheduler`, which is the clock-triggered one. It reads every producer's event journal and, in
-time, decides what is worth doing about what it sees. The workspace keystone is
+`kgsm-scheduler`, which is the clock-triggered one. It reads every producer's event journal,
+evaluates rules against what it sees, and records every decision; a rule's default mode is
+`observe`, so nothing acts until somebody moves it. The workspace keystone is
 `../system-architecture.md`; **the authority for this project is `../kgsm-reactor-plan.md`**, which
-holds the phases, the boundary contract and every decision still open.
+holds the design, the boundary contract and every decision still open.
 
 ## Commands
 
@@ -28,7 +29,7 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 # The population report, off the live ledger. Needs nothing stopped.
 /opt/kgsm-reactor/kgsm-reactor --report --days 7
 
-# The decision review — what the reactor MADE of it. The gate before any action mode.
+# The decision review — what the reactor MADE of it.
 /opt/kgsm-reactor/kgsm-reactor --decisions --days 7
 
 # Read journal history the reactor was not running for. Observations only; idempotent; safe live.
@@ -96,9 +97,7 @@ where the journal line is written after the ledger is open and the rules are res
   what makes `--verify` real:** comparing event types misses a shift that lands on the same kind of
   event, which is the likely case — a journal is mostly repetitions of a handful of types. Where
   either side has no id the check falls back to the type, because absence is unknown and never a
-  mismatch. Whether the id should become the primary key is open, and waits on `--verify` measuring
-  how often a rewrite actually happens: a positional key duplicates on a rewrite, an id key collapses
-  if a producer ever repeats an id.
+  mismatch.
 - **The ledger migrates in place, additively.** `ObservationLedger.AddColumnIfMissing` is the whole
   mechanism, for both tables. Every column added here has been nullable, because a row restates a
   journal line and a new reading is something older rows simply do not carry. ⚠ `CREATE TABLE IF NOT
@@ -170,6 +169,12 @@ history; never duplicate it into docs or code.
   survive it: *"temporary shim for the rework"*, *"added to satisfy the new requirement"*,
   milestone/phase labels (*"per M2"*, *"the Phase 1 step"*). If a line's justification is the work
   that produced it rather than the system as it now stands, it goes.
+- **No volatile numbers.** Counts and versions that drift — how many projects/files/tests/
+  partials exist, a dependency's pinned version, a file's line count — never go in prose: they are
+  stale the moment anything changes, and nothing fails to remind anyone. Name the authoritative
+  source instead (the csproj, the directory, the barrel file). A number belongs in prose only when
+  it *is* the contract (a port, a timeout, a cap) or a measured fact that is itself the reason a
+  design exists.
 - **Edits are replacements, not appends.** When changing an existing feature, rewrite the affected
   doc/comment fresh as if writing it for the first time — never append a correction under the
   stale version, and never leave the stale version standing beside the new. The current revision
