@@ -8,6 +8,7 @@ using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
@@ -41,7 +42,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly IFootprintSource _footprint;
     private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
-    private readonly RuleTuning _tuning;
+    private readonly RuleSet _rules;
     private readonly TimeProvider _clock;
     private readonly ILogger<RuleEngine> _logger;
 
@@ -54,10 +55,22 @@ internal sealed class RuleEngine : BackgroundService
     /// </remarks>
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
 
-    private IReadOnlyList<Rule> _active = [];
+    private IReadOnlyList<ActiveRule> _active = [];
 
-    /// <summary>The thresholds every rule is running on, and whatever could not be honoured.</summary>
-    public RuleTuning Tuning => _tuning;
+    /// <summary>The rules this host holds, live and retired, and whatever could not be honoured.</summary>
+    public RuleSet Rules => _rules;
+
+    /// <summary>
+    /// One rule as it is actually running: what it was written as, what it evaluates through, and the
+    /// authority it has after clamping.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The definition travels beside the evaluable rule rather than being looked up from it.</b>
+    /// A decision is stamped with the attribution the rule carried when it decided, and resolving that
+    /// through the store at write time would mean an edit halfway through a sweep changed who a
+    /// decision already in flight appears to name.
+    /// </remarks>
+    internal sealed record ActiveRule(RuleDefinition Definition, Rule Rule, RuleMode Mode);
 
     public RuleEngine(
         IEventService events,
@@ -82,15 +95,15 @@ internal sealed class RuleEngine : BackgroundService
         _clock = clock;
         _logger = logger;
 
-        // Read once, here, rather than per evaluation: a sweep that re-read a file every thirty
-        // seconds would let thresholds change under a decision half-taken, and every other
-        // configuration change on this leaf applies on restart.
-        _tuning = RuleTuningFile.Resolve(RuleCatalog.All, _options.RulesPath, logger);
+        // Read once, here, rather than per evaluation: a sweep that re-read the file every thirty
+        // seconds would let a rule change under a decision half-taken, and every other configuration
+        // change on this leaf applies on restart.
+        _rules = RuleStore.Load(_options.RulesPath, logger);
     }
 
     /// <summary>An evaluation that has been woken and is waiting out its settle window.</summary>
     private sealed record Pending(
-        Rule Rule, string Subject, SubjectKind SubjectKind, string EpisodeKey, EventSource Source,
+        ActiveRule Rule, string Subject, SubjectKind SubjectKind, string EpisodeKey, EventSource Source,
         DateTimeOffset OpenedAt, DateTimeOffset DueAt);
 
     /// <summary>Decisions recorded since start. Read by tests.</summary>
@@ -114,8 +127,8 @@ internal sealed class RuleEngine : BackgroundService
     /// </remarks>
     internal DateTimeOffset? LastSweepAt { get; private set; }
 
-    /// <summary>Every rule that is live, in catalog order.</summary>
-    internal IReadOnlyList<Rule> Active => _active;
+    /// <summary>Every rule that is live, in file order.</summary>
+    internal IReadOnlyList<ActiveRule> Active => _active;
 
     /// <summary>
     /// The most authority this build can honour.
@@ -153,7 +166,7 @@ internal sealed class RuleEngine : BackgroundService
     /// </remarks>
     internal IReadOnlyList<(string Rule, string Subject, DateTimeOffset DueAt)> PendingEvaluations =>
         [.. _pending.Values
-            .Select(p => (p.Rule.Id, p.Subject, p.DueAt))
+            .Select(p => (p.Rule.Definition.Id, p.Subject, p.DueAt))
             .OrderBy(p => p.DueAt)];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -167,8 +180,9 @@ internal sealed class RuleEngine : BackgroundService
         }
 
         _logger.LogInformation(
-            "Evaluating {Count} rule(s) every {Sweep}s, all in observe: {Rules}",
-            _active.Count, _options.SweepIntervalSeconds, string.Join(", ", _active.Select(r => r.Id)));
+            "Evaluating {Count} rule(s) every {Sweep}s: {Rules}",
+            _active.Count, _options.SweepIntervalSeconds,
+            string.Join(", ", _active.Select(r => $"{r.Definition.Id} ({r.Mode.ToString().ToLowerInvariant()})")));
 
         _events.RegisterRawHandler(OnEventAsync);
 
@@ -205,37 +219,29 @@ internal sealed class RuleEngine : BackgroundService
     /// later phases; an operator who configures one and is silently observed would believe the host is
     /// acting when it is not, which is a worse failure than refusing.
     /// </remarks>
-    private IReadOnlyList<Rule> ResolveActiveRules()
+    private IReadOnlyList<ActiveRule> ResolveActiveRules()
     {
-        List<Rule> active = [];
+        List<ActiveRule> active = [];
 
-        foreach (Rule rule in RuleCatalog.All)
+        foreach (RuleDefinition definition in _rules.Rules)
         {
-            RuleMode? configured = _options.ModeFor(rule.Id);
-            if (configured is null)
-            {
-                _logger.LogInformation("Rule {Rule} is not enabled on this host.", rule.Id);
-                continue;
-            }
+            RuleMode effective = Effective(definition.Mode);
 
-            if (Effective(configured.Value) != configured)
+            if (effective != definition.Mode)
             {
                 _logger.LogWarning(
-                    "Rule {Rule} is configured to {Mode}, but this build honours at most {Honours}, "
+                    "Rule {Rule} asks for {Mode}, but this build honours at most {Honours}, "
                     + "which is what it will do. Nothing will be staged or performed.",
-                    rule.Id, configured, Honours);
+                    definition.Id, definition.Mode, Honours);
             }
 
-            if (rule.Shape == RuleShape.State && rule.Subjects is null)
+            if (effective == RuleMode.Off)
             {
-                // A state rule with nothing to enumerate would never evaluate, and would look enabled.
-                _logger.LogError(
-                    "Rule {Rule} is state-shaped but names no subjects — skipping it rather than "
-                    + "leaving it enabled and inert.", rule.Id);
+                _logger.LogInformation("Rule {Rule} is off on this host.", definition.Id);
                 continue;
             }
 
-            active.Add(rule);
+            active.Add(new ActiveRule(definition, RuleEvaluator.ToRule(definition), effective));
         }
 
         return active;
@@ -262,20 +268,20 @@ internal sealed class RuleEngine : BackgroundService
             producer, position.Segment ?? string.Empty, position.Offset, position.EventId);
         DateTimeOffset occurredAt = wrapper.Timestamp ?? _clock.GetUtcNow();
 
-        foreach (Rule rule in _active)
+        foreach (ActiveRule active in _active)
         {
-            if (rule.Shape != RuleShape.Edge)
+            if (active.Rule.Shape != RuleShape.Edge)
                 continue;
             // Matched on the current name: a segment written before a producer renamed one of its
             // events is still read, and a rule keyed on the name it is called now has to wake on it.
-            if (!rule.Wakes.Contains(
+            if (!active.Rule.Wakes.Contains(
                     LegacyEventNames.Canonical(wrapper.EventType), StringComparer.Ordinal))
                 continue;
 
-            string key = $"{rule.Id}|{facts.Subject}|{source.Key}";
+            string key = $"{active.Definition.Id}|{facts.Subject}|{source.Key}";
             _pending[key] = new Pending(
-                rule, facts.Subject, facts.SubjectKind, source.Key, source,
-                occurredAt, _clock.GetUtcNow() + rule.Settle);
+                active, facts.Subject, facts.SubjectKind, source.Key, source,
+                occurredAt, _clock.GetUtcNow() + active.Rule.Settle);
         }
 
         return Task.CompletedTask;
@@ -297,26 +303,27 @@ internal sealed class RuleEngine : BackgroundService
             await EvaluateAsync(pending, now, token).ConfigureAwait(false);
         }
 
-        foreach (Rule rule in _active)
+        foreach (ActiveRule active in _active)
         {
             if (token.IsCancellationRequested)
                 return;
-            if (rule.Shape != RuleShape.State || rule.Subjects is null)
+            if (active.Rule.Shape != RuleShape.State || active.Rule.Subjects is null)
                 continue;
 
             // A state rule rediscovers its own subjects, which is what makes it immune to a missed
             // event: nothing had to be seen for the condition to be found.
             var subjectContext = new SubjectContext(_clock.GetUtcNow(), _world, _history, _footprint);
-            IReadOnlyList<string> subjects = await rule.Subjects(subjectContext, token).ConfigureAwait(false);
+            IReadOnlyList<string> subjects =
+                await active.Rule.Subjects(subjectContext, token).ConfigureAwait(false);
 
             foreach (string subject in subjects)
             {
-                OpenEpisode? episode = OpeningOf(rule, subject, now);
+                OpenEpisode? episode = OpeningOf(active.Rule, subject, now);
                 if (episode is null)
                     continue;
 
                 await EvaluateAsync(
-                    new Pending(rule, subject, episode.Value.SubjectKind, episode.Value.Source.Key,
+                    new Pending(active, subject, episode.Value.SubjectKind, episode.Value.Source.Key,
                         episode.Value.Source, episode.Value.OpenedAt, now),
                     now, token).ConfigureAwait(false);
             }
@@ -382,9 +389,9 @@ internal sealed class RuleEngine : BackgroundService
     /// <summary>Evaluate one rule against one subject, run the gate, and record what came of it.</summary>
     private async Task EvaluateAsync(Pending pending, DateTimeOffset now, CancellationToken token)
     {
-        Rule rule = pending.Rule;
-        var context = new RuleContext(
-            pending.Subject, now, _world, _history, _footprint, _tuning.For(rule.Id));
+        RuleDefinition definition = pending.Rule.Definition;
+        Rule rule = pending.Rule.Rule;
+        var context = new RuleContext(pending.Subject, now, _world, _history, _footprint);
 
         Verdict verdict;
         try
@@ -415,9 +422,14 @@ internal sealed class RuleEngine : BackgroundService
             SubjectKind: pending.SubjectKind,
             EpisodeKey: pending.EpisodeKey,
             Severity: rule.Severity,
-            Mode: RuleMode.Observe,
+            Mode: pending.Rule.Mode,
             Outcome: outcome,
             Reason: reason,
+            // Copied onto the decision rather than joined at read time. A decision six months old
+            // must still name who had shaped the rule when it fired, and resolving it through the
+            // store later means editing a rule silently rewrites the attribution of everything it
+            // ever decided — while retiring one, or closing an account, erases the trace entirely.
+            RuleAuthor: definition.Author,
             Action: action.Describe(),
             ActionName: action.Name,
             ActionInstance: action.TargetInstance,
@@ -466,14 +478,6 @@ internal sealed class RuleEngine : BackgroundService
             Emitted++;
     }
 
-    /// <summary>
-    /// Everything between a condition holding and an action being warranted.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ Every window and ceiling read here is a <b>placeholder</b> until the population report has a
-    /// week behind it. They are wired now so the gate's outcomes are recorded from the start — which
-    /// is what turns "is 30 minutes the right window" from an opinion into a query.
-    /// </remarks>
     /// <summary>How long <paramref name="rule"/> stays quiet about one subject after firing.</summary>
     /// <remarks>
     /// The rule's own measured window when it has one, the host-wide setting when it does not. A rule

@@ -7,6 +7,45 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the rules a host runs are the rules in its file (`0.19.0`)
+
+`rules.json` is what the reactor evaluates. A rule in it names what wakes it, what subjects it decides
+about, an ordered list of steps over the signals this build measures, and one of the actions this
+build can perform; its authority — off, observe, propose, act — is a field on the rule. A host with no
+file runs the four rules this build seeds, all observing, which is the state a rule has to earn its
+way out of.
+
+The three mode lists are gone from the descriptor. Which rules are live and what each may do was two
+questions answered in different places — a CSV in the leaf config and a predicate in the binary — and
+a panel had to reconcile "which list is this rule named in" against "what authority does it actually
+run under". There is one field now, still clamped by what the build honours and still reported beside
+what the rule asked for.
+
+`GET /catalog` publishes what a rule may be made of: every signal with its kind, unit, arguments and
+prose; every subject source and the rule shape it produces; every action and whether it changes the
+server; the operators and outcomes in the spellings the file uses; and how much authority this build
+will honour. A panel renders an editor from that rather than holding a copy, so it cannot offer a
+signal a later build dropped or refuse one a later build added. It stays read-only: publishing what a
+rule may be made of is not accepting one over a socket.
+
+`/status` reports each rule's whole definition — its steps in evaluation order, its bindings, its
+subject source and who last shaped it — beside `problems`, which names every rule that could not be
+honoured and why. A misspelled signal, a step with no sentence, an action outside the catalog or a
+duplicate id leaves that rule out and the rest of the file running. Retired rules are reported
+separately: they are never evaluated and are kept so that decisions they already made still resolve to
+a rule that can be named.
+
+Decisions carry who shaped the rule that made them, as a stable `provider:name` username, on the
+ledger and on `reactor.decided`. It sits beside the actor rather than replacing it — the rule
+performed the act, a person wrote the rule — and it is copied onto the decision rather than looked up
+later, so editing a rule cannot rewrite the attribution of everything it ever decided. A rule nobody
+signed produces a decision nobody signed: there is no fallback to the OS user, and a row written
+before authorship existed reads back unknown rather than being backfilled.
+
+⚠ The silent-rules reading now covers the rules that are live. A retired or muted rule is not failing
+to speak — it was stopped on purpose — and listing it would put a rule somebody deleted on a report of
+things that need looking at.
+
 ### Added — a rule is data assembled from catalogs (`0.18.0`)
 
 A rule is a definition rather than a function: what wakes it, what subjects it decides about, an

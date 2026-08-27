@@ -37,11 +37,19 @@ namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 internal static class DecisionReport
 {
     /// <summary>Renders the whole review for the last <paramref name="days"/> days.</summary>
-    public static string Render(ObservationLedger ledger, int days, DateTimeOffset now)
+    /// <param name="ledger">The ledger to read.</param>
+    /// <param name="days">How far back to look.</param>
+    /// <param name="now">The reading instant.</param>
+    /// <param name="liveRules">
+    /// The rules that are live on this host, for the silent reading. Read from the same store the
+    /// daemon reads, so a terminal and the daemon cannot disagree about which rules exist.
+    /// </param>
+    public static string Render(
+        ObservationLedger ledger, int days, DateTimeOffset now, IReadOnlyList<string> liveRules)
     {
         // No cap: a person reading the review wants every decision in the window, and the terminal is
         // where the whole log belongs. The socket's caller is the one that asks for a bounded list.
-        DecisionReview review = DecisionReview.Read(ledger, days, now, int.MaxValue);
+        DecisionReview review = DecisionReview.Read(ledger, days, now, int.MaxValue, liveRules);
 
         var report = new StringBuilder();
         report.AppendLine($"kgsm-reactor — decisions over the last {days} day(s)");

@@ -48,6 +48,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             mode          TEXT    NOT NULL,
             outcome       TEXT    NOT NULL,
             reason        TEXT    NOT NULL,
+            rule_author   TEXT    NULL,
             action        TEXT    NOT NULL,
             action_name   TEXT    NOT NULL,
             action_inst   TEXT    NULL,
@@ -87,6 +88,10 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             // No default at all. A decision recorded before ids existed points at a line whose name
             // nobody knows, and null is how this leaf spells that everywhere else.
             ("src_event_id", "TEXT NULL"),
+            // Likewise null: a decision taken before rules carried an author was taken by a rule this
+            // build shipped, and stamping the build's name on it afterwards would invent a hand that
+            // was never on it.
+            ("rule_author", "TEXT NULL"),
         ];
 
         foreach ((string column, string definition) in wanted)
@@ -121,14 +126,18 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             """
             INSERT INTO decisions
                 (id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
-                 action, action_name, action_inst, action_state, opened_at, decided_at,
+                 rule_author, action, action_name, action_inst, action_state, opened_at, decided_at,
                  src_producer, src_segment, src_offset, src_event_id)
             VALUES ($id, $rule, $subject, $subjectKind, $episode, $severity, $mode, $outcome, $reason,
-                    $action, $actionName, $actionInstance, $actionState, $openedAt, $decidedAt,
+                    $author, $action, $actionName, $actionInstance, $actionState, $openedAt, $decidedAt,
                     $producer, $segment, $offset, $eventId)
             ON CONFLICT(id) DO UPDATE SET
                 outcome      = excluded.outcome,
                 reason       = excluded.reason,
+                -- Re-stamped with each pass, because a rule edited between two sweeps of one open
+                -- episode was a different rule on the second: the decision names the hand that was
+                -- on it when this verdict was reached, not the hand that opened the episode.
+                rule_author  = excluded.rule_author,
                 action_state = excluded.action_state,
                 decided_at   = excluded.decided_at;
             """,
@@ -143,6 +152,8 @@ internal sealed class DecisionStore(ObservationLedger ledger)
                 command.Parameters.AddWithValue("$mode", decision.Mode.ToString());
                 command.Parameters.AddWithValue("$outcome", decision.Outcome.ToString());
                 command.Parameters.AddWithValue("$reason", decision.Reason);
+                command.Parameters.AddWithValue(
+                    "$author", (object?)decision.RuleAuthor ?? DBNull.Value);
                 command.Parameters.AddWithValue("$action", decision.Action);
                 command.Parameters.AddWithValue("$actionName", decision.ActionName);
                 command.Parameters.AddWithValue(
@@ -229,7 +240,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             """
             SELECT id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
                    action, action_name, action_inst, action_state, opened_at, decided_at,
-                   src_producer, src_segment, src_offset, src_event_id
+                   src_producer, src_segment, src_offset, src_event_id, rule_author
             FROM decisions WHERE decided_at >= $since ORDER BY decided_at DESC;
             """,
             command => command.Parameters.AddWithValue("$since", since.ToUnixTimeMilliseconds()),
@@ -250,6 +261,10 @@ internal sealed class DecisionStore(ObservationLedger ledger)
         Mode: Enum.Parse<Rules.RuleMode>(reader.GetString(6)),
         Outcome: Enum.Parse<DecisionOutcome>(reader.GetString(7)),
         Reason: reader.GetString(8),
+        // Appended to the projection rather than inserted in its natural place, so every index below
+        // keeps meaning what it did. A reader whose columns shift by one is a reader that silently
+        // reports the action where the reason was.
+        RuleAuthor: reader.FieldCount > 19 && !reader.IsDBNull(19) ? reader.GetString(19) : null,
         Action: reader.GetString(9),
         ActionName: reader.GetString(10),
         ActionInstance: reader.IsDBNull(11) ? null : reader.GetString(11),

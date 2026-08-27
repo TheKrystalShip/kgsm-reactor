@@ -122,6 +122,22 @@ internal readonly record struct EventSource(
 /// <param name="Mode">The mode it ran in.</param>
 /// <param name="Outcome">What was decided.</param>
 /// <param name="Reason">Why, in words. Always present.</param>
+/// <param name="RuleAuthor">
+/// Who had shaped the rule when it decided, as <c>provider:name</c>, or null when nobody is known to
+/// have.
+/// <para>
+/// ⚠ <b>Provenance about the rule, never the actor.</b> The rule decided; a person wrote the rule.
+/// Writing them into the actor would claim they performed an act they did not — and a rule anybody can
+/// create is a rule anybody can get wrong, so a decision has to be traceable to whoever shaped it.
+/// </para>
+/// <para>
+/// ⚠ <b>Copied here rather than joined at read time</b>, and nullable rather than guessed. A decision
+/// six months old must still name who had shaped the rule when it fired: resolving it through the
+/// store later means editing a rule silently rewrites the attribution of everything it ever decided,
+/// and retiring one — or closing an account — erases the trace entirely. A row written by a rule
+/// nobody signed carries none, and there is no fallback to the OS user.
+/// </para>
+/// </param>
 /// <param name="Action">What it would do, described rather than performed.</param>
 /// <param name="ActionName">The same action as a stable name other programs compare against.</param>
 /// <param name="ActionInstance">The server the action would operate on, or null when it operates on none.</param>
@@ -139,6 +155,7 @@ internal sealed record Decision(
     RuleMode Mode,
     DecisionOutcome Outcome,
     string Reason,
+    string? RuleAuthor,
     string Action,
     string ActionName,
     string? ActionInstance,

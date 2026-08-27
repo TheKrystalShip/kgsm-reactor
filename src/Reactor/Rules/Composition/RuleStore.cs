@@ -434,7 +434,12 @@ internal static class RuleStore
         }
     }
 
-    private static string Wire(ClauseOperator op) => op switch
+    /// <summary>The spelling an operator has in the file, which is also what a surface renders.</summary>
+    /// <remarks>
+    /// One spelling, in one place. A status surface inventing its own would let a panel offer an
+    /// operator the file cannot express, or spell one it can in a way the leaf will not read back.
+    /// </remarks>
+    public static string Wire(ClauseOperator op) => op switch
     {
         ClauseOperator.LessThan => "lt",
         ClauseOperator.AtMost => "lte",
@@ -449,7 +454,8 @@ internal static class RuleStore
         _ => "contains",
     };
 
-    private static string Wire(VerdictKind kind) => kind switch
+    /// <inheritdoc cref="Wire(ClauseOperator)"/>
+    public static string Wire(VerdictKind kind) => kind switch
     {
         VerdictKind.Holds => "holds",
         VerdictKind.DoesNotHold => "doesNotHold",

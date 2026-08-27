@@ -10,6 +10,7 @@ using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.Kgsm.Reactor.Status;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -251,6 +252,17 @@ internal sealed class Program
             host.MapGet("/status", (StatusReporter reporter) =>
                 Results.Json(reporter.Read(), ReactorStatusJsonContext.Default.ReactorStatus));
 
+            // What a rule may be MADE of on this build — every signal, subject source, action,
+            // operator and outcome, with its prose. A panel renders an editor from this rather than
+            // holding a copy of the catalogs, which is what stops it offering a signal a later build
+            // dropped or refusing one a later build added.
+            //
+            // ⚠ Read-only, like everything else here. Publishing what a rule may be made of is not
+            // accepting one: composing and storing is the panel's half, which writes the file and
+            // restarts the unit through the grant it already holds.
+            host.MapGet("/catalog", () =>
+                Results.Json(ReactorCatalog.Read(), ReactorCatalogJsonContext.Default.ReactorCatalog));
+
             // What it MADE of what it saw — the review the gate before any action mode is performed
             // against. The same four readings `--decisions` prints, off the same arithmetic, so a
             // browser and a terminal cannot disagree about the busiest hour a ceiling is set from.
@@ -261,6 +273,7 @@ internal sealed class Program
             // no to a question it can in fact answer.
             host.MapGet("/decisions", (
                 ObservationLedger ledger,
+                RuleEngine engine,
                 TimeProvider clock,
                 IOptions<ReactorOptions> reactorOptions,
                 int? days,
@@ -271,7 +284,9 @@ internal sealed class Program
 
                 DecisionReview review = DecisionReview.Read(
                     ledger, window, clock.GetUtcNow(),
-                    Math.Clamp(limit ?? DefaultReviewLimit, 1, MaxReviewLimit));
+                    Math.Clamp(limit ?? DefaultReviewLimit, 1, MaxReviewLimit),
+                    // The rules that are meant to be deciding. A retired or muted one is not silent.
+                    [.. engine.Rules.Rules.Select(r => r.Id)]);
 
                 return Results.Json(review, DecisionReviewJsonContext.Default.DecisionReview);
             });
@@ -353,7 +368,11 @@ internal sealed class Program
 
         Console.Write(kind switch
         {
-            ReportKind.Decisions => DecisionReport.Render(ledger, days, now),
+            // Read from the same file the daemon reads, so the terminal and the running reactor cannot
+            // disagree about which rules exist — which is the whole point of the silent reading.
+            ReportKind.Decisions => DecisionReport.Render(
+                ledger, days, now,
+                [.. RuleStore.Load(ResolveOptions().RulesPath).Rules.Select(r => r.Id)]),
             _ => PopulationReport.Render(ledger, days, now),
         });
 

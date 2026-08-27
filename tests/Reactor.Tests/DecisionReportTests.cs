@@ -47,6 +47,7 @@ public class DecisionReportTests : IDisposable
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "because",
+            RuleAuthor: null,
             Action: "take a pinned backup",
             ActionName: "create_backup",
             ActionInstance: subject,
@@ -55,8 +56,10 @@ public class DecisionReportTests : IDisposable
             DecidedAt: at,
             Source: new EventSource("kgsm-watchdog", "s.ndjson", 1, null)));
 
-    private string Render(ObservationLedger ledger, int days = 7) =>
-        DecisionReport.Render(ledger, days, Now);
+    private string Render(ObservationLedger ledger, int days = 7, params string[] liveRules) =>
+        DecisionReport.Render(
+            ledger, days, Now,
+            liveRules.Length > 0 ? liveRules : [.. HandWrittenRules.All.Select(r => r.Id)]);
 
     [Fact]
     public void An_empty_window_reads_as_a_reading_rather_than_an_error()
@@ -89,7 +92,7 @@ public class DecisionReportTests : IDisposable
     public void A_rule_that_spoke_is_not_listed_as_silent()
     {
         using ObservationLedger ledger = OpenLedger();
-        foreach (Rule rule in RuleCatalog.All)
+        foreach (Rule rule in HandWrittenRules.All)
             Record(ledger, rule.Id, "starbound", DecisionOutcome.Settled, Now.AddHours(-1));
 
         Assert.DoesNotContain("Rules that decided nothing", Render(ledger), StringComparison.Ordinal);

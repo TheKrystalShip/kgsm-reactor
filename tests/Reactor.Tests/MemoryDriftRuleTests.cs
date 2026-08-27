@@ -1,20 +1,29 @@
 using System.Text.Json;
 
-using Microsoft.Extensions.Logging.Abstractions;
-
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>
-/// The rule that reports a footprint drifting away from what a blueprint declares.
+/// What the drift rule reads, and what happens when somebody moves one of the figures it compares
+/// against.
 /// </summary>
 /// <remarks>
-/// The figures here are the ones measured on the host this was written against, so a reader can see
-/// which real instance each case is: <c>romestead</c> declares 4096 and holds 2908 across 25 days;
+/// <para>
+/// The rule's own verdicts are pinned in <see cref="ComposedRuleTwinTests"/>, which judges every
+/// fixture twice and demands the same sentence from both. What is left here is the half that is not a
+/// verdict: whether a moved comparand actually reaches the rule, and whether the readings underneath
+/// it — the monitor's wire shape, the trend arithmetic, the heap-flag scan — are what the rule thinks
+/// they are.
+/// </para>
+/// <para>
+/// The figures are the ones measured on the host this was written against, so a reader can see which
+/// real instance each case is: <c>romestead</c> declares 4096 and holds 2908 across 25 days;
 /// <c>Ketchup</c> declares 8192 and has never been seen to restart; <c>minecraft</c> declares 1024 and
 /// launches with <c>-Xmx4096M</c>.
+/// </para>
 /// </remarks>
 public class MemoryDriftRuleTests
 {
@@ -23,30 +32,65 @@ public class MemoryDriftRuleTests
     /// <summary>The nth five-minute bucket, which is the cadence the monitor rolls history up to.</summary>
     private static DateTimeOffset At(int bucket) => Now.AddMinutes(5 * bucket);
 
-    private static Rule TheRule =>
-        RuleCatalog.All.Single(r => r.Id == "memory_declaration_drift");
+    private static RuleDefinition TheRule =>
+        SeededRules.All.Single(r => r.Id == "memory_declaration_drift");
 
     /// <summary>
-    /// The thresholds the rule ships with — what it runs on where no file overrides them.
+    /// The same rule with one comparand moved, as an operator's file would have it.
     /// </summary>
     /// <remarks>
-    /// Resolved through the same path the daemon uses rather than restated here. A test carrying its
-    /// own copy of a default would keep passing after the shipped figure moved, which is precisely the
-    /// case it exists to catch.
+    /// ⚠ <b>Located by the figure it currently holds, not by position.</b> Two steps compare the same
+    /// signal — the hours gate against five and the unbroken-run stand-in against twenty-four — so a
+    /// helper that took the first match would silently move the wrong one, and a test built on it would
+    /// pass while proving nothing. Naming the figure being replaced also fails loudly if the shipped
+    /// one moves, which is the second thing worth knowing.
     /// </remarks>
-    private static IReadOnlyDictionary<string, double> Shipped =>
-        RuleTuning.Defaults(RuleCatalog.All).For(TheRule.Id);
+    private static RuleDefinition Moved(RuleDefinition rule, string alias, double from, double to)
+    {
+        List<GuardRow> rows = [];
+        bool found = false;
 
-    /// <summary>The shipped thresholds with some moved, as an operator's file would.</summary>
-    private static IReadOnlyDictionary<string, double> Tuned(params (string Key, double Value)[] moved) =>
-        RuleTuning
-            .Resolve(
-                RuleCatalog.All,
-                new Dictionary<string, IReadOnlyDictionary<string, double>>
+        foreach (GuardRow row in rule.Rows)
+        {
+            List<Clause> clauses = [];
+
+            foreach (Clause clause in row.Clauses)
+            {
+                if (!found
+                    && string.Equals(clause.Alias, alias, StringComparison.Ordinal)
+                    && clause.Against is Comparand.Literal { Value.Number: var held }
+                    && held.Equals(from))
                 {
-                    [TheRule.Id] = moved.ToDictionary(m => m.Key, m => m.Value),
-                })
-            .For(TheRule.Id);
+                    clauses.Add(clause with { Against = Comparand.Literal.Number(to) });
+                    found = true;
+                    continue;
+                }
+
+                clauses.Add(clause);
+            }
+
+            rows.Add(row with { Clauses = clauses });
+        }
+
+        Assert.True(found, $"no step compares {alias} against {from} — the shipped figure has moved");
+        return rule with { Rows = rows };
+    }
+
+    private static async Task<Verdict> Evaluate(
+        InstanceFootprint footprint,
+        MemoryDeclaration declaration,
+        Reading<MemoryTrend>? trend = null,
+        string subject = "romestead",
+        RuleDefinition? rule = null)
+    {
+        var context = new RuleContext(
+            subject, Now,
+            new StubWorld(Reading<MemoryDeclaration>.Measured(declaration)),
+            new StubHistory(),
+            new StubFootprints([footprint], trend ?? Reading<MemoryTrend>.Measured(new MemoryTrend(500, 1.0))));
+
+        return await RuleEvaluator.ToRule(rule ?? TheRule).Holds(context, CancellationToken.None);
+    }
 
     /// <summary>A footprint that clears every coverage gate, which each test then spoils one of.</summary>
     private static InstanceFootprint WellEvidenced(
@@ -64,190 +108,7 @@ public class MemoryDriftRuleTests
         SpanDays: span,
         Samples: 4000);
 
-    private static async Task<Verdict> Evaluate(
-        InstanceFootprint footprint,
-        MemoryDeclaration declaration,
-        Reading<MemoryTrend>? trend = null,
-        string subject = "romestead",
-        IReadOnlyDictionary<string, double>? thresholds = null)
-    {
-        var ctx = new RuleContext(
-            subject, Now,
-            new StubWorld(Reading<MemoryDeclaration>.Measured(declaration)),
-            new StubHistory(),
-            new StubFootprints([footprint], trend ?? Reading<MemoryTrend>.Measured(new MemoryTrend(500, 1.0))),
-            thresholds ?? Shipped);
-
-        return await TheRule.Holds(ctx, CancellationToken.None);
-    }
-
-    // ---- coverage: the two axes are separate questions ----
-
-    [Fact]
-    public async Task A_short_calendar_span_cannot_be_decided_on()
-    {
-        // stationeers: 0.4 hours in one 40-minute block.
-        Verdict v = await Evaluate(
-            WellEvidenced(hours: 0.4, span: 0.02), new MemoryDeclaration(6144, 12288, null));
-
-        Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("span", v.Reason);
-    }
-
-    [Fact]
-    public async Task Plenty_of_calendar_days_with_little_measurement_cannot_be_decided_on()
-    {
-        // The inverse of the case below, and the reason both gates exist: an instance started once a
-        // month for five minutes spans a month and has been measured for nothing.
-        Verdict v = await Evaluate(
-            WellEvidenced(hours: 3, span: 30), new MemoryDeclaration(4096, 8192, null));
-
-        Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("measured for", v.Reason);
-    }
-
-    [Fact]
-    public async Task Hours_spread_across_weeks_are_enough_even_though_they_are_few()
-    {
-        // ⚠ The defect this rule was nearly shipped with. romestead has 57 hours of measurement across
-        // 25 calendar days — most evenings for most of a month, which is the second-best evidence on
-        // its host. A single gate reading "days" off the sample count calls that two days and refuses,
-        // leaving one eligible instance and a rule that fires on nothing.
-        Verdict v = await Evaluate(WellEvidenced(), new MemoryDeclaration(4096, 8192, null));
-
-        Assert.Equal(VerdictKind.Holds, v.Kind);
-    }
-
-    [Fact]
-    public async Task One_run_is_not_enough_to_generalise_from()
-    {
-        // Under the unbroken-run stand-in, deliberately: above it a single run IS its own evidence,
-        // which is the case below.
-        Verdict v = await Evaluate(
-            WellEvidenced(runs: 1, hours: 9), new MemoryDeclaration(4096, 8192, null));
-
-        Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("seen to start", v.Reason);
-    }
-
-    [Fact]
-    public async Task A_long_continuous_run_stands_in_for_a_second_one()
-    {
-        // Ketchup: 704 hours across 30 days and not one boundary observed, because it has been running
-        // since before this host started measuring. A month of continuous operation is not weaker
-        // evidence than two evenings.
-        Verdict v = await Evaluate(
-            WellEvidenced(instance: "Ketchup", peakMb: 5433, runs: 0, hours: 704, span: 30),
-            new MemoryDeclaration(8192, 16384, null),
-            subject: "Ketchup");
-
-        Assert.NotEqual(VerdictKind.Unreadable, v.Kind);
-    }
-
-    // ---- what makes a measurement meaningless ----
-
-    [Fact]
-    public async Task An_instance_whose_heap_is_fixed_by_a_flag_is_not_a_measurement()
-    {
-        // minecraft: declares 1024, holds 4500, and the 4500 is -Xmx4096M -XX:+AlwaysPreTouch touching
-        // every page at boot. Reporting +340% here would be reporting the distance between a vendor's
-        // advice and an operator's flag, which is a true statement about nothing.
-        Verdict v = await Evaluate(
-            WellEvidenced(instance: "minecraft", peakMb: 4500),
-            new MemoryDeclaration(1024, 2048, "-Xmx4096M"),
-            subject: "minecraft");
-
-        Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Contains("-Xmx4096M", v.Reason);
-    }
-
-    [Fact]
-    public async Task A_blueprint_declaring_nothing_leaves_nothing_to_compare()
-    {
-        Verdict v = await Evaluate(WellEvidenced(), new MemoryDeclaration(null, null, null));
-
-        Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("declares no minimum", v.Reason);
-    }
-
-    // ---- the comparison ----
-
-    [Fact]
-    public async Task A_figure_close_to_the_declaration_is_not_worth_saying()
-    {
-        // Ketchup at +8%: measured and declared genuinely agree, which is the answer for most instances
-        // and must not produce a decision.
-        Verdict v = await Evaluate(
-            WellEvidenced(instance: "Ketchup", peakMb: 8852, runs: 0, hours: 704, span: 30),
-            new MemoryDeclaration(8192, 16384, null),
-            subject: "Ketchup");
-
-        Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Contains("within", v.Reason);
-    }
-
-    [Fact]
-    public async Task Holding_far_more_than_declared_is_reported_without_needing_a_trend()
-    {
-        // An instance already over its declaration is not going to be talked out of it by which way it
-        // is heading, so no trend is consulted — proven by handing it one that cannot be read.
-        Verdict v = await Evaluate(
-            WellEvidenced(instance: "pz", peakMb: 12269),
-            new MemoryDeclaration(8192, 16384, null),
-            trend: Reading<MemoryTrend>.Unavailable("no series"),
-            subject: "pz");
-
-        Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Contains("above it", v.Reason);
-    }
-
-    [Fact]
-    public async Task An_oom_kill_is_named_in_the_report()
-    {
-        InstanceFootprint killed = WellEvidenced(instance: "pz", peakMb: 12269) with { OomKills = 3 };
-        Verdict v = await Evaluate(
-            killed, new MemoryDeclaration(8192, 16384, null), subject: "pz");
-
-        Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Contains("killed 3", v.Reason);
-    }
-
-    [Fact]
-    public async Task Holding_far_less_than_declared_is_reported_once_it_has_settled()
-    {
-        Verdict v = await Evaluate(
-            WellEvidenced(), new MemoryDeclaration(4096, 8192, null),
-            trend: Reading<MemoryTrend>.Measured(new MemoryTrend(600, 0.4)));
-
-        Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Contains("below it", v.Reason);
-    }
-
-    [Fact]
-    public async Task A_working_set_still_climbing_is_not_lowered()
-    {
-        // The way this rule would do harm rather than noise: a world three weeks into growing has not
-        // found its ceiling, and a figure lowered against a number still in motion over-commits a node.
-        Verdict v = await Evaluate(
-            WellEvidenced(), new MemoryDeclaration(4096, 8192, null),
-            trend: Reading<MemoryTrend>.Measured(new MemoryTrend(600, 34.0)));
-
-        Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Contains("not found its ceiling", v.Reason);
-    }
-
-    [Fact]
-    public async Task An_unreadable_trend_blocks_a_decrement_rather_than_guessing_at_it()
-    {
-        Verdict v = await Evaluate(
-            WellEvidenced(), new MemoryDeclaration(4096, 8192, null),
-            trend: Reading<MemoryTrend>.Unavailable("only 4 working-set points"));
-
-        Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("cannot be told", v.Reason);
-    }
-
-    // ---- the thresholds an operator moved ----
+    // ---- the figures an operator moved ----
 
     /// <summary>
     /// ⚠ The gates are what decide whether this rule can speak at all, so a moved one has to reach it.
@@ -264,15 +125,22 @@ public class MemoryDriftRuleTests
 
         Verdict tuned = await Evaluate(
             young, new MemoryDeclaration(4096, 8192, null),
-            thresholds: Tuned(("min_span_days", 1)));
+            rule: Moved(TheRule, "footprint.spanDays", 2, 1));
 
         Assert.Equal(VerdictKind.Holds, tuned.Kind);
         // The evidence travels with the verdict, which is what lets a reader see how thin it is.
         Assert.Contains("spanning 2 days", tuned.Reason);
     }
 
+    /// <summary>
+    /// ⚠ A moved figure has to reach the rule's <em>prose</em> as well as its arithmetic.
+    /// </summary>
+    /// <remarks>
+    /// The sentence names the width the gap was held to, and a step that compared against the new
+    /// figure while printing the old one would produce a record contradicting the decision it explains.
+    /// </remarks>
     [Fact]
-    public async Task A_widened_margin_stops_a_gap_being_worth_saying()
+    public async Task A_widened_margin_stops_a_gap_being_worth_saying_and_says_the_new_width()
     {
         // 2908 against 4096 declared is 29% below it — over the shipped margin, under a wider one.
         Verdict shipped = await Evaluate(WellEvidenced(), new MemoryDeclaration(4096, 8192, null));
@@ -280,7 +148,7 @@ public class MemoryDriftRuleTests
 
         Verdict tuned = await Evaluate(
             WellEvidenced(), new MemoryDeclaration(4096, 8192, null),
-            thresholds: Tuned(("drift_margin_pct", 40)));
+            rule: Moved(TheRule, "drift.absPctVsDeclared", 25, 40));
 
         Assert.Equal(VerdictKind.DoesNotHold, tuned.Kind);
         Assert.Contains("within 40%", tuned.Reason);
@@ -290,43 +158,40 @@ public class MemoryDriftRuleTests
     [Fact]
     public async Task Every_gate_off_judges_whatever_has_been_measured()
     {
+        RuleDefinition ungated = TheRule;
+        ungated = Moved(ungated, "footprint.spanDays", 2, 0);
+        ungated = Moved(ungated, "footprint.observedHours", 5, 0);
+        ungated = Moved(ungated, "footprint.runs", 2, 0);
+        ungated = Moved(ungated, "footprint.observedHours", 24, 0);
+
         Verdict v = await Evaluate(
             WellEvidenced(hours: 0.4, span: 0.02, runs: 0),
             new MemoryDeclaration(4096, 8192, null),
-            thresholds: Tuned(
-                ("min_span_days", 0), ("min_observed_hours", 0),
-                ("min_runs", 0), ("continuous_run_hours", 0)));
+            rule: ungated);
 
         Assert.Equal(VerdictKind.Holds, v.Kind);
     }
 
-    // ---- the monitor being absent ----
-
+    /// <summary>
+    /// ⚠ The unbroken-run stand-in is a second comparison of a signal another step already compares.
+    /// </summary>
+    /// <remarks>
+    /// Moving the hours gate must not move it, and moving it must not move the hours gate. They are
+    /// different questions that happen to read the same measurement, and a model keyed on the signal
+    /// rather than on the step would collapse them into one.
+    /// </remarks>
     [Fact]
-    public async Task No_monitor_means_no_subjects_rather_than_an_evaluation_per_instance()
+    public async Task Moving_the_hours_gate_leaves_the_unbroken_run_stand_in_alone()
     {
-        var ctx = new SubjectContext(
-            Now, new StubWorld(Reading<MemoryDeclaration>.Unavailable("no engine")),
-            new StubHistory(), new UnreachableMonitor());
-
-        IReadOnlyList<string> subjects = await TheRule.Subjects!(ctx, CancellationToken.None);
-
-        Assert.Empty(subjects);
-    }
-
-    [Fact]
-    public async Task No_footprint_for_the_subject_is_cannot_tell_not_no()
-    {
-        var ctx = new RuleContext(
-            "never-measured", Now,
-            new StubWorld(Reading<MemoryDeclaration>.Measured(new MemoryDeclaration(1024, 2048, null))),
-            new StubHistory(),
-            new StubFootprints([], Reading<MemoryTrend>.Unavailable("none")),
-            Shipped);
-
-        Verdict v = await TheRule.Holds(ctx, CancellationToken.None);
+        // Nine hours across one run: over a lowered hours gate, still under the 24-hour stand-in, and
+        // with too few runs to pass on its own.
+        Verdict v = await Evaluate(
+            WellEvidenced(runs: 1, hours: 9),
+            new MemoryDeclaration(4096, 8192, null),
+            rule: Moved(TheRule, "footprint.observedHours", 5, 1));
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
+        Assert.Contains("has not run the 24 hours", v.Reason);
     }
 
     // ---- the monitor's wire shape ----
@@ -443,15 +308,6 @@ public class MemoryDriftRuleTests
 
         public ValueTask<Reading<MemoryTrend>> TrendAsync(string instance, CancellationToken token) =>
             ValueTask.FromResult(trend);
-    }
-
-    private sealed class UnreachableMonitor : IFootprintSource
-    {
-        public ValueTask<Reading<IReadOnlyList<InstanceFootprint>>> AllAsync(CancellationToken token) =>
-            ValueTask.FromResult(Reading<IReadOnlyList<InstanceFootprint>>.Unavailable("no monitor here"));
-
-        public ValueTask<Reading<MemoryTrend>> TrendAsync(string instance, CancellationToken token) =>
-            ValueTask.FromResult(Reading<MemoryTrend>.Unavailable("no monitor here"));
     }
 
     private sealed class StubHistory : IRuleHistory

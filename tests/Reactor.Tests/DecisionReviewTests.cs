@@ -48,6 +48,7 @@ public class DecisionReviewTests : IDisposable
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "because",
+            RuleAuthor: null,
             Action: "take a pinned backup",
             ActionName: "create_backup",
             ActionInstance: subject,
@@ -56,8 +57,11 @@ public class DecisionReviewTests : IDisposable
             DecidedAt: at,
             Source: new EventSource("kgsm-watchdog", "s.ndjson", 1, null)));
 
-    private static DecisionReview Read(ObservationLedger ledger, int days = 7, int limit = int.MaxValue) =>
-        DecisionReview.Read(ledger, days, Now, limit);
+    private static DecisionReview Read(
+        ObservationLedger ledger, int days = 7, int limit = int.MaxValue, params string[] liveRules) =>
+        DecisionReview.Read(
+            ledger, days, Now, limit,
+            liveRules.Length > 0 ? liveRules : [.. HandWrittenRules.All.Select(r => r.Id)]);
 
     [Fact]
     public void The_limit_caps_the_log_and_never_the_readings()
@@ -111,7 +115,7 @@ public class DecisionReviewTests : IDisposable
 
         Assert.Equal(0, review.Total);
         Assert.Empty(review.Decisions);
-        Assert.Equal(RuleCatalog.All.Count, review.Silent.Count);
+        Assert.Equal(HandWrittenRules.All.Count, review.Silent.Count);
     }
 
     [Fact]

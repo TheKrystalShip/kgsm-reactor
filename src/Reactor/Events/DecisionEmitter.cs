@@ -39,6 +39,10 @@ internal sealed record DecidedPayload
     [JsonPropertyName(ReactorEventFields.Rule)]
     public required string Rule { get; init; }
 
+    /// <summary>Null when nobody is known to have shaped the rule — never a host or a daemon name.</summary>
+    [JsonPropertyName(ReactorEventFields.RuleAuthor)]
+    public string? RuleAuthor { get; init; }
+
     [JsonPropertyName(ReactorEventFields.Subject)]
     public required string Subject { get; init; }
 
@@ -183,6 +187,7 @@ internal sealed class DecisionEmitter(
         Mode = Spell(decision.Mode),
         Outcome = Spell(decision.Outcome),
         Reason = decision.Reason,
+        RuleAuthor = decision.RuleAuthor,
         Action = decision.ActionName,
         ActionInstance = decision.ActionInstance,
         DecisionId = decision.Id,

@@ -176,34 +176,6 @@
       "risk": "safe"
     },
     {
-      "key": "rulesObserve",
-      "env": "Reactor__RulesObserve",
-      "label": "Rules in observe",
-      "description": "Which rules are watching. They record what they would have done and change nothing, which is how a rule earns the right to act.",
-      "group": "rules",
-      "type": "csv",
-      "default": "give_up_backup,update_regression,threshold_stuck,memory_declaration_drift",
-      "risk": "safe"
-    },
-    {
-      "key": "rulesPropose",
-      "env": "Reactor__RulesPropose",
-      "label": "Rules in propose",
-      "description": "Which rules may propose an action for you to approve. Nothing happens without your confirmation.",
-      "group": "rules",
-      "type": "csv",
-      "risk": "safe"
-    },
-    {
-      "key": "rulesAct",
-      "env": "Reactor__RulesAct",
-      "label": "Rules in act",
-      "description": "Which rules may act on their own. Only put a rule here once you have read what it decided while it was only watching.",
-      "group": "rules",
-      "type": "csv",
-      "risk": "wiring"
-    },
-    {
       "key": "sweepIntervalSec",
       "env": "Reactor__SweepIntervalSeconds",
       "label": "Evaluate rules every",

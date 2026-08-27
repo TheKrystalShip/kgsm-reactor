@@ -81,26 +81,48 @@ public sealed record ReactorStatus
     [JsonPropertyName("rules")]
     public required IReadOnlyList<RuleStatus> Rules { get; init; }
 
-    /// <summary>Where per-rule thresholds are read from.</summary>
+    /// <summary>
+    /// Rules that are kept but never evaluated, so an old decision still resolves to a name.
+    /// </summary>
     /// <remarks>
-    /// Reported whether or not a file is there, because "no thresholds were applied" and "thresholds
-    /// were applied from somewhere other than you think" are the two questions asked here, and only
-    /// the path separates them.
+    /// Reported apart from the live ones rather than mixed in with a flag, because the two answer
+    /// different questions. A surface listing what is running must not show these; a surface
+    /// explaining a decision from last month has to be able to find them.
+    /// </remarks>
+    [JsonPropertyName("retired")]
+    public required IReadOnlyList<RuleStatus> Retired { get; init; }
+
+    /// <summary>Where the rules this host runs are read from.</summary>
+    /// <remarks>
+    /// Reported whether or not a file is there, because "no file, so the shipped rules are running"
+    /// and "a file somewhere other than you think is running" are the two questions asked here, and
+    /// only the path separates them.
     /// </remarks>
     [JsonPropertyName("rulesPath")]
     public required string RulesPath { get; init; }
 
     /// <summary>
-    /// What was written in that file and could not be honoured. Empty on a host where everything was.
+    /// Whether a file was found at all, as opposed to the shipped rules being what runs.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The single most important field here for anyone who has just changed a threshold.</b> A
-    /// misspelled rule id, an unknown parameter key or a figure below its floor each leaves the daemon
-    /// running on something sane — and without this, all three present as "I set it and nothing
-    /// happened", which is indistinguishable from a rule that simply had nothing to say.
+    /// The path alone cannot say it: a host with no file and a host whose file is somewhere else both
+    /// report a path, and only one of them is running what somebody wrote.
     /// </remarks>
-    [JsonPropertyName("tuningProblems")]
-    public required IReadOnlyList<string> TuningProblems { get; init; }
+    [JsonPropertyName("rulesFilePresent")]
+    public required bool RulesFilePresent { get; init; }
+
+    /// <summary>
+    /// What was written and could not be honoured. Empty on a host where everything was.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The single most important field here for anyone who has just written a rule.</b> A
+    /// misspelled signal, a step with no sentence, an action this build cannot perform, a duplicate id
+    /// — each leaves the daemon running the rules it could honour, and without this every one of them
+    /// presents as "I saved it and nothing happened", which is indistinguishable from a rule that
+    /// simply had nothing to say.
+    /// </remarks>
+    [JsonPropertyName("problems")]
+    public required IReadOnlyList<string> Problems { get; init; }
 
     /// <summary>
     /// Evaluations woken and waiting out their settle window.
@@ -124,30 +146,43 @@ public sealed record ReactorStatus
     public DateTimeOffset? LastSweepAt { get; init; }
 }
 
-/// <summary>
-/// One threshold a rule compares against, as declared and as it is running.
-/// </summary>
+/// <summary>One comparison a rule makes.</summary>
+/// <param name="Signal">The binding being read, by the name the rule calls it.</param>
+/// <param name="Operator">How it is compared, in the wire spelling a file uses.</param>
+/// <param name="Value">A figure it is compared against, when it is compared against one.</param>
+/// <param name="Text">Text it is compared against, when it is compared against text.</param>
+/// <param name="VsSignal">Another of the rule's bindings it is compared against, when it is.</param>
+public sealed record ClauseStatus(
+    [property: JsonPropertyName("signal")] string Signal,
+    [property: JsonPropertyName("op")] string Operator,
+    [property: JsonPropertyName("value")] double? Value,
+    [property: JsonPropertyName("text")] string? Text,
+    [property: JsonPropertyName("vsSignal")] string? VsSignal);
+
+/// <summary>One step of a rule's decision, in the order it is read.</summary>
 /// <remarks>
-/// ⚠ <b><see cref="Value"/> and <see cref="Default"/> are both here, and neither alone is the honest
-/// answer.</b> The value is what the rule uses; the default is what it ships with. A surface showing
-/// only the value cannot say whether anybody chose it, and one showing only the default describes a
-/// rule that may not be the one running.
+/// ⚠ <b>Order is the semantics.</b> The first row whose clauses all hold decides, so a surface that
+/// re-sorted these — alphabetically, by outcome, by anything — would show a rule that behaves
+/// differently from the one running.
 /// </remarks>
-/// <param name="Key">The stable wire id an override is written under.</param>
-/// <param name="Label">Short human name.</param>
-/// <param name="Value">The figure in force.</param>
-/// <param name="Default">The figure the rule ships with.</param>
-/// <param name="Minimum">The floor an override is clamped to.</param>
-/// <param name="Unit">Display suffix, or null when the number is a count.</param>
-/// <param name="Description">What moving it changes, in an operator's terms.</param>
-public sealed record RuleParameterStatus(
-    [property: JsonPropertyName("key")] string Key,
-    [property: JsonPropertyName("label")] string Label,
-    [property: JsonPropertyName("value")] double Value,
-    [property: JsonPropertyName("default")] double Default,
-    [property: JsonPropertyName("minimum")] double Minimum,
-    [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("description")] string? Description);
+/// <param name="Clauses">All of these must hold. Empty always holds, which is what a default step is.</param>
+/// <param name="Outcome">What it concludes: <c>holds</c>, <c>doesNotHold</c> or <c>unreadable</c>.</param>
+/// <param name="Message">The sentence it records, with its placeholders unfilled.</param>
+/// <param name="UnreadableMessage">What it records when a signal it needs cannot be read, if it says.</param>
+public sealed record GuardRowStatus(
+    [property: JsonPropertyName("when")] IReadOnlyList<ClauseStatus> Clauses,
+    [property: JsonPropertyName("then")] string Outcome,
+    [property: JsonPropertyName("say")] string Message,
+    [property: JsonPropertyName("sayWhenUnreadable")] string? UnreadableMessage);
+
+/// <summary>A signal a rule reads, under the name the rule calls it.</summary>
+/// <param name="Alias">What the rule's clauses and sentences call it.</param>
+/// <param name="Signal">The catalog entry it reads.</param>
+/// <param name="Arguments">What that entry was given.</param>
+public sealed record SignalBindingStatus(
+    [property: JsonPropertyName("alias")] string Alias,
+    [property: JsonPropertyName("signal")] string Signal,
+    [property: JsonPropertyName("args")] IReadOnlyDictionary<string, string> Arguments);
 
 /// <summary>The gate's tuning, read off the running configuration.</summary>
 /// <param name="SweepIntervalSeconds">How often rules are evaluated.</param>
@@ -179,9 +214,13 @@ public sealed record DecisionStatus(
     [property: JsonPropertyName("recordedSinceStart")] long RecordedSinceStart,
     [property: JsonPropertyName("announcedSinceStart")] long AnnouncedSinceStart);
 
-/// <summary>One live rule.</summary>
-/// <param name="Id">Its stable id.</param>
-/// <param name="Shape">What wakes it — <c>edge</c> or <c>state</c>.</param>
+/// <summary>One rule, as it is actually running.</summary>
+/// <param name="Id">Its stable id, and the actor on every decision it makes.</param>
+/// <param name="Name">What a person calls it.</param>
+/// <param name="Shape">
+/// What wakes it — <c>edge</c> or <c>state</c>. Derived from where its subjects come from rather than
+/// declared, so it cannot disagree with them.
+/// </param>
 /// <param name="Severity">How loudly it speaks, for composition.</param>
 /// <param name="Mode">
 /// The authority it actually runs under — what this build will let it do, not what the file asked for.
@@ -206,15 +245,28 @@ public sealed record DecisionStatus(
 /// force and mentions <see cref="ConfiguredMode"/> as what was intended.
 /// </remarks>
 /// <param name="Wakes">The event types that bring it to an evaluation.</param>
+/// <param name="SubjectSource">Which catalog entry works out what it decides about.</param>
+/// <param name="SubjectArguments">What that entry was given.</param>
 /// <param name="ActionName">
 /// The stable name of what it would do, or <c>none</c> for a rule that reports and proposes nothing.
 /// </param>
-/// <param name="Parameters">
-/// The thresholds it compares against, each with the figure in force and the one it ships with. Empty
-/// for a rule with nothing to tune.
+/// <param name="Signals">Every signal it reads, under the name it calls each one.</param>
+/// <param name="Rows">Its decision, in the order it is read. The first whose clauses all hold wins.</param>
+/// <param name="Default">What it concludes when no row holds.</param>
+/// <param name="Author">
+/// Who last shaped it, as <c>provider:name</c>, or null when nobody is known to have.
+/// </param>
+/// <remarks>
+/// ⚠ <b>Null is a real answer and must be rendered as one.</b> A rule this build seeded, or one
+/// hand-written into the file, is unattributed — and there is no fallback to the OS user. A surface
+/// substituting the host or the person reading would invent a hand that was never on it.
+/// </remarks>
+/// <param name="Retired">
+/// Kept so its decisions still resolve to a name, and never evaluated.
 /// </param>
 public sealed record RuleStatus(
     [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("shape")] string Shape,
     [property: JsonPropertyName("severity")] string Severity,
     [property: JsonPropertyName("mode")] string Mode,
@@ -222,8 +274,14 @@ public sealed record RuleStatus(
     [property: JsonPropertyName("suppressionMinutes")] int SuppressionMinutes,
     [property: JsonPropertyName("configuredMode")] string? ConfiguredMode,
     [property: JsonPropertyName("wakes")] IReadOnlyList<string> Wakes,
+    [property: JsonPropertyName("subjectSource")] string SubjectSource,
+    [property: JsonPropertyName("subjectArgs")] IReadOnlyDictionary<string, string> SubjectArguments,
     [property: JsonPropertyName("actionName")] string ActionName,
-    [property: JsonPropertyName("parameters")] IReadOnlyList<RuleParameterStatus> Parameters);
+    [property: JsonPropertyName("signals")] IReadOnlyList<SignalBindingStatus> Signals,
+    [property: JsonPropertyName("rows")] IReadOnlyList<GuardRowStatus> Rows,
+    [property: JsonPropertyName("default")] GuardRowStatus Default,
+    [property: JsonPropertyName("author")] string? Author,
+    [property: JsonPropertyName("retired")] bool Retired);
 
 /// <summary>One evaluation waiting out its settle window.</summary>
 /// <param name="Rule">Which rule was woken.</param>

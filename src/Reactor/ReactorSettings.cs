@@ -171,31 +171,6 @@ internal sealed class ReactorSettings
     [LeafField("statusSocketMode", "Status socket permissions", Group = "wiring")]
     public string StatusSocketMode { get; set; } = "660";
 
-    /// <summary>Rules that evaluate and record, dispatching nothing.</summary>
-    /// <remarks>
-    /// The rule catalog ships in code; this decides which of it is live. A rule named in none of the
-    /// three mode lists is off. ⚠ A rule named in more than one gets the <b>safest</b> of them.
-    /// </remarks>
-    /// <panel>Which rules are watching. They record what they would have done and change nothing, which
-    /// is how a rule earns the right to act.</panel>
-    [LeafField("rulesObserve", "Rules in observe", Group = "rules", Type = LeafType.Csv)]
-    public string RulesObserve { get; set; } = "give_up_backup,update_regression,threshold_stuck,memory_declaration_drift";
-
-    /// <summary>Rules that stage their action for a human to confirm.</summary>
-    /// <remarks>⚠ Unbuilt. A rule named here is clamped to observe, loudly.</remarks>
-    /// <panel>Which rules may propose an action for you to approve. Nothing happens without your
-    /// confirmation.</panel>
-    [LeafField("rulesPropose", "Rules in propose", Group = "rules", Type = LeafType.Csv, NoDefault = true)]
-    public string RulesPropose { get; set; } = string.Empty;
-
-    /// <summary>Rules that perform their action.</summary>
-    /// <remarks>⚠ Unbuilt. A rule named here is clamped to observe, loudly.</remarks>
-    /// <panel>Which rules may act on their own. Only put a rule here once you have read what it decided
-    /// while it was only watching.</panel>
-    [LeafField("rulesAct", "Rules in act", Group = "rules", Type = LeafType.Csv, Risk = LeafRisk.Wiring,
-        NoDefault = true)]
-    public string RulesAct { get; set; } = string.Empty;
-
     /// <summary>How often rules are evaluated, in seconds.</summary>
     /// <panel>How often the reactor re-checks the conditions it is watching.</panel>
     [LeafField("sweepIntervalSec", "Evaluate rules every", Group = "rules",

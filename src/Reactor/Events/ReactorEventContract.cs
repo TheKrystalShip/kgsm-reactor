@@ -51,8 +51,8 @@ internal static class ReactorEvents
     /// <summary>The prefix every event this leaf writes shares.</summary>
     /// <remarks>
     /// The reactor tails every producer's journal, its own included, so what it writes comes back to
-    /// it. This prefix is how that is recognised — see <c>RuleCatalog</c>, where no rule may wake on
-    /// one, and the test that enforces it.
+    /// it. This prefix is how that is recognised: it is absent from the trigger catalog, and a rule
+    /// naming one is refused at load rather than left to loop.
     /// </remarks>
     public const string Prefix = "reactor.";
 }
@@ -68,6 +68,23 @@ internal static class ReactorEventFields
 {
     /// <summary>The rule that decided. Also the actor an audit row would carry.</summary>
     public const string Rule = "Rule";
+
+    /// <summary>
+    /// Who had shaped that rule when it decided, as <c>provider:name</c>, or absent when nobody is
+    /// known to have.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Beside the actor, never instead of it.</b> The rule performed the act; a person wrote the
+    /// rule. A consumer renders <em>"stopped by rule <c>disk_pressure_stop</c>, written by
+    /// <c>discord:tanya</c>"</em> — which names the act and its origin without confusing the two.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠ <b>Absent means unattributed, and unattributed is a real state.</b> A rule this build seeded,
+    /// or one hand-written into the file over SSH, carries no identity — and there is no fallback to
+    /// the OS user anywhere in this ecosystem. A consumer must render its absence rather than
+    /// substituting the host, the daemon, or the person who happens to be reading.
+    /// </remarks>
+    public const string RuleAuthor = "RuleAuthor";
 
     /// <summary>What was judged: a server name, a sensor reference, a component.</summary>
     public const string Subject = "Subject";

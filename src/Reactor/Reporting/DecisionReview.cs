@@ -64,13 +64,23 @@ internal sealed record DecisionReview(
     /// <param name="limit">
     /// How many decisions the log carries at most, newest first.
     /// </param>
+    /// <param name="liveRules">
+    /// The ids of the rules that are live on this host, for the silent reading. A rule that is retired
+    /// or off is not silent — it was stopped on purpose — so only rules that are meant to be deciding
+    /// belong here.
+    /// </param>
     /// <remarks>
     /// ⚠ <b>The limit caps the log and never the arithmetic.</b> Every reading is computed over every
     /// row in the window; only the list at the end is trimmed. Measuring the busiest hour over a
     /// truncated sample would under-report exactly the peak a ceiling has to be set above — which is
     /// the one number this whole payload exists to establish.
     /// </remarks>
-    public static DecisionReview Read(ObservationLedger ledger, int days, DateTimeOffset now, int limit)
+    public static DecisionReview Read(
+        ObservationLedger ledger,
+        int days,
+        DateTimeOffset now,
+        int limit,
+        IReadOnlyList<string> liveRules)
     {
         long since = now.AddDays(-days).ToUnixTimeMilliseconds();
 
@@ -111,7 +121,7 @@ internal sealed record DecisionReview(
             OutcomeMix(rows),
             Pressure(rows, days),
             RepeatGaps(rows),
-            SilentRules(rows),
+            SilentRules(rows, liveRules),
             [.. rows.OrderByDescending(r => r.DecidedAt).Take(limit)]);
     }
 
@@ -202,19 +212,27 @@ internal sealed record DecisionReview(
     /// Reading 4 — the rules that said nothing at all.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A rule with no decisions is the failure that looks most like success: it is enabled, it appears
-    /// in the descriptor and on the status socket, and it will go on deciding nothing forever. This
-    /// names it. <b>What it does not do is say why</b> — whether the condition never occurred or the
-    /// waking event never arrived is a question for the population report, and guessing between them
-    /// here would be the same fabrication the leaf refuses everywhere else.
+    /// on the status socket, and it will go on deciding nothing forever. This names it. <b>What it does
+    /// not do is say why</b> — whether the condition never occurred or the waking event never arrived
+    /// is a question for the population report, and guessing between them here would be the same
+    /// fabrication the leaf refuses everywhere else.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Read from the rules that are live, which is why they are passed in.</b> A retired rule is
+    /// not silent — it was deliberately stopped — and listing it would put a rule somebody deleted on
+    /// a report of things that need looking at. A rule that is off is the same: it is not failing to
+    /// speak, it was told not to.
+    /// </para>
     /// </remarks>
-    private static IReadOnlyList<string> SilentRules(List<DecisionRow> rows)
+    private static IReadOnlyList<string> SilentRules(
+        List<DecisionRow> rows, IReadOnlyList<string> liveRules)
     {
         HashSet<string> spoke = new(rows.Select(r => r.RuleId), StringComparer.Ordinal);
         return
         [
-            .. TheKrystalShip.Kgsm.Reactor.Rules.RuleCatalog.All
-                .Select(r => r.Id)
+            .. liveRules
                 .Where(id => !spoke.Contains(id))
                 .Order(StringComparer.Ordinal),
         ];

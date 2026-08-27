@@ -8,6 +8,7 @@ using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
@@ -104,15 +105,47 @@ public class RuleEngineTests : IDisposable
         return ledger;
     }
 
+    /// <summary>
+    /// Options pointing at a rules file holding the seeds named, all observing.
+    /// </summary>
+    /// <remarks>
+    /// Written to disk rather than injected, because the file is how a host says which rules it runs
+    /// and a test that bypassed it would not be exercising the path the daemon takes.
+    /// </remarks>
     private static ReactorOptions Options(
-        string observe = "give_up_backup", int suppressionMinutes = 30, int ceiling = 4) =>
-        ReactorOptions.FromSettings(new ReactorSettings
+        string observe = "give_up_backup", int suppressionMinutes = 30, int ceiling = 4)
+    {
+        string rules = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}.json");
+        File.WriteAllText(rules, RuleStore.Write(
+            observe.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(id => SeededRules.All.Single(r => r.Id == id))));
+
+        return ReactorOptions.FromSettings(new ReactorSettings
         {
-            RulesObserve = observe,
+            RulesPath = rules,
             SuppressionWindowMinutes = suppressionMinutes,
             MaxActionsPerHour = ceiling,
             LedgerPath = "/unused",
         });
+    }
+
+    /// <summary>Options for one rule, edited before it is written to the file.</summary>
+    private static ReactorOptions Written(Func<RuleDefinition, RuleDefinition> edit)
+    {
+        string rules = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}.json");
+        File.WriteAllText(rules, RuleStore.Write(
+            [edit(SeededRules.All.Single(r => r.Id == "give_up_backup"))]));
+
+        return ReactorOptions.FromSettings(new ReactorSettings
+        {
+            RulesPath = rules,
+            LedgerPath = "/unused",
+        });
+    }
+
+    /// <summary>Options for one rule somebody signed.</summary>
+    private static ReactorOptions Authored(RuleAuthorship created, RuleAuthorship updated) =>
+        Written(rule => rule with { Shipped = false, CreatedBy = created, UpdatedBy = updated });
 
     private static RuleEngine Build(
         FakeEvents events, ObservationLedger ledger, IWorldView world, ReactorOptions options,
@@ -195,6 +228,133 @@ public class RuleEngineTests : IDisposable
         Assert.Equal(ActionState.None, decision.ActionState);
         Assert.Equal(RuleMode.Observe, decision.Mode);
         Assert.Contains("pinned backup", decision.Action);
+    }
+
+    /// <summary>
+    /// ⚠ A decision names the person who shaped the rule, beside the rule that made it.
+    /// </summary>
+    /// <remarks>
+    /// A rule anybody can create is a rule anybody can get wrong, so a rogue one has to be traceable.
+    /// It is <b>copied onto the decision</b> rather than looked up later: resolving it through the
+    /// store at read time would mean editing a rule silently rewrites the attribution of everything it
+    /// ever decided, and retiring one would erase the trace entirely.
+    /// </remarks>
+    [Fact]
+    public async Task A_decision_carries_who_last_shaped_the_rule_that_made_it()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        var engine = Build(
+            events, ledger, new FakeWorld(),
+            Authored(
+                new RuleAuthorship("discord:tanya", Now.AddDays(-9)),
+                // The last hand on it, which is the attribution a decision is stamped with.
+                new RuleAuthorship("local:claude", Now.AddDays(-1))),
+            clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Equal("local:claude", Assert.Single(Decisions(ledger)).RuleAuthor);
+    }
+
+    /// <summary>
+    /// ⚠ A rule nobody signed produces a decision nobody signed.
+    /// </summary>
+    /// <remarks>
+    /// There is no fallback to the OS user anywhere in this ecosystem, and a rule this build seeded is
+    /// exactly the case that would tempt one. Null is the honest answer, and a surface renders its
+    /// absence rather than substituting the host or the person reading.
+    /// </remarks>
+    [Fact]
+    public async Task A_rule_nobody_signed_leaves_the_decision_unattributed()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Null(Assert.Single(Decisions(ledger)).RuleAuthor);
+    }
+
+    /// <summary>
+    /// ⚠ A rule this build cannot honour the mode of runs at the mode it can, and says so.
+    /// </summary>
+    /// <remarks>
+    /// Being silently observed after asking to act is the failure the whole mode ladder exists to make
+    /// impossible to miss — the decision records what was actually in force, never what was asked for.
+    /// </remarks>
+    [Fact]
+    public async Task A_rule_asking_to_act_is_recorded_as_having_observed()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        var engine = Build(
+            events, ledger, new FakeWorld(), Written(r => r with { Mode = RuleMode.Act }), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Equal(RuleMode.Observe, Assert.Single(Decisions(ledger)).Mode);
+    }
+
+    /// <summary>
+    /// ⚠ A rule that is off is never evaluated, which is a different state from being retired.
+    /// </summary>
+    /// <remarks>
+    /// It stays in the store, listed and one field from running again — somebody silenced it while
+    /// they work out whether it is right. A retired rule is gone from the live list and kept only so
+    /// its old decisions still resolve to a name.
+    /// </remarks>
+    [Fact]
+    public async Task A_rule_that_is_off_is_never_evaluated()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        var engine = Build(
+            events, ledger, new FakeWorld(), Written(r => r with { Mode = RuleMode.Off }), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Empty(engine.Active);
+        // Still a rule this host holds: muted is not deleted.
+        Assert.Equal("give_up_backup", Assert.Single(engine.Rules.Rules).Id);
+        Assert.Empty(Decisions(ledger));
+    }
+
+    /// <summary>A retired rule is kept for its record and is not among the rules that run.</summary>
+    [Fact]
+    public async Task A_retired_rule_is_kept_out_of_the_live_list_and_still_resolvable()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        var engine = Build(
+            events, ledger, new FakeWorld(), Written(r => r with { Retired = true }), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Empty(engine.Active);
+        Assert.Empty(engine.Rules.Rules);
+        Assert.Equal("give_up_backup", Assert.Single(engine.Rules.Retired).Id);
     }
 
     [Fact]

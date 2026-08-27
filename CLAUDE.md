@@ -15,10 +15,14 @@ holds the design, the boundary contract and every decision still open.
 # What it is doing right now. A unix socket, never a port.
 curl --unix-socket /run/kgsm-reactor/status.sock http://localhost/status | jq
 
-# Every rule's thresholds as they are actually running, and anything that could not be honoured.
+# The rules as they are actually running, and anything in the file that could not be honoured.
 curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/status \
-  | jq '{rulesPath, tuningProblems, rules: [.rules[] | select(.parameters | length > 0)
-        | {id, parameters: [.parameters[] | {key, value, default}]}]}'
+  | jq '{rulesPath, rulesFilePresent, problems,
+         rules: [.rules[] | {id, mode, author, steps: (.rows | length)}]}'
+
+# What a rule may be MADE of on this build — what the panel renders its editor from.
+curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/catalog \
+  | jq '{honours, signals: [.signals[] | {id, kind, unit}], actions: [.actions[].id]}'
 
 # What it MADE of what it saw — the same review --decisions prints, as JSON.
 # ?days= defaults to 7 and is clamped to the ledger's retention; ?limit= caps the log, never the readings.
@@ -123,7 +127,8 @@ where the journal line is written after the ledger is open and the rules are res
   a bucket assigned at ingest.
 - **⚠ The reactor tails its own journal**, so every `reactor.decided` it writes comes straight back to
   it. That is fine and the events are recorded like any other; the loop is stopped by the rule that
-  **no rule may wake on a `reactor.*` event**, which `RuleCatalogTests` fails the build over.
+  **no rule may wake on a `reactor.*` event**, refused at load by `RuleValidation` rather than left to
+  a test over a compiled list.
 - **The ledger upserts, the journal appends.** A state rule re-reads its episode every sweep and the
   ledger folds those into one row, so `DecisionStore.Record` returns a `DecisionChange` and only a
   transition is announced. Emitting per evaluation would make the journal a record of how often the
@@ -137,31 +142,63 @@ where the journal line is written after the ledger is open and the rules are res
   which passes alone and fails under a parallel run. `EventIngestServiceTests.StartAndStopAsync` takes
   an explicit readiness condition for this reason. The daemon is unaffected: registration and
   `Initialize` are both inside `ExecuteAsync`, in that order.
-- **A rule's thresholds are configuration; its predicate is not.** Every figure a rule compares
-  against is a `RuleParameter` declared beside the predicate, resolved at startup from `rules.json`
-  (the state directory, or `Reactor__RulesPath`) and read through `ctx.Threshold("key")`. The
-  predicate, the wake set and the action stay compiled — not out of distrust of whoever holds the
-  file, since that same person can already grant a rule the authority to act, but because a predicate
-  expressed as data needs a language, and one that parses while meaning something other than it reads
-  fails worse than anything it saves. ⚠ **A parameter key is immutable once shipped** — an override is
-  keyed by it, so renaming one silently reverts that rule to its default. ⚠ **A lookup for an
-  undeclared key throws**, deliberately: resolution fills every declared key from its default first,
-  so the only way to miss is a mistake in the predicate, and a silent zero would be a gate that
-  stopped gating.
-- **What could not be honoured is reported, never swallowed.** An unknown rule id, an undeclared
-  parameter, a figure under its floor or an unparseable file each leaves the daemon on shipped figures
-  and lands in `RuleTuning.Problems` → `/status.tuningProblems` and the log. All four otherwise
-  present as "I set it and nothing happened", which is indistinguishable from a rule with nothing to
-  say.
-- **Settle and suppression stay compiled; thresholds do not.** The two windows are properties of how a
-  condition behaves over time, measured over 30 days of a host and the same wherever this build runs.
-  A threshold is a judgement about one fleet — how much evidence is enough, how wide a gap is worth
-  mentioning — so it is declared and moved without a rebuild.
-- **The thresholds file stays the leaf's even when the panel writes it.** The default path is inside
-  this daemon's own state directory, so a host with no kgsm-api reads and writes it directly; a panel
-  that manages it writes its own copy and points `Reactor__RulesPath` at it over the existing override
+- **A rule is data; the catalogs it draws on are code.** `rules.json` (the state directory, or
+  `Reactor__RulesPath`) holds what wakes each rule, where its subjects come from, an ordered list of
+  guard rows over signals, and one action. `Rules/Composition/` holds the rest: `SignalCatalog`,
+  `SubjectSourceCatalog` and `ActionCatalog` are compiled, so a person composes from what this build
+  can do and cannot reach past it. **A host with no file runs `SeededRules`** — the four rules this
+  build ships, all observing.
+- **⚠ Signals are compiled because some are derived.** `drift.pctVsDeclared` is a footprint and a
+  blueprint compared; expressing that as data needs an expression language, which would arrive one
+  convenience at a time and end in predicates that parse while meaning something other than they read.
+  A clause therefore holds no functions — `drift.absPctVsDeclared` exists as its own signal because it
+  is what `abs(drift)` would have been.
+- **⚠ Absent is a value; unreadable is not.** A blueprint declaring no minimum has been read, and the
+  answer is "there is none". One that could not be read is a failure that ends the whole rule as
+  `Unreadable` with the reader's own words. The four seeded rules turn on that distinction in five
+  places.
+- **Rows are ordered and the first match decides; a row is an AND.** OR is another row with the same
+  outcome — which is why the drift rule has three positive-drift rows, each with its own sentence. A
+  row stops at its first false clause, so a source a rule did not need is never read: an instance
+  holding more than it was declared to need is reported without the trend ever being asked for.
+- **A row owns its prose.** `{alias}` fills from the same reads the clauses used, `{alias#}` from what
+  the row compares that signal against, `{alias@key}` from an argument it was bound with, plus
+  `{subject}` and `{settleSeconds}`. A row may carry a second sentence for when a signal it needs
+  cannot be read. ⚠ **A comparand lookup is per row**, because the hours gate compares
+  `footprint.observedHours` against 5 in one step and the unbroken-run stand-in compares it against 24
+  in another.
+- **Arguments bind once at rule level, under an alias.** Repeating them at each mention is how two
+  mentions of "the last update" come to mean different windows. A signal that takes no arguments needs
+  no binding: its own id is the alias.
+- **Mode is a field on the rule** — `off`, `observe`, `propose`, `act` — clamped by
+  `RuleEngine.Effective` and reported beside what the rule asked for. ⚠ **Off and retired are
+  different.** Off is live, listed and one field from running again; retired is gone from the live list
+  and kept only so its decisions still resolve to a rule that can be named.
+- **What could not be honoured is reported, never swallowed.** A misspelled signal, a step with no
+  sentence, an action outside the catalog, a duplicate id, a rule judged the instant its event lands
+  or an unparseable file each leaves that rule out with the rest of the file running, and lands in
+  `RuleSet.Problems` → `/status.problems` and the log. All of them otherwise present as "I saved it and
+  nothing happened", which is indistinguishable from a rule with nothing to say.
+- **The leaf publishes, the panel writes.** `GET /catalog` serves what a rule may be made of, with
+  types, units and prose, so a panel renders an editor without holding a copy. The socket stays
+  read-only: composing and storing is the panel's half, which writes the file and restarts the unit
+  through the grant it already holds. Validation happens twice — the panel against the catalog it was
+  served, the leaf at load, which is the authority.
+- **The rules file stays the leaf's even when the panel writes it.** The default path is inside this
+  daemon's own state directory, so a host with no kgsm-api reads and writes it directly; a panel that
+  manages it writes its own copy and points `Reactor__RulesPath` at it over the existing override
   channel. The leaf is told a path and never learns whose it is — which is what keeps it from becoming
   the first leaf to depend on the API.
+- **A decision carries who shaped the rule, beside the rule that made it.** `rule:<id>` stays the
+  actor; `RuleAuthor` is provenance, a stable `provider:name` username, on the ledger and on
+  `reactor.decided`. ⚠ **Copied onto the decision, never joined at read time** — otherwise editing a
+  rule rewrites the attribution of everything it ever decided, and retiring one erases the trace. ⚠
+  **No fallback to the OS user**: a seeded rule, or one hand-written over SSH, is unattributed and says
+  so.
+- **Settle and suppression are measured, and they stay measured.** The two windows are properties of
+  how a condition behaves over time, read off 30 days of a host and pinned by `SeededRuleTests` with
+  each figure's basis. A composed rule that quietly lost the 45-minute threshold window would be a new
+  rule wearing an old one's name, and its decisions would fold into the old one's episodes.
 - **The settings file and `ReactorSettings` must agree**, in both directions, and
   `SettingsCoverageTests` fails the build when they do not. A key with no property binds to nothing;
   a property with no key is a knob documented nowhere and therefore absent from the leaf descriptor

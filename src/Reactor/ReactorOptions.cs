@@ -72,7 +72,7 @@ internal sealed record ReactorOptions
     /// <summary>The ledger's filename inside whichever state directory holds it.</summary>
     private const string LedgerFileName = "reactor.db";
 
-    /// <summary>The thresholds file's name inside whichever state directory holds it.</summary>
+    /// <summary>The rules file's name inside whichever state directory holds it.</summary>
     private const string RulesFileName = "rules.json";
 
     public required bool Enabled { get; init; }
@@ -100,22 +100,13 @@ internal sealed record ReactorOptions
     public required int MaxActionsPerHour { get; init; }
 
     /// <summary>
-    /// Where per-rule thresholds are read from.
+    /// Where the rules this host runs are read from.
     /// </summary>
     /// <remarks>
-    /// Absent is the ordinary case: every rule then runs on the figures it ships with, each of which
-    /// carries the measurement that chose it.
+    /// Absent is the ordinary case: the host then runs the rules this build seeds, every one of them
+    /// observing, which is the state a rule has to earn its way out of.
     /// </remarks>
     public required string RulesPath { get; init; }
-
-    /// <summary>Rule ids by the mode each was configured in.</summary>
-    public required IReadOnlyDictionary<string, Rules.RuleMode> RuleModes { get; init; }
-
-    /// <summary>
-    /// The mode a rule runs in, or <see langword="null"/> when it is not enabled at all.
-    /// </summary>
-    public Rules.RuleMode? ModeFor(string ruleId) =>
-        RuleModes.TryGetValue(ruleId, out Rules.RuleMode mode) ? mode : null;
 
     /// <summary>The status socket's mode when nothing configures one: owner and group, read/write.</summary>
     private const UnixFileMode DefaultSocketMode =
@@ -183,41 +174,8 @@ internal sealed record ReactorOptions
                 AtLeast(settings.SuppressionWindowMinutes ?? DefaultSuppressionWindowMinutes, 0),
             MaxActionsPerHour = AtLeast(settings.MaxActionsPerHour ?? DefaultMaxActionsPerHour, 0),
             RulesPath = ResolveStatePath(settings.RulesPath, RulesFileName),
-            RuleModes = ResolveModes(settings),
         };
     }
-
-    /// <summary>
-    /// Which rules are enabled, and in which mode.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ <b>A rule named in more than one list gets the safest of them.</b> Two lists disagreeing is a
-    /// configuration mistake, and the only safe way to resolve one is downwards — an operator who
-    /// meant to grant more authority will notice that nothing acted, where one who meant to grant less
-    /// would not notice that something did.
-    /// </remarks>
-    private static IReadOnlyDictionary<string, RuleMode> ResolveModes(ReactorSettings settings)
-    {
-        Dictionary<string, RuleMode> modes = new(StringComparer.OrdinalIgnoreCase);
-
-        // Written most-permissive first, so the safer assignment below always wins on a collision.
-        foreach ((string list, RuleMode mode) in new[]
-                 {
-                     (settings.RulesAct, RuleMode.Act),
-                     (settings.RulesPropose, RuleMode.Propose),
-                     (settings.RulesObserve, RuleMode.Observe),
-                 })
-        {
-            foreach (string id in Split(list))
-                modes[id] = mode;
-        }
-
-        return modes;
-    }
-
-    private static IEnumerable<string> Split(string? csv) =>
-        (csv ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>
     /// Where a state file lives: what was configured, else the directory systemd made for this service.

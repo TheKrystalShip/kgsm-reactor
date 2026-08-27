@@ -28,7 +28,8 @@ public class DecisionEmissionTests : IDisposable
     private static Decision Sample(
         DecisionOutcome outcome = DecisionOutcome.Fired,
         string subject = "starbound",
-        SubjectKind kind = SubjectKind.Instance) =>
+        SubjectKind kind = SubjectKind.Instance,
+        string? author = null) =>
         new(
             Id: Decision.IdFor("give_up_backup", subject, "kgsm-watchdog:s.ndjson:8748"),
             RuleId: "give_up_backup",
@@ -39,6 +40,7 @@ public class DecisionEmissionTests : IDisposable
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "still given up on after 60s (6 consecutive failures)",
+            RuleAuthor: author,
             Action: "take a pinned backup of starbound",
             ActionName: "create_backup",
             ActionInstance: "starbound",
@@ -52,6 +54,48 @@ public class DecisionEmissionTests : IDisposable
         var ledger = new ObservationLedger(_path);
         new DecisionStore(ledger).Initialize();
         return ledger;
+    }
+
+    /// <summary>
+    /// ⚠ Who shaped the rule survives the ledger, and its absence survives it too.
+    /// </summary>
+    /// <remarks>
+    /// A row written before rules carried an author reads back null rather than being backfilled with
+    /// the build's name — the same discipline the subject kind is held to. Stamping an attribution on
+    /// a decision that was taken without one would invent a hand that was never on it.
+    /// </remarks>
+    [Fact]
+    public void Who_shaped_the_rule_survives_the_ledger_and_so_does_nobody_having()
+    {
+        using ObservationLedger ledger = OpenLedger();
+        var store = new DecisionStore(ledger);
+
+        store.Record(Sample(subject: "signed", author: "discord:tanya"));
+        store.Record(Sample(subject: "unsigned"));
+
+        IReadOnlyList<Decision> read = store.Since(Now.AddMinutes(-5));
+
+        Assert.Equal("discord:tanya", Assert.Single(read, d => d.Subject == "signed").RuleAuthor);
+        Assert.Null(Assert.Single(read, d => d.Subject == "unsigned").RuleAuthor);
+    }
+
+    /// <summary>
+    /// ⚠ A rule edited between two sweeps of one open episode is re-stamped on the next verdict.
+    /// </summary>
+    /// <remarks>
+    /// The decision names the hand that was on the rule when <em>this</em> verdict was reached, not the
+    /// hand that happened to be on it when the episode opened.
+    /// </remarks>
+    [Fact]
+    public void A_re_evaluated_episode_carries_whoever_shaped_the_rule_this_time()
+    {
+        using ObservationLedger ledger = OpenLedger();
+        var store = new DecisionStore(ledger);
+
+        store.Record(Sample(DecisionOutcome.Fired, author: "discord:tanya"));
+        store.Record(Sample(DecisionOutcome.Settled, author: "local:claude"));
+
+        Assert.Equal("local:claude", Assert.Single(store.Since(Now.AddMinutes(-5))).RuleAuthor);
     }
 
     [Fact]

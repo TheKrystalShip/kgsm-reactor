@@ -23,9 +23,10 @@ internal enum RuleShape
 /// <summary>How loudly a rule speaks. Used for composition, where the most severe wins.</summary>
 /// <summary>What a rule is permitted to do when it fires.</summary>
 /// <remarks>
-/// Configuration, not a property of the rule: the same rule is <see cref="Observe"/> on a host that
-/// has not earned trust in it and <see cref="Act"/> on one that has. <b>Every rule starts at
-/// <see cref="Observe"/></b> and only moves when somebody decides it should.
+/// A field on the rule: the same rule is <see cref="Observe"/> on a host that has not earned trust in
+/// it and <see cref="Act"/> on one that has. <b>Every rule starts at <see cref="Observe"/></b> and only
+/// moves when somebody decides it should. What it is permitted to do is clamped by what the build
+/// honours, and both figures are reported so nobody has to guess which they are looking at.
 /// </remarks>
 internal enum RuleMode
 {
@@ -191,29 +192,12 @@ internal abstract record ReactorAction
 /// What kgsm-monitor has measured, for the questions no event answers at all. Reads through it are
 /// three-valued like the rest: the monitor is a leaf and may not be installed.
 /// </param>
-/// <param name="Thresholds">
-/// This rule's thresholds as they are actually running — every key it declares, carrying the figure
-/// it ships with unless an operator moved that one. Read through <see cref="Threshold"/>.
-/// </param>
 internal sealed record RuleContext(
     string Subject,
     DateTimeOffset Now,
     IWorldView World,
     IRuleHistory History,
-    IFootprintSource Footprint,
-    IReadOnlyDictionary<string, double> Thresholds)
-{
-    /// <summary>
-    /// One of this rule's declared thresholds, as it is actually running.
-    /// </summary>
-    /// <remarks>
-    /// Throws when the key is not one the rule declares, deliberately. Resolution fills every declared
-    /// key from its default before any override is laid over it, so the only way to miss is to read a
-    /// key nothing declares — a mistake in the predicate rather than in an operator's file, and one a
-    /// silent zero would turn into a gate that stopped gating.
-    /// </remarks>
-    public double Threshold(string key) => Thresholds[key];
-}
+    IFootprintSource Footprint);
 
 /// <summary>
 /// What a state rule is given to work out which subjects it should evaluate.
@@ -229,14 +213,12 @@ internal sealed record SubjectContext(
     IRuleHistory History,
     IFootprintSource Footprint);
 
-/// <summary>One rule: what wakes it, how it decides, and what it would do about it.</summary>
+/// <summary>One rule, in the shape the engine evaluates.</summary>
 /// <remarks>
-/// <b>Rules ship in code; their thresholds do not.</b> Configuration enables a rule, sets its mode
-/// and moves the figures it compares against — see <see cref="Parameters"/> — and cannot invent one.
-/// Not for want of trust in whoever holds the file: anyone who can write it can already grant a rule
-/// the authority to act, so guarding a threshold more tightly than the authority beside it would be
-/// incoherent. It is that a predicate expressed as data needs a language to express it in, and one
-/// that parses but means something other than it reads fails worse than anything it would save.
+/// <b>Assembled from a <see cref="Composition.RuleDefinition"/>, which is what a person composes and
+/// what the store holds.</b> This is the runtime face of one: a predicate to call, a wake set to match
+/// against, and the windows the gate reads. Keeping the two apart is what lets the engine be given a
+/// rule without knowing whether the catalogs, a file, or a test assembled it.
 /// </remarks>
 /// <param name="Id">Stable, and the actor string an audit row will carry.</param>
 /// <param name="Shape">What wakes it.</param>
@@ -265,11 +247,6 @@ internal sealed record SubjectContext(
 /// How long this rule stays quiet about one subject after firing, or null to take the host-wide
 /// setting.
 /// </param>
-/// <param name="Parameters">
-/// The thresholds this rule compares a measurement against, each declared with the figure it ships
-/// with. Declared rather than merely read so a surface can list what is tunable and say what an
-/// override departs from; a rule with no thresholds declares none.
-/// </param>
 /// <remarks>
 /// <para>
 /// Per rule because the measurement is per rule, by three orders of magnitude. The window comes from
@@ -291,9 +268,4 @@ internal sealed record Rule(
     Func<RuleContext, CancellationToken, ValueTask<Verdict>> Holds,
     Func<string, ReactorAction> Action,
     Func<SubjectContext, CancellationToken, ValueTask<IReadOnlyList<string>>>? Subjects = null,
-    TimeSpan? Suppression = null,
-    IReadOnlyList<RuleParameter>? Parameters = null)
-{
-    /// <summary>The thresholds this rule compares against, each with the figure it ships with.</summary>
-    public IReadOnlyList<RuleParameter> Parameters { get; init; } = Parameters ?? [];
-}
+    TimeSpan? Suppression = null);

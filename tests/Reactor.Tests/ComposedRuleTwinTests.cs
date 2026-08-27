@@ -37,13 +37,11 @@ public class ComposedRuleTwinTests
         IRuleHistory history,
         IFootprintSource footprint)
     {
-        Rule compiled = RuleCatalog.All.Single(r => r.Id == ruleId);
+        Rule compiled = HandWrittenRules.All.Single(r => r.Id == ruleId);
         RuleDefinition definition = SeededRules.All.Single(r => r.Id == ruleId);
         Rule composed = RuleEvaluator.ToRule(definition);
 
-        var context = new RuleContext(
-            subject, Now, world, history, footprint,
-            RuleTuning.Defaults(RuleCatalog.All).For(ruleId));
+        var context = new RuleContext(subject, Now, world, history, footprint);
 
         Verdict left = await compiled.Holds(context, CancellationToken.None);
         Verdict right = await composed.Holds(context, CancellationToken.None);
@@ -450,7 +448,7 @@ public class ComposedRuleTwinTests
 
         foreach (string id in new[] { "memory_declaration_drift", "threshold_stuck" })
         {
-            Rule compiled = RuleCatalog.All.Single(r => r.Id == id);
+            Rule compiled = HandWrittenRules.All.Single(r => r.Id == id);
             Rule composed = RuleEvaluator.ToRule(SeededRules.All.Single(r => r.Id == id));
 
             Assert.Equal(
@@ -482,9 +480,9 @@ public class ComposedRuleTwinTests
     [Fact]
     public void Every_compiled_rule_has_a_seed_with_its_id_and_its_windows()
     {
-        Assert.Equal(RuleCatalog.All.Count, SeededRules.All.Count);
+        Assert.Equal(HandWrittenRules.All.Count, SeededRules.All.Count);
 
-        foreach (Rule compiled in RuleCatalog.All)
+        foreach (Rule compiled in HandWrittenRules.All)
         {
             RuleDefinition seed = Assert.Single(SeededRules.All, s => s.Id == compiled.Id);
 
