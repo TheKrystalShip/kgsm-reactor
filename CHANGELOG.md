@@ -7,6 +7,45 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a working-set trend can be read at all (`0.17.0`)
+
+A history point's `ts` is an ISO-8601 instant, which is what kgsm-monitor serves. Reading it as a
+number failed the whole response, so every trend reached a rule as unreadable — and an unreadable
+trend blocks only a decrement, leaving the rule permanently unable to give the one verdict the trend
+exists to permit.
+
+A body this build cannot parse and a monitor that is not answering are reported as the different
+things they are. They call for opposite responses — fix the reader, or start the daemon — and one
+message for both sends every reader to the wrong one first.
+
+### Added — a rule's thresholds are an operator's, not a rebuild's (`0.17.0`)
+
+Every figure a rule holds a measurement up against is declared as a named parameter beside the
+predicate that reads it, and is written in a thresholds file rather than compiled: `rules.json` in
+this service's state directory, or wherever `Reactor__RulesPath` points. A missing file is the
+ordinary case — each rule then runs on the figure it ships with, which carries the measurement that
+chose it.
+
+A rule's predicate, what wakes it and what it may do stay compiled. `ReactorAction` is a closed
+union, so the never-list is a compiler error rather than a promise; what a file can move is a number,
+not a decision.
+
+`/status` reports each rule's thresholds — the figure in force beside the one it ships with, its
+floor, its unit and what moving it changes — so a surface renders the knobs without holding a copy of
+the catalog. Beside them it reports the file's path and `tuningProblems`: a rule id this build does
+not ship, a parameter a rule does not declare, a figure below its floor, or a file that could not be
+parsed. Each leaves the daemon running on something sane, and each would otherwise present as "I set
+it and nothing happened".
+
+`memory_declaration_drift` declares six: `min_span_days`, `min_observed_hours`, `min_runs`,
+`continuous_run_hours`, `drift_margin_pct` and `settled_growth_pct`. Its evidence gates ask for two
+days of calendar span, five cumulative hours of running — summed across sessions, so five evenings of
+an hour count the same as one five-hour run — and either two observed starts or one unbroken day. A
+gate set to zero is off, which is a supported setting: the rule reports and acts on nothing, so an
+early verdict costs a ledger row that names the thin evidence it rests on. The direction that could
+do harm is guarded separately and harder, by `settled_growth_pct`, which is what stops a figure being
+called settled while the working set behind it is still climbing.
+
 ### Changed — the vocabulary is dotted, and both spellings still read (`0.16.0`)
 
 Every event type this leaf names, classifies or writes uses the ecosystem's dotted vocabulary. This

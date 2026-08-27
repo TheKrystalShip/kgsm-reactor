@@ -41,6 +41,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly IFootprintSource _footprint;
     private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
+    private readonly RuleTuning _tuning;
     private readonly TimeProvider _clock;
     private readonly ILogger<RuleEngine> _logger;
 
@@ -54,6 +55,9 @@ internal sealed class RuleEngine : BackgroundService
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
 
     private IReadOnlyList<Rule> _active = [];
+
+    /// <summary>The thresholds every rule is running on, and whatever could not be honoured.</summary>
+    public RuleTuning Tuning => _tuning;
 
     public RuleEngine(
         IEventService events,
@@ -77,6 +81,11 @@ internal sealed class RuleEngine : BackgroundService
         _options = options.Value;
         _clock = clock;
         _logger = logger;
+
+        // Read once, here, rather than per evaluation: a sweep that re-read a file every thirty
+        // seconds would let thresholds change under a decision half-taken, and every other
+        // configuration change on this leaf applies on restart.
+        _tuning = RuleTuningFile.Resolve(RuleCatalog.All, _options.RulesPath, logger);
     }
 
     /// <summary>An evaluation that has been woken and is waiting out its settle window.</summary>
@@ -374,7 +383,8 @@ internal sealed class RuleEngine : BackgroundService
     private async Task EvaluateAsync(Pending pending, DateTimeOffset now, CancellationToken token)
     {
         Rule rule = pending.Rule;
-        var context = new RuleContext(pending.Subject, now, _world, _history, _footprint);
+        var context = new RuleContext(
+            pending.Subject, now, _world, _history, _footprint, _tuning.For(rule.Id));
 
         Verdict verdict;
         try

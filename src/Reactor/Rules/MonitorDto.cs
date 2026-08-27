@@ -28,11 +28,18 @@ internal sealed record FootprintResponseDto(IReadOnlyList<FootprintDto> Footprin
 
 /// <summary>One point of a metrics-history series.</summary>
 /// <remarks>
+/// <para>
+/// ⚠ <b><c>ts</c> is an ISO-8601 instant, not a number.</b> The monitor serves
+/// <c>"2026-07-28T14:55:00+00:00"</c>, and a numeric field here fails the whole response — which
+/// reaches a rule as an unreadable trend, so the one verdict that needs it can never be given.
+/// </para>
+/// <para>
 /// <c>Min</c>, <c>Max</c> and <c>N</c> are present only on the rolled-up tier and are not read here:
 /// a trend is about where the middle of the distribution sat, and the extremes of a five-minute bucket
 /// answer a different question.
+/// </para>
 /// </remarks>
-internal sealed record HistoryPointDto(long Ts, double Value);
+internal sealed record HistoryPointDto(DateTimeOffset Ts, double Value);
 
 /// <summary>The body of <c>GET /metrics/history</c>.</summary>
 internal sealed record MetricsHistoryDto(IReadOnlyDictionary<string, List<HistoryPointDto>> Series);

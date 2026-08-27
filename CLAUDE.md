@@ -15,6 +15,11 @@ holds the design, the boundary contract and every decision still open.
 # What it is doing right now. A unix socket, never a port.
 curl --unix-socket /run/kgsm-reactor/status.sock http://localhost/status | jq
 
+# Every rule's thresholds as they are actually running, and anything that could not be honoured.
+curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/status \
+  | jq '{rulesPath, tuningProblems, rules: [.rules[] | select(.parameters | length > 0)
+        | {id, parameters: [.parameters[] | {key, value, default}]}]}'
+
 # What it MADE of what it saw — the same review --decisions prints, as JSON.
 # ?days= defaults to 7 and is clamped to the ledger's retention; ?limit= caps the log, never the readings.
 curl --unix-socket /run/kgsm-reactor/status.sock 'http://localhost/decisions?days=7' | jq
@@ -132,6 +137,31 @@ where the journal line is written after the ledger is open and the rules are res
   which passes alone and fails under a parallel run. `EventIngestServiceTests.StartAndStopAsync` takes
   an explicit readiness condition for this reason. The daemon is unaffected: registration and
   `Initialize` are both inside `ExecuteAsync`, in that order.
+- **A rule's thresholds are configuration; its predicate is not.** Every figure a rule compares
+  against is a `RuleParameter` declared beside the predicate, resolved at startup from `rules.json`
+  (the state directory, or `Reactor__RulesPath`) and read through `ctx.Threshold("key")`. The
+  predicate, the wake set and the action stay compiled — not out of distrust of whoever holds the
+  file, since that same person can already grant a rule the authority to act, but because a predicate
+  expressed as data needs a language, and one that parses while meaning something other than it reads
+  fails worse than anything it saves. ⚠ **A parameter key is immutable once shipped** — an override is
+  keyed by it, so renaming one silently reverts that rule to its default. ⚠ **A lookup for an
+  undeclared key throws**, deliberately: resolution fills every declared key from its default first,
+  so the only way to miss is a mistake in the predicate, and a silent zero would be a gate that
+  stopped gating.
+- **What could not be honoured is reported, never swallowed.** An unknown rule id, an undeclared
+  parameter, a figure under its floor or an unparseable file each leaves the daemon on shipped figures
+  and lands in `RuleTuning.Problems` → `/status.tuningProblems` and the log. All four otherwise
+  present as "I set it and nothing happened", which is indistinguishable from a rule with nothing to
+  say.
+- **Settle and suppression stay compiled; thresholds do not.** The two windows are properties of how a
+  condition behaves over time, measured over 30 days of a host and the same wherever this build runs.
+  A threshold is a judgement about one fleet — how much evidence is enough, how wide a gap is worth
+  mentioning — so it is declared and moved without a rebuild.
+- **The thresholds file stays the leaf's even when the panel writes it.** The default path is inside
+  this daemon's own state directory, so a host with no kgsm-api reads and writes it directly; a panel
+  that manages it writes its own copy and points `Reactor__RulesPath` at it over the existing override
+  channel. The leaf is told a path and never learns whose it is — which is what keeps it from becoming
+  the first leaf to depend on the API.
 - **The settings file and `ReactorSettings` must agree**, in both directions, and
   `SettingsCoverageTests` fails the build when they do not. A key with no property binds to nothing;
   a property with no key is a knob documented nowhere and therefore absent from the leaf descriptor

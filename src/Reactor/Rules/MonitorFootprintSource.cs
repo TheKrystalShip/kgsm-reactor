@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
@@ -123,6 +124,12 @@ internal sealed class MonitorFootprintSource : IFootprintSource, IDisposable
             return Reading<IReadOnlyList<InstanceFootprint>>.Measured(
                 [.. body.Footprints.Select(Convert)]);
         }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "the monitor's /footprint is not a shape this build can read");
+            return Reading<IReadOnlyList<InstanceFootprint>>.Unavailable(
+                $"the monitor's /footprint is not a shape this build can read: {ex.Message}");
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogDebug(ex, "could not read /footprint from the monitor");
@@ -158,6 +165,16 @@ internal sealed class MonitorFootprintSource : IFootprintSource, IDisposable
             }
 
             return Reading<MemoryTrend>.Measured(Compute(points));
+        }
+        catch (JsonException ex)
+        {
+            // ⚠ Not folded into the catch below. A daemon that is not answering and one whose answer
+            // this build cannot parse call for opposite responses — start the monitor, or fix the
+            // reader — and a single message for both sends every reader to the wrong one first.
+            _logger.LogWarning(
+                ex, "the monitor's history of {Instance} is not a shape this build can read", instance);
+            return Reading<MemoryTrend>.Unavailable(
+                $"the monitor's history is not a shape this build can read: {ex.Message}");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

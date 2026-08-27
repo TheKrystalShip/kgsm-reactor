@@ -237,6 +237,16 @@
       "default": "12",
       "min": 0,
       "risk": "safe"
+    },
+    {
+      "key": "rulesPath",
+      "env": "Reactor__RulesPath",
+      "label": "Rule thresholds",
+      "description": "Where the per-rule thresholds live. Each rule ships with figures that carry the measurement behind them; this file is where different ones are written. Leave it blank to keep it in this service's own state directory, which is what a normal install wants. A missing file means every rule runs on what it shipped with.",
+      "group": "rules",
+      "type": "path",
+      "default": "",
+      "risk": "wiring"
     }
   ]
 }

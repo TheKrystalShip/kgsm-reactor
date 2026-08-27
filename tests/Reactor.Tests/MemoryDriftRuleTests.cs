@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using TheKrystalShip.Kgsm.Reactor.Rules;
@@ -18,8 +20,33 @@ public class MemoryDriftRuleTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 22, 21, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The nth five-minute bucket, which is the cadence the monitor rolls history up to.</summary>
+    private static DateTimeOffset At(int bucket) => Now.AddMinutes(5 * bucket);
+
     private static Rule TheRule =>
         RuleCatalog.All.Single(r => r.Id == "memory_declaration_drift");
+
+    /// <summary>
+    /// The thresholds the rule ships with — what it runs on where no file overrides them.
+    /// </summary>
+    /// <remarks>
+    /// Resolved through the same path the daemon uses rather than restated here. A test carrying its
+    /// own copy of a default would keep passing after the shipped figure moved, which is precisely the
+    /// case it exists to catch.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, double> Shipped =>
+        RuleTuning.Defaults(RuleCatalog.All).For(TheRule.Id);
+
+    /// <summary>The shipped thresholds with some moved, as an operator's file would.</summary>
+    private static IReadOnlyDictionary<string, double> Tuned(params (string Key, double Value)[] moved) =>
+        RuleTuning
+            .Resolve(
+                RuleCatalog.All,
+                new Dictionary<string, IReadOnlyDictionary<string, double>>
+                {
+                    [TheRule.Id] = moved.ToDictionary(m => m.Key, m => m.Value),
+                })
+            .For(TheRule.Id);
 
     /// <summary>A footprint that clears every coverage gate, which each test then spoils one of.</summary>
     private static InstanceFootprint WellEvidenced(
@@ -41,13 +68,15 @@ public class MemoryDriftRuleTests
         InstanceFootprint footprint,
         MemoryDeclaration declaration,
         Reading<MemoryTrend>? trend = null,
-        string subject = "romestead")
+        string subject = "romestead",
+        IReadOnlyDictionary<string, double>? thresholds = null)
     {
         var ctx = new RuleContext(
             subject, Now,
             new StubWorld(Reading<MemoryDeclaration>.Measured(declaration)),
             new StubHistory(),
-            new StubFootprints([footprint], trend ?? Reading<MemoryTrend>.Measured(new MemoryTrend(500, 1.0))));
+            new StubFootprints([footprint], trend ?? Reading<MemoryTrend>.Measured(new MemoryTrend(500, 1.0))),
+            thresholds ?? Shipped);
 
         return await TheRule.Holds(ctx, CancellationToken.None);
     }
@@ -92,8 +121,10 @@ public class MemoryDriftRuleTests
     [Fact]
     public async Task One_run_is_not_enough_to_generalise_from()
     {
+        // Under the unbroken-run stand-in, deliberately: above it a single run IS its own evidence,
+        // which is the case below.
         Verdict v = await Evaluate(
-            WellEvidenced(runs: 1, hours: 30), new MemoryDeclaration(4096, 8192, null));
+            WellEvidenced(runs: 1, hours: 9), new MemoryDeclaration(4096, 8192, null));
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
         Assert.Contains("seen to start", v.Reason);
@@ -216,6 +247,59 @@ public class MemoryDriftRuleTests
         Assert.Contains("cannot be told", v.Reason);
     }
 
+    // ---- the thresholds an operator moved ----
+
+    /// <summary>
+    /// ⚠ The gates are what decide whether this rule can speak at all, so a moved one has to reach it.
+    /// </summary>
+    [Fact]
+    public async Task A_narrowed_span_gate_admits_a_footprint_the_shipped_one_refuses()
+    {
+        // Two days of evenings on a young world: refused on the shipped span, judged on a narrowed one.
+        InstanceFootprint young = WellEvidenced(hours: 9, span: 1.9);
+
+        Verdict shipped = await Evaluate(young, new MemoryDeclaration(4096, 8192, null));
+        Assert.Equal(VerdictKind.Unreadable, shipped.Kind);
+        Assert.Contains("span", shipped.Reason);
+
+        Verdict tuned = await Evaluate(
+            young, new MemoryDeclaration(4096, 8192, null),
+            thresholds: Tuned(("min_span_days", 1)));
+
+        Assert.Equal(VerdictKind.Holds, tuned.Kind);
+        // The evidence travels with the verdict, which is what lets a reader see how thin it is.
+        Assert.Contains("spanning 2 days", tuned.Reason);
+    }
+
+    [Fact]
+    public async Task A_widened_margin_stops_a_gap_being_worth_saying()
+    {
+        // 2908 against 4096 declared is 29% below it — over the shipped margin, under a wider one.
+        Verdict shipped = await Evaluate(WellEvidenced(), new MemoryDeclaration(4096, 8192, null));
+        Assert.Equal(VerdictKind.Holds, shipped.Kind);
+
+        Verdict tuned = await Evaluate(
+            WellEvidenced(), new MemoryDeclaration(4096, 8192, null),
+            thresholds: Tuned(("drift_margin_pct", 40)));
+
+        Assert.Equal(VerdictKind.DoesNotHold, tuned.Kind);
+        Assert.Contains("within 40%", tuned.Reason);
+    }
+
+    /// <summary>Zero turns a gate off rather than making it impossible to pass.</summary>
+    [Fact]
+    public async Task Every_gate_off_judges_whatever_has_been_measured()
+    {
+        Verdict v = await Evaluate(
+            WellEvidenced(hours: 0.4, span: 0.02, runs: 0),
+            new MemoryDeclaration(4096, 8192, null),
+            thresholds: Tuned(
+                ("min_span_days", 0), ("min_observed_hours", 0),
+                ("min_runs", 0), ("continuous_run_hours", 0)));
+
+        Assert.Equal(VerdictKind.Holds, v.Kind);
+    }
+
     // ---- the monitor being absent ----
 
     [Fact]
@@ -237,11 +321,50 @@ public class MemoryDriftRuleTests
             "never-measured", Now,
             new StubWorld(Reading<MemoryDeclaration>.Measured(new MemoryDeclaration(1024, 2048, null))),
             new StubHistory(),
-            new StubFootprints([], Reading<MemoryTrend>.Unavailable("none")));
+            new StubFootprints([], Reading<MemoryTrend>.Unavailable("none")),
+            Shipped);
 
         Verdict v = await TheRule.Holds(ctx, CancellationToken.None);
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
+    }
+
+    // ---- the monitor's wire shape ----
+
+    /// <summary>
+    /// ⚠ The history body parses as the monitor actually serves it, timestamps included.
+    /// </summary>
+    /// <remarks>
+    /// <b>The failure this guards is silent and total.</b> A field typed against a shape the monitor
+    /// does not send throws on the whole response, which reaches the rule as an unreadable trend — and
+    /// an unreadable trend blocks only the decrement, so the rule goes on answering "cannot tell" for
+    /// exactly the verdict the trend exists to permit. The literal below is a real response: <c>ts</c>
+    /// is an ISO-8601 instant, and the rolled-up tier carries <c>min</c>/<c>max</c>/<c>n</c> beside the
+    /// value.
+    /// </remarks>
+    [Fact]
+    public void The_history_body_parses_as_the_monitor_serves_it()
+    {
+        const string body = """
+            {
+              "entityId": "Ketchup", "kind": "server", "range": "30d", "step": 300, "tier": "rollup",
+              "series": {
+                "memAnonBytes": [
+                  { "ts": "2026-07-28T14:55:00+00:00", "value": 41.85, "min": 40.9, "max": 43.7, "n": 4 },
+                  { "ts": "2026-07-28T15:00:00+00:00", "value": 42.10, "min": 41.2, "max": 44.0, "n": 4 }
+                ]
+              }
+            }
+            """;
+
+        MetricsHistoryDto? parsed =
+            JsonSerializer.Deserialize(body, MonitorJsonContext.Default.MetricsHistoryDto);
+
+        List<HistoryPointDto> points = Assert.Single(parsed!.Series).Value;
+        Assert.Equal(2, points.Count);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 28, 14, 55, 0, TimeSpan.Zero), points[0].Ts);
+        Assert.Equal(41.85, points[0].Value);
     }
 
     // ---- the trend arithmetic ----
@@ -250,7 +373,7 @@ public class MemoryDriftRuleTests
     public void A_flat_series_reports_no_growth()
     {
         MemoryTrend t = MonitorFootprintSource.Compute(
-            [.. Enumerable.Range(0, 40).Select(i => new HistoryPointDto(i, 2_900_000_000))]);
+            [.. Enumerable.Range(0, 40).Select(i => new HistoryPointDto(At(i), 2_900_000_000))]);
 
         Assert.Equal(0, t.GrowthPct);
         Assert.Equal(40, t.Points);
@@ -261,8 +384,8 @@ public class MemoryDriftRuleTests
     {
         // 1000 for the first half, 1500 for the second: +50%.
         var points = new List<HistoryPointDto>();
-        points.AddRange(Enumerable.Range(0, 20).Select(i => new HistoryPointDto(i, 1000)));
-        points.AddRange(Enumerable.Range(20, 20).Select(i => new HistoryPointDto(i, 1500)));
+        points.AddRange(Enumerable.Range(0, 20).Select(i => new HistoryPointDto(At(i), 1000)));
+        points.AddRange(Enumerable.Range(20, 20).Select(i => new HistoryPointDto(At(i), 1500)));
 
         Assert.Equal(50, MonitorFootprintSource.Compute(points).GrowthPct);
     }
@@ -273,8 +396,8 @@ public class MemoryDriftRuleTests
         // The series is irregular — it exists only while the instance runs — so nothing guarantees the
         // order it arrives in, and halves taken off an unsorted list compare two random samples.
         var points = new List<HistoryPointDto>();
-        points.AddRange(Enumerable.Range(20, 20).Select(i => new HistoryPointDto(i, 1500)));
-        points.AddRange(Enumerable.Range(0, 20).Select(i => new HistoryPointDto(i, 1000)));
+        points.AddRange(Enumerable.Range(20, 20).Select(i => new HistoryPointDto(At(i), 1500)));
+        points.AddRange(Enumerable.Range(0, 20).Select(i => new HistoryPointDto(At(i), 1000)));
 
         Assert.Equal(50, MonitorFootprintSource.Compute(points).GrowthPct);
     }

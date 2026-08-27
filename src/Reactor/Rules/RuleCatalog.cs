@@ -21,10 +21,18 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules;
 /// players.
 /// </para>
 /// <para>
-/// ⚠ <b>Every window here is a placeholder</b> until the population report has a week behind it.
-/// They are labelled as such individually. A number chosen before the measurement is a guess wearing
-/// a default's clothing, and the one figure already measured — a single <c>kgsm install</c> producing
-/// 22 events in one minute — says intuition is not to be trusted on this host.
+/// <b>A window carries the measurement that chose it, or says it has none.</b> Each is documented
+/// against what was read off 30 days of this host — and where nothing could be read, the field says
+/// so rather than presenting a guess in a default's clothing. The one figure measured before any of
+/// them, a single <c>kgsm install</c> producing 22 events in a minute, is why: intuition is not to be
+/// trusted on this host.
+/// </para>
+/// <para>
+/// <b>A settle or suppression window is compiled; a rule's thresholds are not.</b> The two windows
+/// are properties of how a condition behaves over time, measured here and the same on any host
+/// running this software. A threshold is a judgement about one fleet — how much evidence is enough,
+/// how wide a gap is worth mentioning — so each is declared as a <see cref="RuleParameter"/> an
+/// operator moves without a rebuild.
 /// </para>
 /// </remarks>
 internal static class RuleCatalog
@@ -142,67 +150,78 @@ internal static class RuleCatalog
     /// </remarks>
     private static readonly TimeSpan DriftSuppression = TimeSpan.FromDays(1);
 
+    /// <summary>The stable wire ids of the thresholds <c>memory_declaration_drift</c> compares against.</summary>
+    /// <remarks>⚠ Immutable once shipped: a stored override is keyed by these.</remarks>
+    private const string MinSpanDaysKey = "min_span_days";
+    private const string MinObservedHoursKey = "min_observed_hours";
+    private const string MinRunsKey = "min_runs";
+    private const string ContinuousRunHoursKey = "continuous_run_hours";
+    private const string DriftMarginPctKey = "drift_margin_pct";
+    private const string SettledGrowthPctKey = "settled_growth_pct";
+
     /// <summary>
-    /// The calendar span an instance's observations must cover.
+    /// How much evidence has to sit behind a footprint before a figure is read off it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠ <b>Span and measurement are separate gates, and conflating them is a real defect.</b>
-    /// Measured on this host: <c>romestead</c> has 57 hours of observation spread across 25 calendar
-    /// days — a server played most evenings for most of a month, which samples many worlds, sessions
-    /// and player counts. A single gate reading "days" off the sample count would call that two days
-    /// and refuse it, leaving one eligible instance on this host and a rule that fires on nothing.
+    /// <b>Three questions, three gates, and collapsing them into one is a real defect.</b> Span asks
+    /// whether the observation reaches across enough of the world's life; hours ask how much
+    /// measurement is inside that reach; runs ask whether more than one session is behind the peak. A
+    /// server played two hours an evening for a month has sixty hours of measurement spread over
+    /// thirty days, and a single gate reading days off the sample count would call that two days and
+    /// refuse it.
     /// </para>
     /// <para>
-    /// A fortnight because the thing being asked about is a world that grows with play, and a week
-    /// does not contain a weekend and the fortnight around it.
+    /// <b>They are set where a figure becomes worth reading, not where it becomes beyond dispute.</b>
+    /// This rule reports and acts on nothing — the decision record is its whole output — so an early
+    /// verdict costs a ledger row that names the evidence it rests on, and every reader can see how
+    /// thin that evidence is because the reason string carries it. The direction that could do harm is
+    /// guarded separately and much harder: a decrement additionally has to clear
+    /// <see cref="SettledGrowthPctKey"/>, which is what stops a figure being lowered against a working
+    /// set still climbing.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Hours sit above what the trend behind them needs.</b> A direction is read from
+    /// five-minute buckets and needs two dozen of them, so a verdict admitted on less measurement than
+    /// that would be one whose decrement guard could never answer — an instance permanently
+    /// "cannot tell" rather than one being judged carefully.
+    /// </para>
+    /// <para>
+    /// <b>The run gate takes a long unbroken stretch instead.</b> A boundary is only counted when this
+    /// host was watching, so an instance running since before the monitor was installed reports none —
+    /// and a day of continuous operation is not weaker evidence than two short evenings.
     /// </para>
     /// </remarks>
-    private const double MinSpanDays = 14;
-
-    /// <summary>The measurement an instance must have behind it, in hours observed running.</summary>
-    /// <remarks>
-    /// A day of cumulative running. Below it the peak is one session's high-water mark, which describes
-    /// an evening rather than an instance.
-    /// </remarks>
-    private const double MinObservedHours = 24;
-
-    /// <summary>
-    /// Independent runs, or a single run long enough to be its own evidence.
-    /// </summary>
-    /// <remarks>
-    /// Two runs, because one cannot separate an instance's behaviour from one session's. But a run
-    /// boundary is only counted when this host was watching, so an instance running continuously since
-    /// before the monitor was installed reports zero of them — <c>Ketchup</c> here, with 704 observed
-    /// hours across 30 days and not one boundary seen. A month of continuous operation is not weaker
-    /// evidence than two evenings, so a long enough single run satisfies this instead.
-    /// </remarks>
-    private const long MinRuns = 2;
-
-    /// <summary>Observed hours that stand in for the run count when no boundary has been seen.</summary>
-    private const double ContinuousRunHours = 168;
-
-    /// <summary>
-    /// How far the measurement must sit from the declaration before it is worth saying.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ <b>A placeholder, and the ledger is what replaces it.</b> Simulated against 30 days of this
-    /// host's history: at ±25%, two of the three eligible instances diverge — one of which is a JVM
-    /// whose figure is a launch flag rather than a measurement. That is a plausible first day rather
-    /// than a measured threshold, and the rule ships in observe mode precisely so the number can be
-    /// chosen from what it records instead of guessed twice.
-    /// </remarks>
-    private const double DriftMarginPct = 25;
-
-    /// <summary>
-    /// Growth across the window above which a working set has not settled.
-    /// </summary>
-    /// <remarks>
-    /// Only ever blocks a <em>decrement</em>. An instance measured below what it declares, whose
-    /// working set is still climbing, has not found its ceiling — and proposing a lower figure against
-    /// a number still in motion is the way this rule would cause harm rather than noise.
-    /// </remarks>
-    private const double SettledGrowthPct = 10;
+    private static readonly IReadOnlyList<RuleParameter> DriftGates =
+    [
+        new(MinSpanDaysKey, "Observations must span", Default: 2, Unit: "days",
+            Description: "Calendar days between the first and last observation. Separate from the "
+                + "hours below: a server played an hour an evening for a fortnight has little "
+                + "measurement spread across a lot of calendar, and those are different evidence. "
+                + "Zero asks for a verdict from however narrow a window has been seen."),
+        new(MinObservedHoursKey, "Measured for at least", Default: 5, Unit: "h",
+            Description: "Cumulative hours the server was observed running, summed across sessions — "
+                + "five evenings of an hour count the same as one five-hour run. Below about two "
+                + "hours the working-set trend has too few points to read a direction from, and a "
+                + "decrement can never be cleared."),
+        new(MinRunsKey, "Independent runs", Default: 2,
+            Description: "Times the server was seen to start, which is what separates its behaviour "
+                + "from one session's. A server running since before the monitor was installed shows "
+                + "none of these, and the setting below is what lets it be judged anyway."),
+        new(ContinuousRunHoursKey, "Or one unbroken run of", Default: 24, Unit: "h",
+            Description: "Hours of continuous running that stand in for the run count when no start "
+                + "has been observed."),
+        new(DriftMarginPctKey, "Report a gap wider than", Default: 25, Unit: "%",
+            Description: "How far what a server holds has to sit from what its blueprint declares "
+                + "before the gap is worth saying. Neither figure is wrong — the blueprint describes "
+                + "a game and the measurement describes one world — so this is the width at which "
+                + "two true statements have drifted far enough apart to be worth a look."),
+        new(SettledGrowthPctKey, "Treat as settled below", Default: 10, Unit: "%",
+            Description: "How much a working set may grow across the trend window and still count as "
+                + "having found its ceiling. This only ever blocks reporting a server as needing "
+                + "LESS than it declares, which is the direction that would over-commit a host if it "
+                + "were wrong. Raising it lets a still-climbing server be called settled."),
+    ];
 
     public static IReadOnlyList<Rule> All { get; } =
     [
@@ -281,27 +300,32 @@ internal static class RuleCatalog
             if (match is not { } footprint)
                 return Verdict.Unreadable($"no footprint is recorded for {ctx.Subject}");
 
-            // Two gates, because they are two questions. Span asks whether the observation reaches
-            // across enough of the world's life; hours ask whether there is enough measurement in it.
-            if (footprint.SpanDays < MinSpanDays)
+            // Three gates, because they are three questions, and each names the figure in force so a
+            // reader can tell a rule that is waiting for evidence from one that has been tuned to.
+            double minSpanDays = ctx.Threshold(MinSpanDaysKey);
+            double minObservedHours = ctx.Threshold(MinObservedHoursKey);
+            double minRuns = ctx.Threshold(MinRunsKey);
+            double continuousRunHours = ctx.Threshold(ContinuousRunHoursKey);
+
+            if (footprint.SpanDays < minSpanDays)
             {
                 return Verdict.Unreadable(
                     $"observations of {ctx.Subject} span {footprint.SpanDays:F1} days, short of the "
-                    + $"{MinSpanDays:F0} a world's growth shows up over");
+                    + $"{minSpanDays:0.###} a world's growth shows up over");
             }
 
-            if (footprint.ObservedHours < MinObservedHours)
+            if (footprint.ObservedHours < minObservedHours)
             {
                 return Verdict.Unreadable(
                     $"{ctx.Subject} has been measured for {footprint.ObservedHours:F1} hours, short of "
-                    + $"the {MinObservedHours:F0} a peak means anything over");
+                    + $"the {minObservedHours:0.###} a peak means anything over");
             }
 
-            if (footprint.Runs < MinRuns && footprint.ObservedHours < ContinuousRunHours)
+            if (footprint.Runs < minRuns && footprint.ObservedHours < continuousRunHours)
             {
                 return Verdict.Unreadable(
                     $"{ctx.Subject} has been seen to start {footprint.Runs} time(s) and has not run "
-                    + $"the {ContinuousRunHours:F0} hours that would stand in for a second one");
+                    + $"the {continuousRunHours:0.###} hours that would stand in for a second one");
             }
 
             if (footprint.WorkingSetPeakMb is not { } observedMb)
@@ -330,11 +354,13 @@ internal static class RuleCatalog
             string evidence =
                 $"measured over {footprint.ObservedHours:F0}h spanning {footprint.SpanDays:F0} days";
 
-            if (Math.Abs(driftPct) < DriftMarginPct)
+            double marginPct = ctx.Threshold(DriftMarginPctKey);
+
+            if (Math.Abs(driftPct) < marginPct)
             {
                 return Verdict.DoesNotHold(
                     $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, within "
-                    + $"{DriftMarginPct:F0}% ({evidence})");
+                    + $"{marginPct:0.###}% ({evidence})");
             }
 
             // Upward drift needs no trend: an instance already holding more than its declaration is
@@ -364,7 +390,7 @@ internal static class RuleCatalog
                     + $"that has settled cannot be told: {trend.Reason}");
             }
 
-            if (trend.Value.GrowthPct > SettledGrowthPct)
+            if (trend.Value.GrowthPct > ctx.Threshold(SettledGrowthPctKey))
             {
                 return Verdict.DoesNotHold(
                     $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, but its "
@@ -379,7 +405,8 @@ internal static class RuleCatalog
         },
         // Rewriting instance config is on the never-list, and the figure a surface would render is the
         // monitor's to serve. So the decision record is the whole output and there is nothing to stage.
-        Action: _ => new ReactorAction.Nothing());
+        Action: _ => new ReactorAction.Nothing(),
+        Parameters: DriftGates);
 
     /// <summary>
     /// The supervisor gave up on an instance — capture what it died as, before anybody debugs it.

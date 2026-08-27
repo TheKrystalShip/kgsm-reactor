@@ -81,6 +81,27 @@ public sealed record ReactorStatus
     [JsonPropertyName("rules")]
     public required IReadOnlyList<RuleStatus> Rules { get; init; }
 
+    /// <summary>Where per-rule thresholds are read from.</summary>
+    /// <remarks>
+    /// Reported whether or not a file is there, because "no thresholds were applied" and "thresholds
+    /// were applied from somewhere other than you think" are the two questions asked here, and only
+    /// the path separates them.
+    /// </remarks>
+    [JsonPropertyName("rulesPath")]
+    public required string RulesPath { get; init; }
+
+    /// <summary>
+    /// What was written in that file and could not be honoured. Empty on a host where everything was.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The single most important field here for anyone who has just changed a threshold.</b> A
+    /// misspelled rule id, an unknown parameter key or a figure below its floor each leaves the daemon
+    /// running on something sane — and without this, all three present as "I set it and nothing
+    /// happened", which is indistinguishable from a rule that simply had nothing to say.
+    /// </remarks>
+    [JsonPropertyName("tuningProblems")]
+    public required IReadOnlyList<string> TuningProblems { get; init; }
+
     /// <summary>
     /// Evaluations woken and waiting out their settle window.
     /// </summary>
@@ -102,6 +123,31 @@ public sealed record ReactorStatus
     [JsonPropertyName("lastSweepAt")]
     public DateTimeOffset? LastSweepAt { get; init; }
 }
+
+/// <summary>
+/// One threshold a rule compares against, as declared and as it is running.
+/// </summary>
+/// <remarks>
+/// ⚠ <b><see cref="Value"/> and <see cref="Default"/> are both here, and neither alone is the honest
+/// answer.</b> The value is what the rule uses; the default is what it ships with. A surface showing
+/// only the value cannot say whether anybody chose it, and one showing only the default describes a
+/// rule that may not be the one running.
+/// </remarks>
+/// <param name="Key">The stable wire id an override is written under.</param>
+/// <param name="Label">Short human name.</param>
+/// <param name="Value">The figure in force.</param>
+/// <param name="Default">The figure the rule ships with.</param>
+/// <param name="Minimum">The floor an override is clamped to.</param>
+/// <param name="Unit">Display suffix, or null when the number is a count.</param>
+/// <param name="Description">What moving it changes, in an operator's terms.</param>
+public sealed record RuleParameterStatus(
+    [property: JsonPropertyName("key")] string Key,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("value")] double Value,
+    [property: JsonPropertyName("default")] double Default,
+    [property: JsonPropertyName("minimum")] double Minimum,
+    [property: JsonPropertyName("unit")] string? Unit,
+    [property: JsonPropertyName("description")] string? Description);
 
 /// <summary>The gate's tuning, read off the running configuration.</summary>
 /// <param name="SweepIntervalSeconds">How often rules are evaluated.</param>
@@ -163,6 +209,10 @@ public sealed record DecisionStatus(
 /// <param name="ActionName">
 /// The stable name of what it would do, or <c>none</c> for a rule that reports and proposes nothing.
 /// </param>
+/// <param name="Parameters">
+/// The thresholds it compares against, each with the figure in force and the one it ships with. Empty
+/// for a rule with nothing to tune.
+/// </param>
 public sealed record RuleStatus(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("shape")] string Shape,
@@ -172,7 +222,8 @@ public sealed record RuleStatus(
     [property: JsonPropertyName("suppressionMinutes")] int SuppressionMinutes,
     [property: JsonPropertyName("configuredMode")] string? ConfiguredMode,
     [property: JsonPropertyName("wakes")] IReadOnlyList<string> Wakes,
-    [property: JsonPropertyName("actionName")] string ActionName);
+    [property: JsonPropertyName("actionName")] string ActionName,
+    [property: JsonPropertyName("parameters")] IReadOnlyList<RuleParameterStatus> Parameters);
 
 /// <summary>One evaluation waiting out its settle window.</summary>
 /// <param name="Rule">Which rule was woken.</param>

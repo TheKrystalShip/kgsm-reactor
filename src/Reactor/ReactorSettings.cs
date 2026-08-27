@@ -223,4 +223,33 @@ internal sealed class ReactorSettings
     /// every server at once is one story, and this is what stops it becoming forty.</panel>
     [LeafField("maxDecisionsPerHour", "Decisions per hour", Group = "rules", Min = 0)]
     public int? MaxActionsPerHour { get; set; }
+
+    /// <summary>
+    /// The per-rule thresholds file. Blank resolves to <c>rules.json</c> in the systemd state
+    /// directory.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A file of its own because thresholds are two-dimensional — rule by parameter — and this
+    /// surface is one flat key per value. Expressing that here would mean a key per rule per
+    /// threshold and a property added to this type every time a rule gains one.
+    /// </para>
+    /// <para>
+    /// <b>The path travels through configuration; the file stays the leaf's.</b> A host with no
+    /// Control Panel reads and writes the default location directly. A panel that manages the
+    /// thresholds writes its own copy and points this at it — so the daemon is told a path and never
+    /// learns whose it is, and no leaf comes to depend on the API.
+    /// </para>
+    /// <para>
+    /// Read once at startup. A change applies on restart, which is what applying any configuration
+    /// change to a leaf already does.
+    /// </para>
+    /// </remarks>
+    /// <panel>Where the per-rule thresholds live. Each rule ships with figures that carry the
+    /// measurement behind them; this file is where different ones are written. Leave it blank to keep
+    /// it in this service's own state directory, which is what a normal install wants. A missing file
+    /// means every rule runs on what it shipped with.</panel>
+    [LeafField("rulesPath", "Rule thresholds", Group = "rules", Type = LeafType.Path,
+        Risk = LeafRisk.Wiring)]
+    public string RulesPath { get; set; } = string.Empty;
 }

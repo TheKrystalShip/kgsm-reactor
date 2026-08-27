@@ -90,7 +90,22 @@
     // crash-looping and suppression collapses that to one decision. This covers the whole fleet
     // failing at once with room for host sensors beside it — a host that lost every server is the
     // story a ceiling most needs to let through, not the one it should cut off.
-    "MaxActionsPerHour": 12
+    "MaxActionsPerHour": 12,
+
+    // Where per-rule thresholds are read from. Blank resolves to rules.json inside the systemd state
+    // directory ($STATE_DIRECTORY, /var/lib/kgsm-reactor). A MISSING FILE IS THE ORDINARY CASE: every
+    // rule then runs on the figures it ships with, each of which carries the measurement that chose
+    // it. The file is a file rather than more keys here because thresholds are two-dimensional —
+    // rule by parameter — and this surface is one flat key per value.
+    //
+    // Its shape, and every key in it is optional:
+    //   { "rules": { "memory_declaration_drift": { "min_span_days": 2 } } }
+    //
+    // Read ONCE, at startup. A rule id or parameter key the build does not know is reported on
+    // /status and in the log rather than silently ignored, and a file that cannot be parsed leaves
+    // every rule on its shipped figures and says so — "I set it and nothing happened" is the one
+    // outcome this must never produce.
+    "RulesPath": ""
   },
 
   "Logging": {

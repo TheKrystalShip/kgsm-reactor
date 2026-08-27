@@ -48,6 +48,8 @@ internal sealed class StatusReporter(
                 _options.SuppressionWindowMinutes,
                 _options.MaxActionsPerHour),
             Honours = RuleEngine.Honours.ToString().ToLowerInvariant(),
+            RulesPath = _options.RulesPath,
+            TuningProblems = engine.Tuning.Problems,
             Observations = new IngestStatus(ingest.Recorded, ingest.Dropped),
             Decisions = new DecisionStatus(engine.Recorded, engine.Emitted),
             Rules =
@@ -76,6 +78,9 @@ internal sealed class StatusReporter(
     /// host-wide setting where it does not. The gate block reports the host-wide figure, and a reader
     /// seeing only that would take it for the window in force on every rule, which for two of the
     /// three here it is not.</description></item>
+    /// <item><description>Each <b>threshold</b> is the figure in force, carrying the one it ships
+    /// with beside it. A surface showing only the value cannot say whether anybody chose it; one
+    /// showing only the default describes a rule that may not be the one running.</description></item>
     /// <item><description>What it <b>wakes on</b> and what it <b>would do</b> come from the compiled
     /// rule, because nothing configures either. They are reported so a reader can tell what a rule is
     /// for without having the source open.</description></item>
@@ -85,6 +90,7 @@ internal sealed class StatusReporter(
     {
         RuleMode configured = _options.ModeFor(rule.Id) ?? RuleMode.Observe;
         RuleMode effective = RuleEngine.Effective(configured);
+        IReadOnlyDictionary<string, double> thresholds = engine.Tuning.For(rule.Id);
 
         return new RuleStatus(
             rule.Id,
@@ -100,7 +106,11 @@ internal sealed class StatusReporter(
             rule.Wakes,
             // The action is declared per subject, but its NAME does not vary by one — it is the stable
             // string other programs compare against, where Describe() is prose that names the instance.
-            rule.Action(string.Empty).Name);
+            rule.Action(string.Empty).Name,
+            [
+                .. rule.Parameters.Select(p => new RuleParameterStatus(
+                    p.Key, p.Label, thresholds[p.Key], p.Default, p.Minimum, p.Unit, p.Description)),
+            ]);
     }
 
     /// <summary>

@@ -194,4 +194,32 @@ public class RuleCatalogTests
         Assert.All(RuleCatalog.All, rule =>
             Assert.Equal(RuleMode.Observe, options.ModeFor(rule.Id)));
     }
+
+    /// <summary>
+    /// Every threshold a rule declares can be written down, found again, and is internally consistent.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The key is the contract.</b> A stored override is keyed by it, so a duplicate within one
+    /// rule makes which figure wins undefined, and a key spelled unlike every other is one an operator
+    /// gets wrong. A default under its own floor would be a rule that starts clamped, reporting a
+    /// figure it does not use.
+    /// </remarks>
+    [Fact]
+    public void Every_declared_threshold_is_keyed_uniquely_spelled_consistently_and_above_its_floor()
+    {
+        Assert.All(RuleCatalog.All, rule =>
+        {
+            Assert.Equal(
+                rule.Parameters.Select(p => p.Key).Distinct(StringComparer.Ordinal).Count(),
+                rule.Parameters.Count);
+
+            Assert.All(rule.Parameters, p =>
+            {
+                Assert.Matches("^[a-z][a-z0-9_]*$", p.Key);
+                Assert.False(string.IsNullOrWhiteSpace(p.Label));
+                Assert.True(p.Default >= p.Minimum,
+                    $"{rule.Id}.{p.Key} ships at {p.Default}, below its own floor of {p.Minimum}");
+            });
+        });
+    }
 }

@@ -72,6 +72,9 @@ internal sealed record ReactorOptions
     /// <summary>The ledger's filename inside whichever state directory holds it.</summary>
     private const string LedgerFileName = "reactor.db";
 
+    /// <summary>The thresholds file's name inside whichever state directory holds it.</summary>
+    private const string RulesFileName = "rules.json";
+
     public required bool Enabled { get; init; }
     public required string KgsmPath { get; init; }
     public required string JournalDir { get; init; }
@@ -95,6 +98,15 @@ internal sealed record ReactorOptions
     public required int SweepIntervalSeconds { get; init; }
     public required int SuppressionWindowMinutes { get; init; }
     public required int MaxActionsPerHour { get; init; }
+
+    /// <summary>
+    /// Where per-rule thresholds are read from.
+    /// </summary>
+    /// <remarks>
+    /// Absent is the ordinary case: every rule then runs on the figures it ships with, each of which
+    /// carries the measurement that chose it.
+    /// </remarks>
+    public required string RulesPath { get; init; }
 
     /// <summary>Rule ids by the mode each was configured in.</summary>
     public required IReadOnlyDictionary<string, Rules.RuleMode> RuleModes { get; init; }
@@ -151,7 +163,7 @@ internal sealed record ReactorOptions
             // Null, not a literal: the library owns what the default state root is, and repeating it
             // here is how the two come to disagree after one of them moves.
             StateRoot = Blank(settings.StateRoot) ? null : settings.StateRoot.Trim(),
-            LedgerPath = ResolveLedgerPath(settings.LedgerPath),
+            LedgerPath = ResolveStatePath(settings.LedgerPath, LedgerFileName),
             RetentionDays = AtLeast(settings.RetentionDays ?? DefaultRetentionDays, MinRetentionDays),
             FlushIntervalSeconds =
                 AtLeast(settings.FlushIntervalSeconds ?? DefaultFlushIntervalSeconds, MinFlushIntervalSeconds),
@@ -170,6 +182,7 @@ internal sealed record ReactorOptions
             SuppressionWindowMinutes =
                 AtLeast(settings.SuppressionWindowMinutes ?? DefaultSuppressionWindowMinutes, 0),
             MaxActionsPerHour = AtLeast(settings.MaxActionsPerHour ?? DefaultMaxActionsPerHour, 0),
+            RulesPath = ResolveStatePath(settings.RulesPath, RulesFileName),
             RuleModes = ResolveModes(settings),
         };
     }
@@ -207,7 +220,7 @@ internal sealed record ReactorOptions
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>
-    /// Where the ledger lives: what was configured, else the directory systemd made for this service.
+    /// Where a state file lives: what was configured, else the directory systemd made for this service.
     /// </summary>
     /// <remarks>
     /// <c>$STATE_DIRECTORY</c> rather than a hard-coded path, because the unit declares
@@ -215,7 +228,7 @@ internal sealed record ReactorOptions
     /// <c>ExecStart</c>. Reading it back is what keeps the daemon working when the unit's user, or
     /// the state root, is not the one this file would have guessed.
     /// </remarks>
-    private static string ResolveLedgerPath(string configured)
+    private static string ResolveStatePath(string configured, string fileName)
     {
         if (!Blank(configured))
             return configured.Trim();
@@ -226,7 +239,7 @@ internal sealed record ReactorOptions
             ? exported.Split(':', StringSplitOptions.RemoveEmptyEntries)[0]
             : FallbackStateDirectory;
 
-        return Path.Combine(state, LedgerFileName);
+        return Path.Combine(state, fileName);
     }
 
     /// <remarks>
