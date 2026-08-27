@@ -40,7 +40,7 @@
     <!-- 4.39.0 for AddKgsmJournalFederation (every producer's journal behind one IEventSource) and
          IEventService.RegisterRawHandler (every envelope, known type or not — which is what lets
          this leaf record an event no consumer has a type for yet). -->
-    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="4.42.0" />
+    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="7.0.2" />
   </ItemGroup>
 
   <ItemGroup>
