@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.14.0</Version>
+    <Version>0.15.0</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -40,7 +40,7 @@
     <!-- 4.39.0 for AddKgsmJournalFederation (every producer's journal behind one IEventSource) and
          IEventService.RegisterRawHandler (every envelope, known type or not — which is what lets
          this leaf record an event no consumer has a type for yet). -->
-    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="7.0.2" />
+    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

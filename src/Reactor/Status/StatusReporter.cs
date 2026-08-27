@@ -6,6 +6,8 @@ using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Status;
 
 /// <summary>

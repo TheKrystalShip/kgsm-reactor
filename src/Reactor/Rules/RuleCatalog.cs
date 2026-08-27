@@ -1,5 +1,7 @@
 using TheKrystalShip.KGSM.Core.Models;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Rules;
 
 /// <summary>
@@ -249,7 +251,7 @@ internal static class RuleCatalog
         Shape: RuleShape.State,
         // Nothing announces a drift, so there is no event type that would bring this to an evaluation.
         Wakes: [],
-        Severity: Severity.Info,
+        Severity: EventSeverity.Info,
         Settle: DriftSettle,
         Suppression: DriftSuppression,
         Subjects: async (ctx, token) =>
@@ -405,7 +407,7 @@ internal static class RuleCatalog
         Id: "give_up_backup",
         Shape: RuleShape.Edge,
         Wakes: ["instance_failed"],
-        Severity: Severity.Danger,
+        Severity: EventSeverity.Danger,
         Settle: GiveUpSettle,
         Suppression: GiveUpSuppression,
         Holds: async (ctx, token) =>
@@ -444,7 +446,7 @@ internal static class RuleCatalog
         Id: "update_regression",
         Shape: RuleShape.Edge,
         Wakes: ["instance_failed", "instance_crashed"],
-        Severity: Severity.Danger,
+        Severity: EventSeverity.Danger,
         // No Suppression: a crash repeats every 25s at p50, which the host-wide window already covers.
         Settle: CrashSettle,
         Holds: async (ctx, token) =>
@@ -492,7 +494,7 @@ internal static class RuleCatalog
         Id: "threshold_stuck",
         Shape: RuleShape.State,
         Wakes: ["host_threshold_breached"],
-        Severity: Severity.Warning,
+        Severity: EventSeverity.Warn,
         Settle: ThresholdSettle,
         Suppression: ThresholdSuppression,
         Subjects: (ctx, _) =>

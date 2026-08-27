@@ -2,6 +2,8 @@ using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>
@@ -198,7 +200,7 @@ public class JournalVerifyTests : IDisposable
             store.Record(new Decision(
                 Id: "d1", RuleId: "give_up_backup", Subject: "prod",
                 SubjectKind: SubjectKind.Instance, EpisodeKey: "e",
-                Severity: Rules.Severity.Danger, Mode: Rules.RuleMode.Observe,
+                Severity: EventSeverity.Danger, Mode: Rules.RuleMode.Observe,
                 Outcome: DecisionOutcome.Fired, Reason: "because",
                 Action: "take a backup", ActionName: "create_backup", ActionInstance: "prod",
                 ActionState: ActionState.None,
@@ -311,7 +313,7 @@ public class JournalVerifyTests : IDisposable
             store.Record(new Decision(
                 Id: "d1", RuleId: "give_up_backup", Subject: "prod",
                 SubjectKind: SubjectKind.Instance, EpisodeKey: "e",
-                Severity: Rules.Severity.Danger, Mode: Rules.RuleMode.Observe,
+                Severity: EventSeverity.Danger, Mode: Rules.RuleMode.Observe,
                 Outcome: DecisionOutcome.Fired, Reason: "because",
                 Action: "take a backup", ActionName: "create_backup", ActionInstance: "prod",
                 ActionState: ActionState.None,

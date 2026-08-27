@@ -4,6 +4,8 @@ using System.Text;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 
 /// <summary>What an evaluation came to.</summary>
@@ -133,7 +135,7 @@ internal sealed record Decision(
     string Subject,
     SubjectKind SubjectKind,
     string EpisodeKey,
-    Severity Severity,
+    EventSeverity Severity,
     RuleMode Mode,
     DecisionOutcome Outcome,
     string Reason,

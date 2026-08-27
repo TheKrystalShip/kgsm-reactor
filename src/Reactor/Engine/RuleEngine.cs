@@ -499,7 +499,7 @@ internal sealed class RuleEngine : BackgroundService
             foreach ((string otherRule, string severity) in
                      _decisions.FiredOnEpisode(pending.EpisodeKey, rule.Id))
             {
-                if (Enum.TryParse(severity, out Severity other) && other > rule.Severity)
+                if (Enum.TryParse(severity, out EventSeverity other) && other > rule.Severity)
                 {
                     return (DecisionOutcome.Superseded,
                         $"{holds}; but {otherRule} already spoke for this episode at {other}");

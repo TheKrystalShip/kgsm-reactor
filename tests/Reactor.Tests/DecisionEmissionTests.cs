@@ -5,6 +5,8 @@ using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>
@@ -33,7 +35,7 @@ public class DecisionEmissionTests : IDisposable
             Subject: subject,
             SubjectKind: kind,
             EpisodeKey: "kgsm-watchdog:s.ndjson:8748",
-            Severity: Severity.Danger,
+            Severity: EventSeverity.Danger,
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "still given up on after 60s (6 consecutive failures)",

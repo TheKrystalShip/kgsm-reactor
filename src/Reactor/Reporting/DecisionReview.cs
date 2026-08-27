@@ -2,6 +2,8 @@ using System.Text.Json.Serialization;
 
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 
 /// <summary>

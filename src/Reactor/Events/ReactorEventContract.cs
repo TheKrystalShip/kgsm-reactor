@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Events;
 
 /// <summary>
@@ -28,6 +30,13 @@ internal static class ReactorEvents
     /// concluded.
     /// </remarks>
     public const string Decided = "reactor_decided";
+
+    /// <summary>The same name, typed so the writer can take it.</summary>
+    /// <remarks>
+    /// Derived from the constant above rather than restated: the name this leaf writes and the name
+    /// its own rules refuse to wake on cannot become two different strings.
+    /// </remarks>
+    public static readonly EventName DecidedName = EventName.Parse(Decided);
 
     /// <summary>
     /// <c>reactor_acted</c> — a decision was carried out, however it ended.
@@ -74,7 +83,7 @@ internal static class ReactorEventFields
     /// </remarks>
     public const string SubjectKind = "SubjectKind";
 
-    /// <summary>How loudly the rule speaks: <c>info</c>, <c>warning</c>, <c>danger</c>.</summary>
+    /// <summary>How loudly the rule speaks — one of the ecosystem's severity spellings.</summary>
     public const string Severity = "Severity";
 
     /// <summary>The authority it ran under: <c>observe</c>, <c>propose</c>, <c>act</c>.</summary>

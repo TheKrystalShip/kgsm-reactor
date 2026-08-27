@@ -3,6 +3,8 @@ using System.Text;
 
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 
 /// <summary>

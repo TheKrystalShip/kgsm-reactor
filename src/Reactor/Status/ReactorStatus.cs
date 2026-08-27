@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Status;
 
 /// <summary>

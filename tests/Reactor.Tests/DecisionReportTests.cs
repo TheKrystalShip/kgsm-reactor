@@ -3,6 +3,8 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>
@@ -41,7 +43,7 @@ public class DecisionReportTests : IDisposable
             Subject: subject,
             SubjectKind: SubjectKind.Instance,
             EpisodeKey: episode + at.ToUnixTimeMilliseconds(),
-            Severity: Severity.Danger,
+            Severity: EventSeverity.Danger,
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "because",

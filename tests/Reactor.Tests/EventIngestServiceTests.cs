@@ -72,10 +72,11 @@ public class EventIngestServiceTests : IDisposable
         public string Producer => "kgsm-reactor";
 
         public ValueTask<bool> AppendAsync(
-            string eventType, JsonElement data, string? actor = null, string? origin = null,
+            EventName eventType, JsonElement data, string? actor = null, string? origin = null,
+            EventSeverity? severity = null, EventOutcome? outcome = null, string? summary = null,
             CancellationToken token = default)
         {
-            Written.Add(eventType);
+            Written.Add(eventType.Value);
             return ValueTask.FromResult(true);
         }
     }

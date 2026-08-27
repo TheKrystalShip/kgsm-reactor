@@ -7,6 +7,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a decision says how much it matters (`0.15.0`)
+
+A decision says how much it matters on the envelope, in the ecosystem's own severity scale, so a
+reader renders it without holding a table of what reactor events mean. The rules carry
+`EventSeverity` directly rather than a private enum of the same three bands, which is what kept this
+leaf writing `warning` where every other producer writes `warn`.
+
+The line also carries what was decided in words — the outcome, the subject and the rule's own reason
+— written when the decision is made. The reactor's own six-valued outcome stays in the payload,
+where `settled`, `suppressed`, `ceilinged` and `superseded` keep meanings the envelope's three-valued
+outcome has no room for.
+
+⚠ The ledger holds severities written by earlier builds and is never rebuilt, so a row is read
+whichever spelling wrote it. A value that resolves to nothing reads as `info`: a row whose weight
+cannot be established is not evidence that it was severe.
+
 ### Changed — a packaged install enables and starts the reactor (`0.14.0`)
 
 `packaging/kgsm-reactor.install` applies kgsm-base's `50-kgsm.preset` to this project's units in

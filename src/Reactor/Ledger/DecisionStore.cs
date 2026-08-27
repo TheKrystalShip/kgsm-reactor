@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 
 /// <summary>
@@ -137,7 +139,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
                 command.Parameters.AddWithValue("$subject", decision.Subject);
                 command.Parameters.AddWithValue("$subjectKind", decision.SubjectKind.ToString());
                 command.Parameters.AddWithValue("$episode", decision.EpisodeKey);
-                command.Parameters.AddWithValue("$severity", decision.Severity.ToString());
+                command.Parameters.AddWithValue("$severity", decision.Severity.ToWire());
                 command.Parameters.AddWithValue("$mode", decision.Mode.ToString());
                 command.Parameters.AddWithValue("$outcome", decision.Outcome.ToString());
                 command.Parameters.AddWithValue("$reason", decision.Reason);
@@ -244,7 +246,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             ? kind
             : Classification.SubjectKind.Unknown,
         EpisodeKey: reader.GetString(4),
-        Severity: Enum.Parse<Rules.Severity>(reader.GetString(5)),
+        Severity: ReadSeverity(reader.GetString(5)),
         Mode: Enum.Parse<Rules.RuleMode>(reader.GetString(6)),
         Outcome: Enum.Parse<DecisionOutcome>(reader.GetString(7)),
         Reason: reader.GetString(8),
@@ -257,4 +259,23 @@ internal sealed class DecisionStore(ObservationLedger ledger)
         Source: new EventSource(
             reader.GetString(15), reader.GetString(16), reader.GetInt64(17),
             reader.IsDBNull(18) ? null : reader.GetString(18)));
+
+    /// <summary>
+    /// Reads a severity a row holds, whichever spelling wrote it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Rows outlive the code that wrote them. The ledger is not rebuilt on an upgrade, so a spelling
+    /// this build would not produce is still sitting in it — and a strict parse would throw on the
+    /// first read of a row nobody has touched in weeks, taking down a report rather than reporting.
+    /// An unreadable value falls back to <see cref="EventSeverity.Info"/>, because a row whose weight
+    /// cannot be established is not evidence that it was severe.
+    /// </remarks>
+    private static EventSeverity ReadSeverity(string? stored)
+    {
+        if (EventSeverities.TryParse(stored, out EventSeverity wire)) return wire;
+        if (Enum.TryParse(stored, ignoreCase: true, out EventSeverity named)) return named;
+        return stored?.StartsWith("warn", StringComparison.OrdinalIgnoreCase) == true
+            ? EventSeverity.Warn
+            : EventSeverity.Info;
+    }
 }

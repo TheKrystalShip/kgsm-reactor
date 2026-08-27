@@ -8,6 +8,8 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.KGSM.Core.Interfaces;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Events;
 
 /// <summary>Puts a decision on the journal, where anything on this host can read it.</summary>
@@ -130,7 +132,16 @@ internal sealed class DecisionEmitter(
                 payload, ReactorJsonContext.Default.DecidedPayload);
 
             return await writer
-                .AppendAsync(ReactorEvents.Decided, data, ActorFor(decision.RuleId), Origin, token)
+                .AppendAsync(
+                    ReactorEvents.DecidedName, data, ActorFor(decision.RuleId), Origin,
+                    decision.Severity,
+                    // A decision neither succeeded nor failed — it is a judgement, and the reactor's own
+                    // richer outcome (fired, settled, suppressed, ceilinged, superseded, unreadable) is
+                    // in the payload where it keeps its meaning. Flattening it here would lose four of
+                    // the six.
+                    EventOutcome.Neutral,
+                    SummaryFor(decision),
+                    token)
                 .ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -145,6 +156,17 @@ internal sealed class DecisionEmitter(
     }
 
     /// <summary>
+    /// One decision in the words a person reads.
+    /// </summary>
+    /// <remarks>
+    /// The actor already names the rule, so this completes that sentence rather than repeating it: a
+    /// reader sees "rule:stale_backup fired on Ketchup — no backup in 48h". The reason is the rule's
+    /// own, and is never rewritten here.
+    /// </remarks>
+    internal static string SummaryFor(Decision decision) =>
+        $"{Spell(decision.Outcome)} on {decision.Subject} — {decision.Reason}";
+
+    /// <summary>
     /// One decision as the payload that is written.
     /// </summary>
     /// <remarks>
@@ -157,7 +179,7 @@ internal sealed class DecisionEmitter(
         Rule = decision.RuleId,
         Subject = decision.Subject,
         SubjectKind = Spell(decision.SubjectKind),
-        Severity = Spell(decision.Severity),
+        Severity = decision.Severity.ToWire(),
         Mode = Spell(decision.Mode),
         Outcome = Spell(decision.Outcome),
         Reason = decision.Reason,

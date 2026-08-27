@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Rules;
 
 /// <summary>What wakes a rule. It decides nothing else.</summary>
@@ -19,13 +21,6 @@ internal enum RuleShape
 }
 
 /// <summary>How loudly a rule speaks. Used for composition, where the most severe wins.</summary>
-internal enum Severity
-{
-    Info,
-    Warning,
-    Danger,
-}
-
 /// <summary>What a rule is permitted to do when it fires.</summary>
 /// <remarks>
 /// Configuration, not a property of the rule: the same rule is <see cref="Observe"/> on a host that
@@ -254,7 +249,7 @@ internal sealed record Rule(
     string Id,
     RuleShape Shape,
     IReadOnlyList<string> Wakes,
-    Severity Severity,
+    EventSeverity Severity,
     TimeSpan Settle,
     Func<RuleContext, CancellationToken, ValueTask<Verdict>> Holds,
     Func<string, ReactorAction> Action,
