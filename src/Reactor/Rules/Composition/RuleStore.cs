@@ -307,6 +307,22 @@ internal static class RuleStore
         return JsonSerializer.Serialize(document, RulesJsonContext.Default.RulesDocument);
     }
 
+    /// <summary>
+    /// One rule as it is written, turned into one this build can evaluate.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the preview endpoint, so a rule is read the same way whether it is being loaded or
+    /// being tried out — a preview that parsed differently from the loader would be a rehearsal of a
+    /// different rule.
+    /// </remarks>
+    public static RuleDefinition FromDocument(RuleDocument document, List<string> problems)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(problems);
+
+        return Read(document, problems);
+    }
+
     private static RuleDefinition Read(RuleDocument document, List<string> problems)
     {
         SubjectDocument subjects = document.Subjects ?? new SubjectDocument();

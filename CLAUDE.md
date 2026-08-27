@@ -24,6 +24,11 @@ curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/status \
 curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/catalog \
   | jq '{honours, signals: [.signals[] | {id, kind, unit}], actions: [.actions[].id]}'
 
+# What a rule WOULD decide right now, without becoming one of this host's rules. Nothing is stored,
+# nothing is dispatched, and no decision is written — it is a read that happens to carry a body.
+curl -s -X POST --unix-socket /run/kgsm-reactor/status.sock http://localhost/preview \
+  -H 'Content-Type: application/json' -d '{"rule": { … }, "subject": "Ketchup"}' | jq
+
 # What it MADE of what it saw — the same review --decisions prints, as JSON.
 # ?days= defaults to 7 and is clamped to the ledger's retention; ?limit= caps the log, never the readings.
 curl --unix-socket /run/kgsm-reactor/status.sock 'http://localhost/decisions?days=7' | jq
@@ -180,10 +185,13 @@ where the journal line is written after the ledger is open and the rules are res
   `RuleSet.Problems` → `/status.problems` and the log. All of them otherwise present as "I saved it and
   nothing happened", which is indistinguishable from a rule with nothing to say.
 - **The leaf publishes, the panel writes.** `GET /catalog` serves what a rule may be made of, with
-  types, units and prose, so a panel renders an editor without holding a copy. The socket stays
-  read-only: composing and storing is the panel's half, which writes the file and restarts the unit
-  through the grant it already holds. Validation happens twice — the panel against the catalog it was
-  served, the leaf at load, which is the authority.
+  types, units and prose, so a panel renders an editor without holding a copy. `POST /preview` says
+  what a proposed rule would decide about this host right now — a read that carries a body, storing
+  nothing, dispatching nothing and writing no decision. The socket stays read-only: composing and
+  storing is the panel's half, which writes the file and restarts the unit through the grant it
+  already holds. Validation happens twice — the panel against the catalog it was served, the leaf at
+  load, which is the authority. ⚠ **An outcome is spelled the way `/catalog` spells it**
+  (`doesNotHold`, not an enum name lowercased), or a panel classifies against ids that match nothing.
 - **The rules file stays the leaf's even when the panel writes it.** The default path is inside this
   daemon's own state directory, so a host with no kgsm-api reads and writes it directly; a panel that
   manages it writes its own copy and points `Reactor__RulesPath` at it over the existing override

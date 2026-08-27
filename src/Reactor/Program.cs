@@ -263,6 +263,55 @@ internal sealed class Program
             host.MapGet("/catalog", () =>
                 Results.Json(ReactorCatalog.Read(), ReactorCatalogJsonContext.Default.ReactorCatalog));
 
+            // What a rule WOULD decide about this host right now, without becoming one of its rules.
+            // The thing that makes composing one safe: a rule that reads plausibly can still fire on
+            // nothing, and none of that is visible in an editor.
+            //
+            // ⚠ A read expressed as a POST, because the rule is the question. Nothing is stored, nothing
+            // is dispatched, and no decision reaches the ledger or the journal — the gate is not run,
+            // since there is no episode to suppress and no ceiling a hypothetical belongs under.
+            host.MapPost("/preview", async (
+                HttpRequest request,
+                IWorldView world,
+                IRuleHistory history,
+                IFootprintSource footprint,
+                TimeProvider clock,
+                CancellationToken ct) =>
+            {
+                RulePreviewRequest? body;
+                try
+                {
+                    body = await System.Text.Json.JsonSerializer.DeserializeAsync(
+                        request.Body, RulePreviewJsonContext.Default.RulePreviewRequest, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    // The position is the whole value of this message to whoever is composing.
+                    return Results.BadRequest(
+                        $"the rule could not be read at line {ex.LineNumber}, "
+                        + $"position {ex.BytePositionInLine}: {ex.Message}");
+                }
+
+                if (body?.Rule is null)
+                    return Results.BadRequest("no rule to preview");
+
+                List<string> problems = [];
+                RuleDefinition definition = RuleStore.FromDocument(body.Rule, problems);
+
+                RulePreview preview = await RulePreview.RunAsync(
+                    definition, body.Subject, world, history, footprint, clock.GetUtcNow(), ct)
+                    .ConfigureAwait(false);
+
+                // What the parser could not read travels with what the validator could not honour: both
+                // are reasons this rule would not do what it looks like it does.
+                return Results.Json(
+                    problems.Count == 0
+                        ? preview
+                        : preview with { Problems = [.. problems, .. preview.Problems] },
+                    RulePreviewJsonContext.Default.RulePreview);
+            });
+
             // What it MADE of what it saw — the review the gate before any action mode is performed
             // against. The same four readings `--decisions` prints, off the same arithmetic, so a
             // browser and a terminal cannot disagree about the busiest hour a ceiling is set from.

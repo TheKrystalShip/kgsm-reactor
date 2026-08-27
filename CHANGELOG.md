@@ -7,6 +7,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — what a rule would decide, before it becomes one (`0.20.0`)
+
+`POST /preview` takes a rule in the rules file's own shape and returns what it would conclude about
+this host right now: the verdict per subject and the exact sentence it would record, with the figures
+filled in from the live world. A state rule enumerates its own subjects; an edge rule is previewed
+against a subject the caller names, and the answer says which of the two happened rather than letting
+a reader assume the rule found it.
+
+This is what makes composing a rule safe. A rule assembled from a catalog reads plausibly and can
+still fire on nothing — a gate set where no instance clears it, a step ordered after one that always
+matches first — and none of that is visible while writing it.
+
+⚠ **A read, expressed as a POST because the rule is the question.** Nothing is stored, nothing is
+dispatched, no decision reaches the ledger or the journal, and the gate is not run — there is no
+episode to suppress and no ceiling a hypothetical belongs under. The socket stays a place that answers
+questions rather than one that takes instructions.
+
+It runs the same validator the daemon runs at load, so a rule that previews clean is a rule that will
+load. A rule that cannot be honoured is reported and nothing is evaluated. A fleet larger than one
+answer says how many subjects it left out, because a truncated preview that looked complete would
+report a rule as quiet on servers it was never asked about.
+
 ### Changed — the rules a host runs are the rules in its file (`0.19.0`)
 
 `rules.json` is what the reactor evaluates. A rule in it names what wakes it, what subjects it decides
