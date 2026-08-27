@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 
 using TheKrystalShip.Kgsm.Reactor.Ledger;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Ingest;
 
@@ -26,7 +27,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ingest;
 /// <b>A stored id closes the last gap in that.</b> Comparing event types catches a shift that lands on
 /// a different kind of event and misses one that lands on the same kind — which is the likely case,
 /// not the unlikely one: a journal is mostly repetitions of a handful of types, so a shifted offset
-/// has a good chance of finding another <c>instance_started</c>. The id is unique per line, so
+/// has a good chance of finding another <c>server.started</c>. The id is unique per line, so
 /// comparing it catches the shift whatever it landed on. Where either side has no id the check falls
 /// back to the type, because absence is unknown and never a mismatch.
 /// </para>
@@ -250,7 +251,10 @@ internal static class JournalVerify
         if (string.Equals(claim.Expected, DecisionSource, StringComparison.Ordinal))
             return (PositionState.Intact, found);
 
-        return string.Equals(found, claim.Expected, StringComparison.Ordinal)
+        // The line is compared under the name the row holds. A segment keeps the spelling its
+        // producer wrote and the ledger keeps the current one, so the two are equal as events long
+        // after they stop being equal as strings.
+        return string.Equals(LegacyEventNames.Canonical(found), claim.Expected, StringComparison.Ordinal)
             ? (PositionState.Intact, found)
             : (PositionState.WrongEvent, found);
     }

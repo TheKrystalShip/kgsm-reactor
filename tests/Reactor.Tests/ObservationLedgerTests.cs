@@ -19,7 +19,7 @@ public class ObservationLedgerTests : IDisposable
         string producer = "kgsm",
         string segment = "2026-08-18.ndjson",
         long offset = 0,
-        string type = "instance_started",
+        string type = "server.started",
         string subject = "factorio",
         string? eventId = null,
         DateTimeOffset? occurredAt = null) =>
@@ -58,7 +58,7 @@ public class ObservationLedgerTests : IDisposable
                 PRIMARY KEY (producer, segment, offset)
             ) WITHOUT ROWID;
             INSERT INTO observations VALUES
-                ('kgsm', 'old.ndjson', 0, 'instance_started', 'Lifecycle', 'Instance', 'factorio',
+                ('kgsm', 'old.ndjson', 0, 'server.started', 'Lifecycle', 'Instance', 'factorio',
                  NULL, NULL, 1755518400000, 1755518400000);
             """;
         command.ExecuteNonQuery();
@@ -154,8 +154,8 @@ public class ObservationLedgerTests : IDisposable
         using ObservationLedger ledger = Open();
 
         int inserted = ledger.Record([
-            Row(offset: 0, type: "instance_player_joined", subject: "Ketchup"),
-            Row(offset: 220, type: "instance_player_joined", subject: "Ketchup"),
+            Row(offset: 0, type: "player.joined", subject: "Ketchup"),
+            Row(offset: 220, type: "player.joined", subject: "Ketchup"),
         ]);
 
         Assert.Equal(2, inserted);
@@ -222,7 +222,7 @@ public class ObservationLedgerTests : IDisposable
         using ObservationLedger ledger = Open();
 
         ledger.Record([
-            new Observation("kgsm", "s.ndjson", 0, null, "instance_started", EventClass.Lifecycle,
+            new Observation("kgsm", "s.ndjson", 0, null, "server.started", EventClass.Lifecycle,
                 SubjectKind.Instance, "factorio", null, null, Now, Now),
         ]);
 

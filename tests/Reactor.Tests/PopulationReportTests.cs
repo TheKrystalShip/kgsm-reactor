@@ -48,11 +48,11 @@ public class PopulationReportTests : IDisposable
         DateTimeOffset boundary = Now.AddMinutes(-10);
 
         ledger.Record([
-            At(boundary.AddMilliseconds(-400), "instance_player_joined", "Ketchup", 1),
-            At(boundary.AddMilliseconds(-200), "instance_player_joined", "Ketchup", 2),
-            At(boundary, "instance_player_joined", "Ketchup", 3),
-            At(boundary.AddMilliseconds(200), "instance_player_joined", "Ketchup", 4),
-            At(boundary.AddMilliseconds(400), "instance_player_joined", "Ketchup", 5),
+            At(boundary.AddMilliseconds(-400), "player.joined", "Ketchup", 1),
+            At(boundary.AddMilliseconds(-200), "player.joined", "Ketchup", 2),
+            At(boundary, "player.joined", "Ketchup", 3),
+            At(boundary.AddMilliseconds(200), "player.joined", "Ketchup", 4),
+            At(boundary.AddMilliseconds(400), "player.joined", "Ketchup", 5),
         ]);
 
         string report = PopulationReport.Render(ledger, days: 30, Now);
@@ -70,16 +70,16 @@ public class PopulationReportTests : IDisposable
         DateTimeOffset start = Now.AddHours(-4);
 
         ledger.Record([
-            At(start, "instance_crashed", "alpha", 1, EventClass.Fault),
-            At(start.AddMinutes(30), "instance_crashed", "beta", 2, EventClass.Fault),
-            At(start.AddMinutes(60), "instance_crashed", "alpha", 3, EventClass.Fault),
-            At(start.AddMinutes(90), "instance_crashed", "beta", 4, EventClass.Fault),
+            At(start, "server.crashed", "alpha", 1, EventClass.Fault),
+            At(start.AddMinutes(30), "server.crashed", "beta", 2, EventClass.Fault),
+            At(start.AddMinutes(60), "server.crashed", "alpha", 3, EventClass.Fault),
+            At(start.AddMinutes(90), "server.crashed", "beta", 4, EventClass.Fault),
         ]);
 
         string report = PopulationReport.Render(ledger, days: 30, Now);
 
         // Two repeats (one per server), each an hour apart — not four events 30 minutes apart.
-        Assert.Matches(@"\s+2\s+60\.0m\s+60\.0m\s+60\.0m\s+instance_crashed", report);
+        Assert.Matches(@"\s+2\s+60\.0m\s+60\.0m\s+60\.0m\s+server\.crashed", report);
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public class PopulationReportTests : IDisposable
         DateTimeOffset start = Now.AddHours(-2);
 
         ledger.Record([
-            At(start, "instance_crashed", "alpha", 1, EventClass.Fault),
-            At(start.AddSeconds(20), "instance_ready", "alpha", 2),
-            At(start.AddMinutes(30), "instance_crashed", "beta", 3, EventClass.Fault),
+            At(start, "server.crashed", "alpha", 1, EventClass.Fault),
+            At(start.AddSeconds(20), "server.ready", "alpha", 2),
+            At(start.AddMinutes(30), "server.crashed", "beta", 3, EventClass.Fault),
         ]);
 
         string report = PopulationReport.Render(ledger, days: 30, Now);
@@ -112,10 +112,10 @@ public class PopulationReportTests : IDisposable
         DateTimeOffset start = Now.AddHours(-1);
 
         ledger.Record([
-            At(start, "instance_crashed", "alpha", 1, EventClass.Fault),
-            At(start.AddSeconds(10), "instance_crashed", "alpha", 2, EventClass.Fault),
-            At(start.AddSeconds(20), "instance_crashed", "alpha", 3, EventClass.Fault),
-            At(start.AddSeconds(60), "instance_ready", "alpha", 4),
+            At(start, "server.crashed", "alpha", 1, EventClass.Fault),
+            At(start.AddSeconds(10), "server.crashed", "alpha", 2, EventClass.Fault),
+            At(start.AddSeconds(20), "server.crashed", "alpha", 3, EventClass.Fault),
+            At(start.AddSeconds(60), "server.ready", "alpha", 4),
         ]);
 
         string report = PopulationReport.Render(ledger, days: 30, Now);
@@ -130,8 +130,8 @@ public class PopulationReportTests : IDisposable
         using ObservationLedger ledger = Open();
 
         ledger.Record([
-            At(Now.AddDays(-40), "instance_started", "alpha", 1),
-            At(Now.AddHours(-1), "instance_started", "alpha", 2),
+            At(Now.AddDays(-40), "server.started", "alpha", 1),
+            At(Now.AddHours(-1), "server.started", "alpha", 2),
         ]);
 
         string report = PopulationReport.Render(ledger, days: 7, Now);

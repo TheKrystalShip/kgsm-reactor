@@ -41,7 +41,7 @@ internal enum DecisionOutcome
 /// <remarks>
 /// The ledger folds every re-evaluation of one episode into a single row, so "recorded" says nothing
 /// about whether anything is new. This is what separates a judgment that changed from a sweep that
-/// found the world exactly as it left it — and therefore what decides whether a <c>reactor_decided</c>
+/// found the world exactly as it left it — and therefore what decides whether a <c>reactor.decided</c>
 /// line is written. Without it a condition open for six hours would append a line every thirty
 /// seconds and the journal would read as how often the reactor looked rather than what it concluded.
 /// </remarks>
@@ -97,7 +97,7 @@ internal readonly record struct EventSource(
     /// <remarks>
     /// ⚠ <b>The id is deliberately not in here.</b> A decision's own id is derived from this key, so
     /// changing the format renumbers every decision already on disk and in every published
-    /// <c>reactor_decided</c> line. The id is the same string for the same line anyway, so including
+    /// <c>reactor.decided</c> line. The id is the same string for the same line anyway, so including
     /// it would buy nothing and cost a migration.
     /// </remarks>
     public string Key => $"{Producer}:{Segment}:{Offset}";

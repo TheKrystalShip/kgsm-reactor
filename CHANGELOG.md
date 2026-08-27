@@ -7,6 +7,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the vocabulary is dotted, and both spellings still read (`0.16.0`)
+
+Every event type this leaf names, classifies or writes uses the ecosystem's dotted vocabulary. This
+leaf's own two are `reactor.decided` and `reactor.acted`, and the prefix no rule may wake on is
+`reactor.`. The classifier buckets on the name's namespace, so a new `backup.*` lands in Maintenance
+the day it is emitted.
+
+⚠ The journals hold what was written and the ledger is never rebuilt, so both spellings of a renamed
+event are on disk at once for one retention period. Every reading resolves a stored name to the
+current one before comparing it: `--verify` reports a position as intact when the row and the segment
+name the same event under either spelling, a rule's history query reaches rows written under either,
+and the population report counts one event once rather than as two conditions half as often.
+
 ### Changed — a decision says how much it matters (`0.15.0`)
 
 A decision says how much it matters on the envelope, in the ecosystem's own severity scale, so a

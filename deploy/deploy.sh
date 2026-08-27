@@ -67,7 +67,7 @@ STOPPED=1
 log "syncing publish tree → ${PREFIX}"
 rsync -a --delete --exclude='*.pdb' --exclude='*.xml' "$PUBLISH_DIR/" "$PREFIX/"
 
-# The health probe accepts only a `leaf_ready` written at or after this moment. Taken BEFORE the
+# The health probe accepts only a `leaf.ready` written at or after this moment. Taken BEFORE the
 # start, because the one written by the run being replaced would otherwise satisfy the check
 # instantly and the gate would pass on a service that never came up.
 READY_SINCE="$(date +%s)"
@@ -78,12 +78,12 @@ sysctl_do start "$SERVICE"
 STOPPED=0
 
 # ── 4. Verify (the real pass/fail) ────────────────────────────────────────────
-log "waiting for ${SERVICE} to report leaf_ready in its own journal ..."
+log "waiting for ${SERVICE} to report leaf.ready in its own journal ..."
 if wait_health; then
     log "${PROJECT} is up and healthy ✓"
     systemctl --no-pager --lines=0 status "$SERVICE" 2>/dev/null | head -n 4 || true
 else
-    err "service started but it never reported leaf_ready within ${HEALTH_TRIES}s."
+    err "service started but it never reported leaf.ready within ${HEALTH_TRIES}s."
     err "that means ingestion did not come up — check the journal directory and the ledger path."
     err "recent logs:"
     journalctl -u "$SERVICE" -n 30 --no-pager || true

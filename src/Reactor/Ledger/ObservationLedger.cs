@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 
 using TheKrystalShip.Kgsm.Reactor.Classification;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 
@@ -25,7 +26,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 internal sealed class ObservationLedger : IDisposable
 {
     /// <summary>The schema this build expects. Bumped when a migration becomes necessary.</summary>
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
 
     private readonly SqliteConnection _connection;
     private readonly Lock _gate = new();
@@ -109,16 +110,57 @@ internal sealed class ObservationLedger : IDisposable
         // Rebuilding instead would be safe (every row is derived) and would throw away the one thing
         // that cannot be re-derived: how long ago the reactor read each line.
         AddColumnIfMissing("observations", "event_id", "TEXT");
+
+        NormalizeEventTypes();
+    }
+
+    /// <summary>
+    /// Brings every stored <c>event_type</c> onto the name its event is called now.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The ledger holds one vocabulary, so a question asked in the current name reaches every row
+    /// about that event and the population report counts one condition once. A row restates a journal
+    /// line, and the line it points at is found by position rather than by name — which is what makes
+    /// the stored name free to be the current one while the segment keeps whatever its producer wrote.
+    /// <see cref="Ingest.JournalVerify"/> compares the two through the same table.
+    /// </para>
+    /// <para>
+    /// Driven by the distinct values actually present rather than by a list of names to look for: the
+    /// set is tiny, the rewrite touches only the values that change, and a second run finds nothing to
+    /// do. <see cref="LegacyEventNames"/> is the one place that knows what a name was called before,
+    /// and this asks it in the only direction it answers.
+    /// </para>
+    /// </remarks>
+    private void NormalizeEventTypes()
+    {
+        List<string> stored = Query(
+            "SELECT DISTINCT event_type FROM observations;", _ => { }, reader => reader.GetString(0));
+
+        foreach (string was in stored)
+        {
+            string now = LegacyEventNames.Canonical(was);
+            if (string.Equals(was, now, StringComparison.Ordinal))
+                continue;
+
+            Execute(
+                "UPDATE observations SET event_type = $now WHERE event_type = $was;",
+                command =>
+                {
+                    command.Parameters.AddWithValue("$now", now);
+                    command.Parameters.AddWithValue("$was", was);
+                });
+        }
     }
 
     /// <summary>
     /// Adds a column to an existing table when it is not already there.
     /// </summary>
     /// <remarks>
-    /// The whole migration mechanism, and it stays this small on purpose: every column this ledger has
-    /// ever added has been nullable and additive, because a row here restates a journal line and a new
-    /// reading is something older rows simply do not carry. A migration that had to backfill values
-    /// would be a different kind of change and would deserve a different mechanism.
+    /// Every column this ledger adds is nullable and additive, because a row here restates a journal
+    /// line and a new reading is something older rows simply do not carry. A migration that rewrites
+    /// values a row already holds is a different kind of change and is written as its own step —
+    /// <see cref="NormalizeEventTypes"/> is the one of those.
     /// </remarks>
     internal void AddColumnIfMissing(string table, string column, string declaration)
     {

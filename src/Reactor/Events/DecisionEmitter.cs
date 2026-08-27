@@ -16,7 +16,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Events;
 internal interface IDecisionEmitter
 {
     /// <summary>
-    /// Write <paramref name="decision"/> as a <c>reactor_decided</c> line.
+    /// Write <paramref name="decision"/> as a <c>reactor.decided</c> line.
     /// </summary>
     /// <returns>
     /// True when the line was appended. <b>False is not an error to throw on</b> — a journal that
@@ -26,7 +26,7 @@ internal interface IDecisionEmitter
 }
 
 /// <summary>
-/// The <c>reactor_decided</c> payload, as it is written.
+/// The <c>reactor.decided</c> payload, as it is written.
 /// </summary>
 /// <remarks>
 /// A record of its own rather than the <see cref="Decision"/> serialized directly: the ledger row is

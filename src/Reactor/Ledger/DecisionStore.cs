@@ -18,7 +18,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ledger;
 /// <b>A row here is working state; the journal line beside it is the record.</b> This upserts, so one
 /// episode is a single row that gets better informed as it is re-evaluated — which is why
 /// <see cref="Record"/> reports whether anything actually changed, and why only a change is worth a
-/// <c>reactor_decided</c> line. A journal appends, and a condition that has held for six hours must not
+/// <c>reactor.decided</c> line. A journal appends, and a condition that has held for six hours must not
 /// read as seven hundred separate judgments.
 /// </para>
 /// </remarks>

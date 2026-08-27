@@ -195,7 +195,9 @@ internal sealed class EventIngestService : BackgroundService
             Segment: position.Segment ?? string.Empty,
             Offset: position.Offset,
             EventId: position.EventId,
-            EventType: wrapper.EventType,
+            // The current name, not the spelling the line carried: the ledger holds one vocabulary,
+            // so a question asked in the name an event is called now reaches every row about it.
+            EventType: LegacyEventNames.Canonical(wrapper.EventType),
             Class: facts.Class,
             SubjectKind: facts.SubjectKind,
             Subject: facts.Subject,

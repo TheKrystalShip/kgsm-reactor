@@ -257,7 +257,10 @@ internal sealed class RuleEngine : BackgroundService
         {
             if (rule.Shape != RuleShape.Edge)
                 continue;
-            if (!rule.Wakes.Contains(wrapper.EventType, StringComparer.Ordinal))
+            // Matched on the current name: a segment written before a producer renamed one of its
+            // events is still read, and a rule keyed on the name it is called now has to wake on it.
+            if (!rule.Wakes.Contains(
+                    LegacyEventNames.Canonical(wrapper.EventType), StringComparer.Ordinal))
                 continue;
 
             string key = $"{rule.Id}|{facts.Subject}|{source.Key}";
@@ -351,11 +354,11 @@ internal sealed class RuleEngine : BackgroundService
                 new EventSource(rule.Id, subject, 0, null));
         }
 
-        // The closing type is the opening type's counterpart by convention: `_breached` closes with
-        // `_cleared`. Derived rather than declared because a rule that named both would be declaring
+        // The closing type is the opening type's counterpart by convention: `.breached` closes with
+        // `.cleared`. Derived rather than declared because a rule that named both would be declaring
         // the same pairing its Holds predicate already knows.
         string opens = rule.Wakes[0];
-        string closes = opens.Replace("_breached", "_cleared", StringComparison.Ordinal);
+        string closes = opens.Replace(".breached", ".cleared", StringComparison.Ordinal);
 
         IReadOnlyList<OpenEpisode> open = _history.OpenEpisodes(opens, closes, now - TimeSpan.FromDays(30));
         foreach (OpenEpisode episode in open)

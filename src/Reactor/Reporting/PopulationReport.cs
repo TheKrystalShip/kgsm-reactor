@@ -45,19 +45,19 @@ internal static class PopulationReport
     /// </remarks>
     private static readonly (string Opens, string Closes, string Question)[] ConditionPairs =
     [
-        ("instance_crashed", "instance_ready",
+        ("server.crashed", "server.ready",
             "a crash, until the server is playable again"),
-        ("instance_crashed", "instance_started",
+        ("server.crashed", "server.started",
             "a crash, until the process is back"),
-        ("instance_failed", "instance_started",
+        ("server.crash.exhausted", "server.started",
             "a give-up, until anything starts it again"),
-        ("host_threshold_breached", "host_threshold_cleared",
+        ("host.threshold.breached", "host.threshold.cleared",
             "a threshold episode, until it clears"),
-        ("leaf_degraded", "leaf_recovered",
+        ("leaf.degraded", "leaf.recovered",
             "a component degrading, until it recovers"),
-        ("instance_stop_started", "instance_stop_finished",
+        ("server.stop.started", "server.stop.finished",
             "a stop, until it completes"),
-        ("instance_update_started", "instance_update_finished",
+        ("server.update.started", "server.update.finished",
             "an update, until it completes"),
     ];
 

@@ -57,7 +57,7 @@ internal static class RuleCatalog
     /// How long a crash is given to turn back into a running server before it is judged.
     /// </summary>
     /// <remarks>
-    /// Measured: a crash that the supervisor rides out reaches <c>instance_ready</c> again in 6.1
+    /// Measured: a crash that the supervisor rides out reaches <c>server.ready</c> again in 6.1
     /// seconds at p50 and 38 seconds at p95. A minute sits above the p95, so ordinary crash-restart
     /// never reaches an evaluation — which is the whole point, since crash-restart is the watchdog's
     /// job and this rule is only about what survives it.
@@ -406,7 +406,7 @@ internal static class RuleCatalog
     private static Rule GiveUpBackup() => new(
         Id: "give_up_backup",
         Shape: RuleShape.Edge,
-        Wakes: ["instance_failed"],
+        Wakes: ["server.crash.exhausted"],
         Severity: EventSeverity.Danger,
         Settle: GiveUpSettle,
         Suppression: GiveUpSuppression,
@@ -445,14 +445,14 @@ internal static class RuleCatalog
     private static Rule UpdateRegression() => new(
         Id: "update_regression",
         Shape: RuleShape.Edge,
-        Wakes: ["instance_failed", "instance_crashed"],
+        Wakes: ["server.crash.exhausted", "server.crashed"],
         Severity: EventSeverity.Danger,
         // No Suppression: a crash repeats every 25s at p50, which the host-wide window already covers.
         Settle: CrashSettle,
         Holds: async (ctx, token) =>
         {
             HistoryEvent? update = ctx.History.LastOccurrence(
-                "instance_update_finished", ctx.Subject, ctx.Now - RegressionWindow);
+                "server.update.finished", ctx.Subject, ctx.Now - RegressionWindow);
 
             if (update is null)
                 return Verdict.DoesNotHold(
@@ -493,27 +493,27 @@ internal static class RuleCatalog
     private static Rule ThresholdStuck() => new(
         Id: "threshold_stuck",
         Shape: RuleShape.State,
-        Wakes: ["host_threshold_breached"],
+        Wakes: ["host.threshold.breached"],
         Severity: EventSeverity.Warn,
         Settle: ThresholdSettle,
         Suppression: ThresholdSuppression,
         Subjects: (ctx, _) =>
         {
             IReadOnlyList<OpenEpisode> open = ctx.History.OpenEpisodes(
-                "host_threshold_breached", "host_threshold_cleared", DateTimeOffset.UtcNow - LookBack);
+                "host.threshold.breached", "host.threshold.cleared", DateTimeOffset.UtcNow - LookBack);
             return ValueTask.FromResult<IReadOnlyList<string>>([.. open.Select(e => e.Subject)]);
         },
         Holds: (ctx, _) =>
         {
             IReadOnlyList<OpenEpisode> open = ctx.History.OpenEpisodes(
-                "host_threshold_breached", "host_threshold_cleared", ctx.Now - LookBack);
+                "host.threshold.breached", "host.threshold.cleared", ctx.Now - LookBack);
 
             OpenEpisode episode = open.FirstOrDefault(e => e.Subject == ctx.Subject);
             if (episode.Subject is null)
                 return ValueTask.FromResult(Verdict.DoesNotHold("no episode is open"));
 
             (TimeSpan p95, int samples) = ctx.History.EpisodeDuration(
-                "host_threshold_breached", "host_threshold_cleared", ctx.Subject, ctx.Now - LookBack);
+                "host.threshold.breached", "host.threshold.cleared", ctx.Subject, ctx.Now - LookBack);
 
             if (samples < MinimumEpisodeSamples)
                 return ValueTask.FromResult(Verdict.Unreadable(

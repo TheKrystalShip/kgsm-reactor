@@ -164,7 +164,7 @@ public class EventIngestServiceTests : IDisposable
                 Assert.True(events.Initialized);
 
                 await events.EmitAsync(
-                    Envelope("instance_failed", """{"InstanceName":"Ketchup","ExitCode":"137"}"""),
+                    Envelope("server.crash.exhausted", """{"InstanceName":"Ketchup","ExitCode":"137"}"""),
                     new EventPosition("kgsm-watchdog", "2026-08-18.ndjson", 512));
             });
 
@@ -199,7 +199,7 @@ public class EventIngestServiceTests : IDisposable
         {
             await StartAndStopAsync(service, () => events.HasRawHandler, async () =>
                 await events.EmitAsync(
-                    Envelope("instance_started", """{"InstanceName":"factorio"}"""),
+                    Envelope("server.started", """{"InstanceName":"factorio"}"""),
                     new EventPosition("seg.ndjson", 0)));
 
             List<string> producers = ledger.Query(
@@ -221,7 +221,7 @@ public class EventIngestServiceTests : IDisposable
         {
             await StartAndStopAsync(service, () => events.HasRawHandler, async () =>
                 await events.EmitAsync(
-                    Envelope("instance_started", """{"InstanceName":"factorio"}""", happened),
+                    Envelope("server.started", """{"InstanceName":"factorio"}""", happened),
                     new EventPosition("kgsm", "seg.ndjson", 0)));
 
             List<long> occurred = ledger.Query(
@@ -241,11 +241,11 @@ public class EventIngestServiceTests : IDisposable
         using (ledger)
         {
             await StartAndStopAsync(
-                service, () => journal.Written.Contains("leaf_ready"), () => Task.CompletedTask);
+                service, () => journal.Written.Contains("leaf.ready"), () => Task.CompletedTask);
 
             Assert.False(events.HasRawHandler);
             Assert.False(events.Initialized);
-            Assert.Contains("leaf_ready", journal.Written);
+            Assert.Contains("leaf.ready", journal.Written);
             Assert.Equal(0, ledger.Count());
         }
     }
@@ -257,8 +257,8 @@ public class EventIngestServiceTests : IDisposable
         using (ledger)
         {
             await StartAndStopAsync(
-                service, () => journal.Written.Contains("leaf_ready"), () => Task.CompletedTask);
-            Assert.Contains("leaf_ready", journal.Written);
+                service, () => journal.Written.Contains("leaf.ready"), () => Task.CompletedTask);
+            Assert.Contains("leaf.ready", journal.Written);
         }
     }
 

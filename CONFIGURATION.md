@@ -23,7 +23,7 @@ configuration page shows a value's provenance rather than only its value.
 
 | Key | Env | Default | What it decides |
 |---|---|---|---|
-| `Enabled` | `Reactor__Enabled` | `true` | Whether the reactor observes at all. False leaves the daemon running, recording nothing, and still reporting `leaf_ready` — so "deliberately quiet" and "broken" do not look the same. |
+| `Enabled` | `Reactor__Enabled` | `true` | Whether the reactor observes at all. False leaves the daemon running, recording nothing, and still reporting `leaf.ready` — so "deliberately quiet" and "broken" do not look the same. |
 | `KgsmPath` | `Reactor__KgsmPath` | `/usr/bin/kgsm` | The KGSM executable. **Checked at startup; the daemon refuses to run if nothing is there.** Nothing in the observing half calls it — re-reading the world before deciding anything does, and a host where this is wrong should fail now rather than at the moment it matters. |
 | `JournalDir` | `Reactor__JournalDir` | `/var/lib/kgsm/events` | The engine's own event journal. Every other producer's is discovered; the engine's is the one that has to be named. |
 | `StateRoot` | `Reactor__StateRoot` | *(blank)* | Where producer state directories live, each holding its journal in an `events` subdirectory. Blank uses the library's default. Pointing it elsewhere makes the reactor deaf to everything except the engine. |
@@ -58,7 +58,7 @@ startup lines).
 | `/etc/kgsm-reactor/kgsm-reactor.env` | Operator config. Seeded once, never overwritten. |
 | `/etc/kgsm-reactor/systemd/` | The real unit files, user-owned, symlinked from `/etc/systemd/system/`. |
 | `/var/lib/kgsm-reactor/` | The state directory systemd creates. Holds the ledger and this leaf's own journal. |
-| `/var/lib/kgsm-reactor/events/` | This leaf's event journal — `leaf_ready`, `leaf_degraded`, `leaf_stopping`. |
+| `/var/lib/kgsm-reactor/events/` | This leaf's event journal — `leaf.ready`, `leaf.degraded`, `leaf.stopping`. |
 | `/var/lib/kgsm/leaves/reactor.json` | The leaf config descriptor kgsm-api scans. |
 
 ⚠ **The state directory is `0750` with group `kgsm`, and that is not incidental.** A producer's journal

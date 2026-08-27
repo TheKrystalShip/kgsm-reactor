@@ -21,15 +21,15 @@ public class EventClassifierTests
         EventClassifier.Classify(eventType, Payload(json), producer);
 
     [Theory]
-    [InlineData("instance_crashed")]
-    [InlineData("instance_failed")]
-    [InlineData("instance_update_failed")]
-    [InlineData("instance_deploy_failed")]
-    [InlineData("instance_download_failed")]
-    [InlineData("instance_uninstall_failed")]
+    [InlineData("server.crashed")]
+    [InlineData("server.crash.exhausted")]
+    [InlineData("server.update.failed")]
+    [InlineData("server.deploy.failed")]
+    [InlineData("server.download.failed")]
+    [InlineData("server.uninstall.failed")]
     public void A_failure_is_a_fault_even_when_it_shares_a_prefix_with_the_work_it_failed(string type)
     {
-        // instance_update_failed starts with "instance_update", which is Maintenance. Bucketed there
+        // server.update.failed starts with "server.update", which is Maintenance. Bucketed there
         // it would be filed beside the successful updates and disappear from the fault reading — the
         // one reading a rule would be built on.
         Assert.Equal(EventClass.Fault, Classify(type, """{"InstanceName":"factorio"}""").Class);
@@ -39,18 +39,18 @@ public class EventClassifierTests
     // public [InlineData] cannot name an internal type. Compared by name, which is also how the
     // ledger stores it.
     [Theory]
-    [InlineData("instance_started", "Lifecycle")]
-    [InlineData("instance_ready", "Lifecycle")]
-    [InlineData("instance_stop_finished", "Lifecycle")]
-    [InlineData("instance_restart_stopped", "Lifecycle")]
-    [InlineData("instance_update_started", "Maintenance")]
-    [InlineData("instance_backup_created", "Maintenance")]
-    [InlineData("instance_player_joined", "Player")]
-    [InlineData("instance_ports_opened", "Network")]
-    [InlineData("instance_upnp_reasserted", "Network")]
-    [InlineData("blueprint_updated", "Configuration")]
-    [InlineData("assistant_action_declined", "Assistant")]
-    [InlineData("host_threshold_breached", "Threshold")]
+    [InlineData("server.started", "Lifecycle")]
+    [InlineData("server.ready", "Lifecycle")]
+    [InlineData("server.stop.finished", "Lifecycle")]
+    [InlineData("server.restart.stopped", "Lifecycle")]
+    [InlineData("server.update.started", "Maintenance")]
+    [InlineData("backup.created", "Maintenance")]
+    [InlineData("player.joined", "Player")]
+    [InlineData("network.ports.opened", "Network")]
+    [InlineData("network.upnp.reasserted", "Network")]
+    [InlineData("blueprint.updated", "Configuration")]
+    [InlineData("assistant.action.declined", "Assistant")]
+    [InlineData("host.threshold.breached", "Threshold")]
     public void Types_land_in_the_bucket_a_reader_would_expect(string type, string expected)
     {
         Assert.Equal(expected, Classify(type, """{"InstanceName":"factorio"}""").Class.ToString());
@@ -62,7 +62,7 @@ public class EventClassifierTests
         // The whole reason ingestion is raw. A type this build has never heard of is exactly the sort
         // of thing a later rule might be about, and dropping it would look like an event that never
         // happened.
-        EventFacts facts = Classify("instance_teleported_sideways", """{"InstanceName":"Ketchup"}""");
+        EventFacts facts = Classify("server.teleported_sideways", """{"InstanceName":"Ketchup"}""");
 
         Assert.Equal(EventClass.Other, facts.Class);
         Assert.Equal(SubjectKind.Instance, facts.SubjectKind);
@@ -72,7 +72,7 @@ public class EventClassifierTests
     [Fact]
     public void A_payload_that_names_no_subject_says_so_rather_than_guessing()
     {
-        EventFacts facts = Classify("instance_started", """{"Something":"else"}""");
+        EventFacts facts = Classify("server.started", """{"Something":"else"}""");
 
         Assert.Equal(SubjectKind.Unknown, facts.SubjectKind);
         Assert.Equal(string.Empty, facts.Subject);
@@ -81,10 +81,10 @@ public class EventClassifierTests
     [Fact]
     public void A_leaf_event_is_about_the_component_that_wrote_it()
     {
-        // leaf_* payloads name a component of the leaf, never the leaf itself. The producer is the
+        // leaf.* payloads name a component of the leaf, never the leaf itself. The producer is the
         // only thing that says which one it was.
         EventFacts facts = Classify(
-            "leaf_degraded", """{"Component":"net-meter","Detail":"unreadable"}""", producer: "kgsm-monitor");
+            "leaf.degraded", """{"Component":"net-meter","Detail":"unreadable"}""", producer: "kgsm-monitor");
 
         Assert.Equal(EventClass.Leaf, facts.Class);
         Assert.Equal(SubjectKind.Leaf, facts.SubjectKind);
@@ -98,7 +98,7 @@ public class EventClassifierTests
         // the metric would make one look like a repeat of the other — which is precisely the reading
         // a suppression window would be derived from.
         EventFacts facts = Classify(
-            "host_threshold_breached",
+            "host.threshold.breached",
             """{"RuleKey":"host-temp","Metric":"HostTempC","Scope":"host","Ref":"k10temp/Tctl","ServerId":null}""",
             producer: "kgsm-monitor");
 
@@ -110,7 +110,7 @@ public class EventClassifierTests
     public void A_server_scoped_threshold_is_subjected_to_the_server()
     {
         EventFacts facts = Classify(
-            "host_threshold_breached",
+            "host.threshold.breached",
             """{"Metric":"MemPct","Scope":"server","Ref":"cgroup","ServerId":"Ketchup"}""",
             producer: "kgsm-monitor");
 
@@ -122,7 +122,7 @@ public class EventClassifierTests
     public void A_threshold_with_neither_a_server_nor_a_reference_falls_back_to_the_metric()
     {
         EventFacts facts = Classify(
-            "host_threshold_cleared", """{"Metric":"DiskPct","ServerId":null}""", producer: "kgsm-monitor");
+            "host.threshold.cleared", """{"Metric":"DiskPct","ServerId":null}""", producer: "kgsm-monitor");
 
         Assert.Equal("DiskPct", facts.Subject);
     }
@@ -132,7 +132,7 @@ public class EventClassifierTests
     {
         // Several payloads carry an explicit null subject. Read as a value it would become the string
         // "null" or throw; the question being asked is only ever "did the payload name this".
-        EventFacts facts = Classify("instance_started", """{"InstanceName":null}""");
+        EventFacts facts = Classify("server.started", """{"InstanceName":null}""");
 
         Assert.Equal(SubjectKind.Unknown, facts.SubjectKind);
         Assert.Equal(string.Empty, facts.Subject);
@@ -141,8 +141,8 @@ public class EventClassifierTests
     [Fact]
     public void A_payload_that_is_not_an_object_is_survived()
     {
-        Assert.Equal(SubjectKind.Unknown, Classify("instance_started", "[]").SubjectKind);
-        Assert.Equal(SubjectKind.Unknown, Classify("instance_started", "\"text\"").SubjectKind);
+        Assert.Equal(SubjectKind.Unknown, Classify("server.started", "[]").SubjectKind);
+        Assert.Equal(SubjectKind.Unknown, Classify("server.started", "\"text\"").SubjectKind);
     }
 
     [Fact]
@@ -150,9 +150,9 @@ public class EventClassifierTests
     {
         // Recorded, not dropped: a decision about starbound is genuinely a fact about starbound, and
         // filing it under nothing would leave a hole in that server's history for no gain. Safe
-        // because no rule wakes on a reactor_* event — see RuleCatalogTests.
+        // because no rule wakes on a reactor.* event — see RuleCatalogTests.
         EventFacts facts = EventClassifier.Classify(
-            "reactor_decided",
+            "reactor.decided",
             JsonDocument.Parse(
                 """{"Rule":"give_up_backup","Subject":"starbound","SubjectKind":"instance"}""")
                 .RootElement,
@@ -169,7 +169,7 @@ public class EventClassifierTests
         // The bot routes on an instance name and a host subject has no channel to follow, so this is
         // the field that decides whether a consumer can tell the two apart at all.
         EventFacts facts = EventClassifier.Classify(
-            "reactor_decided",
+            "reactor.decided",
             JsonDocument.Parse(
                 """{"Rule":"threshold_stuck","Subject":"k10temp/Tctl","SubjectKind":"host"}""")
                 .RootElement,
@@ -186,7 +186,7 @@ public class EventClassifierTests
         // onto the nearest familiar kind would be a guess no reader could later distinguish from a
         // reading that was actually taken.
         EventFacts facts = EventClassifier.Classify(
-            "reactor_decided",
+            "reactor.decided",
             JsonDocument.Parse("""{"Subject":"something","SubjectKind":"cluster"}""").RootElement,
             "kgsm-reactor");
 

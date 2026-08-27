@@ -77,9 +77,9 @@ public class JournalBackfillTests : IDisposable
         // The whole contract with the live reader. Asserted against the offsets the writer actually
         // used, so this fails if either side of the convention moves.
         List<long> written = WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_crashed", "starbound"),
-            Envelope("instance_started", "starbound"),
-            Envelope("instance_ready", "starbound"));
+            Envelope("server.crashed", "starbound"),
+            Envelope("server.started", "starbound"),
+            Envelope("server.ready", "starbound"));
 
         Run();
 
@@ -92,8 +92,8 @@ public class JournalBackfillTests : IDisposable
         // Counted in bytes, not characters. A server named in anything but ASCII would otherwise shift
         // every line after it, and the duplicates would appear only on hosts that had one.
         List<long> written = WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_crashed", "Ketchup—naïve"),
-            Envelope("instance_started", "starbound"));
+            Envelope("server.crashed", "Ketchup—naïve"),
+            Envelope("server.started", "starbound"));
 
         Run();
 
@@ -104,8 +104,8 @@ public class JournalBackfillTests : IDisposable
     public void Reading_the_same_history_twice_adds_nothing()
     {
         WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_crashed", "starbound"),
-            Envelope("instance_started", "starbound"));
+            Envelope("server.crashed", "starbound"),
+            Envelope("server.started", "starbound"));
 
         JournalBackfill.BackfillResult first = Run();
         JournalBackfill.BackfillResult second = Run();
@@ -122,7 +122,7 @@ public class JournalBackfillTests : IDisposable
     {
         // The conformance contract's rule: a producer named inside a line is a claim the reader cannot
         // check. The directory is the one answer that cannot disagree with where the line was found.
-        WriteSegment("kgsm-monitor", "2026-08-17.ndjson", Envelope("instance_crashed", "starbound"));
+        WriteSegment("kgsm-monitor", "2026-08-17.ndjson", Envelope("server.crashed", "starbound"));
 
         Run();
 
@@ -133,14 +133,14 @@ public class JournalBackfillTests : IDisposable
     public void An_event_older_than_the_window_is_not_read()
     {
         WriteSegment("kgsm-watchdog", "2026-07-01.ndjson",
-            Envelope("instance_crashed", "starbound", timestamp: "2026-07-01T10:00:00.000Z"));
+            Envelope("server.crashed", "starbound", timestamp: "2026-07-01T10:00:00.000Z"));
         WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_started", "starbound", timestamp: "2026-08-18T10:00:00.000Z"));
+            Envelope("server.started", "starbound", timestamp: "2026-08-18T10:00:00.000Z"));
 
         JournalBackfill.BackfillResult result = Run(days: 7);
 
         Assert.Equal(1, result.Inserted);
-        Assert.Equal("instance_started", Assert.Single(Rows()).Type);
+        Assert.Equal("server.started", Assert.Single(Rows()).Type);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class JournalBackfillTests : IDisposable
         // A backfill whose result quietly disappears overnight is worse than one that refused, because
         // the report read in the morning describes a window that has already closed.
         WriteSegment("kgsm-watchdog", "2026-06-01.ndjson",
-            Envelope("instance_crashed", "starbound", timestamp: "2026-06-01T10:00:00.000Z"));
+            Envelope("server.crashed", "starbound", timestamp: "2026-06-01T10:00:00.000Z"));
 
         JournalBackfill.BackfillResult result = Run(retentionDays: 30);
 
@@ -163,10 +163,10 @@ public class JournalBackfillTests : IDisposable
         // A journal is append-only text written by several producers. Stopping on one bad line would
         // lose every good line after it, which is the opposite of what a backfill is for.
         WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_crashed", "starbound"),
+            Envelope("server.crashed", "starbound"),
             "{ this is not json",
             """{"V":1,"Timestamp":"2026-08-18T10:00:00.000Z"}""",
-            Envelope("instance_started", "starbound"));
+            Envelope("server.started", "starbound"));
 
         JournalBackfill.BackfillResult result = Run();
 
@@ -183,7 +183,7 @@ public class JournalBackfillTests : IDisposable
         Directory.CreateDirectory(dir);
         File.WriteAllText(
             Path.Combine(dir, "2026-08-18.ndjson"),
-            Envelope("instance_crashed", "starbound") + "\n" + """{"V":1,"EventType":"instance_st""");
+            Envelope("server.crashed", "starbound") + "\n" + """{"V":1,"EventType":"server.st""");
 
         Assert.Equal(1, Run().Inserted);
     }
@@ -193,7 +193,7 @@ public class JournalBackfillTests : IDisposable
     {
         // Not a second copy of it. Two readers of one journal that classify differently disagree
         // invisibly — both look like they read the host correctly.
-        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("instance_crashed", "starbound"));
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("server.crashed", "starbound"));
 
         Run();
 
@@ -214,8 +214,8 @@ public class JournalBackfillTests : IDisposable
         // The line this mode must never cross. An observation restates a line that exists; a decision
         // is a judgment made against a world that answered at the time, and that world is gone.
         WriteSegment("kgsm-watchdog", "2026-08-18.ndjson",
-            Envelope("instance_failed", "starbound"),
-            Envelope("instance_crashed", "starbound"));
+            Envelope("server.crash.exhausted", "starbound"),
+            Envelope("server.crashed", "starbound"));
 
         Run();
 
@@ -228,8 +228,8 @@ public class JournalBackfillTests : IDisposable
     [Fact]
     public void Discovery_finds_every_producer_and_the_engine()
     {
-        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("instance_crashed", "a"));
-        WriteSegment("kgsm-monitor", "2026-08-18.ndjson", Envelope("instance_crashed", "b"));
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("server.crashed", "a"));
+        WriteSegment("kgsm-monitor", "2026-08-18.ndjson", Envelope("server.crashed", "b"));
         string engine = Path.Combine(_root, "engine-events");
         Directory.CreateDirectory(engine);
 
@@ -246,7 +246,7 @@ public class JournalBackfillTests : IDisposable
         // root. Listed twice, every engine event would be read twice — harmless for the ledger, which
         // ignores a known position, but it would double the line count the run reports and make a
         // person think the journals held twice what they do.
-        WriteSegment("kgsm", "2026-08-18.ndjson", Envelope("instance_crashed", "a"));
+        WriteSegment("kgsm", "2026-08-18.ndjson", Envelope("server.crashed", "a"));
         string engineDir = Path.Combine(_root, "state", "kgsm", "events");
 
         IReadOnlyList<string> found = JournalBackfill.Discover(Path.Combine(_root, "state"), engineDir);
@@ -262,7 +262,7 @@ public class JournalBackfillTests : IDisposable
         // rows the reactor was not running for — which is most of them on a host that has backfilled.
         const string id = "01a016e9-d535-7b03-8a6a-b26ae718064c";
 
-        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Named("instance_crashed", "starbound", id));
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Named("server.crashed", "starbound", id));
 
         Run();
 
@@ -275,7 +275,7 @@ public class JournalBackfillTests : IDisposable
         // Six weeks of this host's journals predate the field. Deriving something plausible — a hash of
         // the line, the position spelled as a uuid — would be indistinguishable from a real id
         // afterwards, and --verify would then compare a row against a name nobody minted.
-        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("instance_crashed", "starbound"));
+        WriteSegment("kgsm-watchdog", "2026-08-18.ndjson", Envelope("server.crashed", "starbound"));
 
         Run();
 

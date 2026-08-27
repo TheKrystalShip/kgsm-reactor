@@ -5,6 +5,8 @@ using System.Text.Json;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Ingest;
 
 /// <summary>
@@ -268,7 +270,7 @@ internal static class JournalBackfill
                 Segment: segment,
                 Offset: offset,
                 EventId: Text(root, "Id"),
-                EventType: eventType,
+                EventType: LegacyEventNames.Canonical(eventType),
                 Class: facts.Class,
                 SubjectKind: facts.SubjectKind,
                 Subject: facts.Subject,

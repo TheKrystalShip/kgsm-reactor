@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.Kgsm.Reactor.Classification;
 
 /// <summary>What kind of thing an event is about. A bucketing aid, not a judgment.</summary>
@@ -108,7 +110,7 @@ internal static class EventClassifier
     /// <remarks>
     /// Read rather than ignored: a decision about <c>starbound</c> is genuinely about
     /// <c>starbound</c>, and filing it under nothing would make the ledger's history of a server
-    /// incomplete for no gain. Safe because nothing wakes on a <c>reactor_*</c> event.
+    /// incomplete for no gain. Safe because nothing wakes on a <c>reactor.*</c> event.
     /// </remarks>
     private const string SubjectProperty = "Subject";
 
@@ -121,10 +123,10 @@ internal static class EventClassifier
     /// <summary>
     /// Reduce one event to its facts.
     /// </summary>
-    /// <param name="eventType">The event type, underscore-separated.</param>
+    /// <param name="eventType">The event type, as the line carries it.</param>
     /// <param name="data">The payload, as it arrived.</param>
     /// <param name="producer">
-    /// Whose journal it came from. Used only as the subject of a <c>leaf_*</c> event, which is about
+    /// Whose journal it came from. Used only as the subject of a <c>leaf.*</c> event, which is about
     /// the component that wrote it and names no subject of its own.
     /// </param>
     public static EventFacts Classify(string eventType, JsonElement data, string producer)
@@ -162,58 +164,50 @@ internal static class EventClassifier
     /// <remarks>
     /// Prefix matching rather than an exhaustive list of the ~90 types kgsm-lib declares, and
     /// deliberately: the engine gains types faster than this leaf is rebuilt, and a new
-    /// <c>instance_backup_*</c> should land in Maintenance the day it is emitted rather than in Other
+    /// <c>backup.*</c> should land in Maintenance the day it is emitted rather than in Other
     /// until somebody notices. The exact names below are the ones whose prefix would put them in the
     /// wrong bucket.
     /// </remarks>
-    private static EventClass ClassOf(string eventType) => eventType switch
+    private static EventClass ClassOf(string eventType) => LegacyEventNames.Canonical(eventType) switch
     {
-        // Faults first: several of them share a prefix with the operation they are the failure of.
-        "instance_crashed" or "instance_failed" => EventClass.Fault,
-        var t when t.EndsWith("_failed", StringComparison.Ordinal) => EventClass.Fault,
+        // Faults first: several of them share a namespace with the operation they are the failure of.
+        "server.crashed" or "server.crash.exhausted" => EventClass.Fault,
+        var t when t.EndsWith(".failed", StringComparison.Ordinal) => EventClass.Fault,
 
-        "instance_started" or "instance_stopped" or "instance_ready" or "instance_restarted"
+        "server.started" or "server.stopped" or "server.ready" or "server.restarted"
             => EventClass.Lifecycle,
-        var t when t.StartsWith("instance_stop_", StringComparison.Ordinal)
-                || t.StartsWith("instance_restart_", StringComparison.Ordinal)
+        var t when t.StartsWith("server.stop.", StringComparison.Ordinal)
+                || t.StartsWith("server.restart.", StringComparison.Ordinal)
             => EventClass.Lifecycle,
 
-        var t when t.StartsWith("host_threshold_", StringComparison.Ordinal) => EventClass.Threshold,
+        var t when t.StartsWith("host.threshold.", StringComparison.Ordinal) => EventClass.Threshold,
 
-        var t when t.StartsWith("instance_player_", StringComparison.Ordinal) => EventClass.Player,
+        var t when t.StartsWith("player.", StringComparison.Ordinal) => EventClass.Player,
 
-        var t when t.StartsWith("instance_ports_", StringComparison.Ordinal)
-                || t.StartsWith("instance_upnp_", StringComparison.Ordinal)
-            => EventClass.Network,
+        var t when t.StartsWith("network.", StringComparison.Ordinal) => EventClass.Network,
 
-        var t when t.StartsWith("leaf_", StringComparison.Ordinal) => EventClass.Leaf,
+        var t when t.StartsWith("leaf.", StringComparison.Ordinal) => EventClass.Leaf,
 
-        "instance_config_changed" or "service_config_changed" => EventClass.Configuration,
-        var t when t.StartsWith("blueprint_", StringComparison.Ordinal) => EventClass.Configuration,
+        "config.changed" or "service.config_changed" => EventClass.Configuration,
+        var t when t.StartsWith("blueprint.", StringComparison.Ordinal) => EventClass.Configuration,
 
-        var t when t.StartsWith("assistant_", StringComparison.Ordinal) => EventClass.Assistant,
+        var t when t.StartsWith("assistant.", StringComparison.Ordinal) => EventClass.Assistant,
 
         var t when t.StartsWith(Events.ReactorEvents.Prefix, StringComparison.Ordinal)
             => EventClass.Reactor,
 
-        var t when t.StartsWith("account_", StringComparison.Ordinal)
-                || t.StartsWith("auth_", StringComparison.Ordinal)
-                || t.StartsWith("user_", StringComparison.Ordinal)
-                || t.StartsWith("identity_", StringComparison.Ordinal)
+        var t when t.StartsWith("account.", StringComparison.Ordinal)
+                || t.StartsWith("auth.", StringComparison.Ordinal)
+                || t.StartsWith("user.", StringComparison.Ordinal)
+                || t.StartsWith("identity.", StringComparison.Ordinal)
             => EventClass.Identity,
 
-        var t when t.StartsWith("instance_update", StringComparison.Ordinal)
-                || t.StartsWith("instance_backup", StringComparison.Ordinal)
-                || t.StartsWith("instance_restore", StringComparison.Ordinal)
-                || t.StartsWith("instance_install", StringComparison.Ordinal)
-                || t.StartsWith("instance_uninstall", StringComparison.Ordinal)
-                || t.StartsWith("instance_deploy", StringComparison.Ordinal)
-                || t.StartsWith("instance_download", StringComparison.Ordinal)
-                || t.StartsWith("instance_version_", StringComparison.Ordinal)
-                || t.StartsWith("instance_created", StringComparison.Ordinal)
-                || t.StartsWith("instance_removed", StringComparison.Ordinal)
-                || t.StartsWith("instance_files_", StringComparison.Ordinal)
-                || t.StartsWith("instance_directories_", StringComparison.Ordinal)
+        var t when t.StartsWith("server.update", StringComparison.Ordinal)
+                || t.StartsWith("server.install", StringComparison.Ordinal)
+                || t.StartsWith("server.uninstall", StringComparison.Ordinal)
+                || t.StartsWith("server.deploy", StringComparison.Ordinal)
+                || t.StartsWith("server.download", StringComparison.Ordinal)
+                || t.StartsWith("backup.", StringComparison.Ordinal)
             => EventClass.Maintenance,
 
         _ => EventClass.Other,

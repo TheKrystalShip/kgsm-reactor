@@ -35,7 +35,7 @@ internal sealed class ReactorSettings
     /// </summary>
     /// <remarks>
     /// A switch rather than "stop the unit", because a leaf that is stopped and a leaf that is
-    /// deliberately quiet look identical from outside — and this one writes <c>leaf_ready</c> either
+    /// deliberately quiet look identical from outside — and this one writes <c>leaf.ready</c> either
     /// way, so a host can tell them apart.
     /// </remarks>
     /// <panel>Whether the reactor watches the host's events at all. With this off it keeps running and

@@ -63,8 +63,8 @@ public class JournalVerifyTests : IDisposable
     public void An_untouched_journal_verifies_clean()
     {
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_ready", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.ready", "prod"));
         Fill();
 
         JournalVerify.VerifyResult result = Verify();
@@ -79,10 +79,10 @@ public class JournalVerifyTests : IDisposable
     {
         // The invariant the whole scheme rests on. If an append could drift a position, the ledger
         // would be wrong on every ordinary host rather than only on an edited one.
-        WriteJournal(Envelope("instance_started", "prod"));
+        WriteJournal(Envelope("server.started", "prod"));
         Fill();
 
-        File.AppendAllText(JournalPath, Envelope("instance_ready", "prod") + "\n");
+        File.AppendAllText(JournalPath, Envelope("server.ready", "prod") + "\n");
 
         Assert.False(Verify().FoundDrift);
     }
@@ -93,10 +93,10 @@ public class JournalVerifyTests : IDisposable
         // The failure this file exists for. The first surviving position resolves to a real event of
         // the wrong kind — no exception, no malformed line, nothing to notice.
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_crashed", "TEST"),
-            Envelope("instance_ready", "prod"),
-            Envelope("instance_stopped", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.crashed", "TEST"),
+            Envelope("server.ready", "prod"),
+            Envelope("server.stopped", "prod"));
         Fill();
 
         string[] kept = [.. File.ReadAllLines(JournalPath).Where(l => !l.Contains("TEST", StringComparison.Ordinal))];
@@ -109,20 +109,20 @@ public class JournalVerifyTests : IDisposable
 
         JournalVerify.Drift silent = Assert.Single(
             result.Drifted, d => d.State == JournalVerify.PositionState.WrongEvent);
-        Assert.Equal("instance_crashed", silent.Expected);
-        Assert.Equal("instance_ready", silent.Found);
+        Assert.Equal("server.crashed", silent.Expected);
+        Assert.Equal("server.ready", silent.Found);
     }
 
     [Fact]
     public void A_shortened_journal_reports_positions_past_its_end()
     {
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_ready", "prod"),
-            Envelope("instance_stopped", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.ready", "prod"),
+            Envelope("server.stopped", "prod"));
         Fill();
 
-        File.WriteAllText(JournalPath, Envelope("instance_started", "prod") + "\n");
+        File.WriteAllText(JournalPath, Envelope("server.started", "prod") + "\n");
 
         JournalVerify.VerifyResult result = Verify();
 
@@ -136,13 +136,13 @@ public class JournalVerifyTests : IDisposable
         // Editing a line's CONTENT rather than removing it — a redaction, say. Nothing is missing, so
         // a count would still agree; only the byte boundaries moved.
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_ready", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.ready", "prod"));
         Fill();
 
         WriteJournal(
-            Envelope("instance_started", "a-much-longer-instance-name-than-before"),
-            Envelope("instance_ready", "prod"));
+            Envelope("server.started", "a-much-longer-instance-name-than-before"),
+            Envelope("server.ready", "prod"));
 
         Assert.Contains(
             Verify().Drifted,
@@ -154,7 +154,7 @@ public class JournalVerifyTests : IDisposable
     {
         // Crying corruption on every host older than its retention window would make the check useless
         // exactly where it is most needed.
-        WriteJournal(Envelope("instance_started", "prod"));
+        WriteJournal(Envelope("server.started", "prod"));
         Fill();
 
         File.Delete(JournalPath);
@@ -170,7 +170,7 @@ public class JournalVerifyTests : IDisposable
     {
         // The state a --backfill leaves on a host where the daemon has never run, which is exactly the
         // host worth checking. Verified because it threw the first time it was tried.
-        WriteJournal(Envelope("instance_started", "prod"));
+        WriteJournal(Envelope("server.started", "prod"));
         Fill();
 
         using (ObservationLedger check = OpenLedger())
@@ -189,8 +189,8 @@ public class JournalVerifyTests : IDisposable
     {
         // The pointer published outside this leaf, and therefore the drift that reaches other people.
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_failed", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.crash.exhausted", "prod"));
         Fill();
 
         using (ObservationLedger ledger = OpenLedger())
@@ -222,9 +222,9 @@ public class JournalVerifyTests : IDisposable
         // next position onto ANOTHER event of the same kind — which the type check passes, happily,
         // while the row now describes a different moment entirely.
         WriteJournal(
-            Named("instance_started", "prod", Id(1)),
-            Named("instance_started", "TEST", Id(2)),
-            Named("instance_started", "prod", Id(3)));
+            Named("server.started", "prod", Id(1)),
+            Named("server.started", "TEST", Id(2)),
+            Named("server.started", "prod", Id(3)));
         Fill();
 
         string[] kept = [.. File.ReadAllLines(JournalPath).Where(l => !l.Contains("TEST", StringComparison.Ordinal))];
@@ -232,7 +232,7 @@ public class JournalVerifyTests : IDisposable
 
         JournalVerify.VerifyResult result = Verify();
 
-        // Every surviving row still names an instance_started, so the type check finds nothing.
+        // Every surviving row still names a server.started, so the type check finds nothing.
         Assert.DoesNotContain(result.Drifted, d => d.State == JournalVerify.PositionState.WrongEvent);
 
         // The id finds it.
@@ -248,8 +248,8 @@ public class JournalVerifyTests : IDisposable
         // The other half of the check above: comparing ids must not report drift where there is none,
         // or the strong check would be useless on every ordinary host.
         WriteJournal(
-            Named("instance_started", "prod", Id(1)),
-            Named("instance_ready", "prod", Id(2)));
+            Named("server.started", "prod", Id(1)),
+            Named("server.ready", "prod", Id(2)));
         Fill();
 
         JournalVerify.VerifyResult result = Verify();
@@ -264,13 +264,13 @@ public class JournalVerifyTests : IDisposable
         // Absent is unknown, never a mismatch. A ledger filled while a producer emitted ids, read back
         // against a segment from before it did, must not report the whole back catalogue as corrupt.
         WriteJournal(
-            Named("instance_started", "prod", Id(1)),
-            Named("instance_ready", "prod", Id(2)));
+            Named("server.started", "prod", Id(1)),
+            Named("server.ready", "prod", Id(2)));
         Fill();
 
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_ready", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.ready", "prod"));
 
         // The offsets move — an unnamed envelope is shorter — so this asserts what it does NOT say:
         // nothing is reported as an id disagreement, because one side has no id to disagree with.
@@ -283,9 +283,9 @@ public class JournalVerifyTests : IDisposable
         // The mirror case: rows recorded before the ledger had the column, read against lines that now
         // carry ids. The weaker check has to keep working, or upgrading would blind the tool.
         WriteJournal(
-            Envelope("instance_started", "prod"),
-            Envelope("instance_crashed", "TEST"),
-            Envelope("instance_ready", "prod"));
+            Envelope("server.started", "prod"),
+            Envelope("server.crashed", "TEST"),
+            Envelope("server.ready", "prod"));
         Fill();
 
         string[] kept = [.. File.ReadAllLines(JournalPath).Where(l => !l.Contains("TEST", StringComparison.Ordinal))];
@@ -302,8 +302,8 @@ public class JournalVerifyTests : IDisposable
         // was there. This is the pointer published outside the leaf, so it is the one whose drift
         // reaches other people's screens.
         WriteJournal(
-            Named("instance_started", "prod", Id(1)),
-            Named("instance_failed", "prod", Id(2)));
+            Named("server.started", "prod", Id(1)),
+            Named("server.crash.exhausted", "prod", Id(2)));
         Fill();
 
         using (ObservationLedger ledger = OpenLedger())

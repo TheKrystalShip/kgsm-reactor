@@ -33,11 +33,11 @@ public class LedgerRuleHistoryTests : IDisposable
     public void An_episode_with_no_closing_reads_as_open()
     {
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-40));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-40));
 
         var history = new LedgerRuleHistory(ledger);
         OpenEpisode episode = Assert.Single(
-            history.OpenEpisodes("host_threshold_breached", "host_threshold_cleared", Now.AddDays(-30)));
+            history.OpenEpisodes("host.threshold.breached", "host.threshold.cleared", Now.AddDays(-30)));
 
         Assert.Equal("k10temp/Tctl", episode.Subject);
         Assert.Equal(Now.AddMinutes(-40), episode.OpenedAt);
@@ -49,12 +49,12 @@ public class LedgerRuleHistoryTests : IDisposable
     public void An_episode_that_closed_is_not_open()
     {
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-40));
-        Record(ledger, "host_threshold_cleared", "k10temp/Tctl", Now.AddMinutes(-35));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-40));
+        Record(ledger, "host.threshold.cleared", "k10temp/Tctl", Now.AddMinutes(-35));
 
         var history = new LedgerRuleHistory(ledger);
         Assert.Empty(history.OpenEpisodes(
-            "host_threshold_breached", "host_threshold_cleared", Now.AddDays(-30)));
+            "host.threshold.breached", "host.threshold.cleared", Now.AddDays(-30)));
     }
 
     [Fact]
@@ -63,13 +63,13 @@ public class LedgerRuleHistoryTests : IDisposable
         // Two sensors breaching the same metric are two episodes. Matched globally rather than per
         // subject, one clearing would read as though both had.
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-40));
-        Record(ledger, "host_threshold_breached", "nvme/Composite", Now.AddMinutes(-38));
-        Record(ledger, "host_threshold_cleared", "k10temp/Tctl", Now.AddMinutes(-35));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-40));
+        Record(ledger, "host.threshold.breached", "nvme/Composite", Now.AddMinutes(-38));
+        Record(ledger, "host.threshold.cleared", "k10temp/Tctl", Now.AddMinutes(-35));
 
         var history = new LedgerRuleHistory(ledger);
         OpenEpisode episode = Assert.Single(
-            history.OpenEpisodes("host_threshold_breached", "host_threshold_cleared", Now.AddDays(-30)));
+            history.OpenEpisodes("host.threshold.breached", "host.threshold.cleared", Now.AddDays(-30)));
 
         Assert.Equal("nvme/Composite", episode.Subject);
     }
@@ -78,13 +78,13 @@ public class LedgerRuleHistoryTests : IDisposable
     public void A_reopened_episode_reads_as_open_again()
     {
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddHours(-4));
-        Record(ledger, "host_threshold_cleared", "k10temp/Tctl", Now.AddHours(-3));
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-20));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddHours(-4));
+        Record(ledger, "host.threshold.cleared", "k10temp/Tctl", Now.AddHours(-3));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-20));
 
         var history = new LedgerRuleHistory(ledger);
         OpenEpisode episode = Assert.Single(
-            history.OpenEpisodes("host_threshold_breached", "host_threshold_cleared", Now.AddDays(-30)));
+            history.OpenEpisodes("host.threshold.breached", "host.threshold.cleared", Now.AddDays(-30)));
 
         Assert.Equal(Now.AddMinutes(-20), episode.OpenedAt);
     }
@@ -96,14 +96,14 @@ public class LedgerRuleHistoryTests : IDisposable
         // the whole span, not three that lasted a third each. Measured the other way, every window
         // derived from this would be far too short.
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-60));
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-55));
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-50));
-        Record(ledger, "host_threshold_cleared", "k10temp/Tctl", Now.AddMinutes(-40));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-60));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-55));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-50));
+        Record(ledger, "host.threshold.cleared", "k10temp/Tctl", Now.AddMinutes(-40));
 
         var history = new LedgerRuleHistory(ledger);
         (TimeSpan p95, int samples) = history.EpisodeDuration(
-            "host_threshold_breached", "host_threshold_cleared", "k10temp/Tctl", Now.AddDays(-30));
+            "host.threshold.breached", "host.threshold.cleared", "k10temp/Tctl", Now.AddDays(-30));
 
         Assert.Equal(1, samples);
         Assert.Equal(TimeSpan.FromMinutes(20), p95);
@@ -117,13 +117,13 @@ public class LedgerRuleHistoryTests : IDisposable
         using ObservationLedger ledger = Open();
         for (int i = 1; i <= 3; i++)
         {
-            Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddHours(-i * 2));
-            Record(ledger, "host_threshold_cleared", "k10temp/Tctl", Now.AddHours(-i * 2).AddMinutes(5));
+            Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddHours(-i * 2));
+            Record(ledger, "host.threshold.cleared", "k10temp/Tctl", Now.AddHours(-i * 2).AddMinutes(5));
         }
 
         var history = new LedgerRuleHistory(ledger);
         (_, int samples) = history.EpisodeDuration(
-            "host_threshold_breached", "host_threshold_cleared", "k10temp/Tctl", Now.AddDays(-30));
+            "host.threshold.breached", "host.threshold.cleared", "k10temp/Tctl", Now.AddDays(-30));
 
         Assert.Equal(3, samples);
     }
@@ -132,11 +132,11 @@ public class LedgerRuleHistoryTests : IDisposable
     public void No_closed_episodes_reads_as_no_samples_rather_than_a_zero_duration()
     {
         using ObservationLedger ledger = Open();
-        Record(ledger, "host_threshold_breached", "k10temp/Tctl", Now.AddMinutes(-40));
+        Record(ledger, "host.threshold.breached", "k10temp/Tctl", Now.AddMinutes(-40));
 
         var history = new LedgerRuleHistory(ledger);
         (TimeSpan p95, int samples) = history.EpisodeDuration(
-            "host_threshold_breached", "host_threshold_cleared", "k10temp/Tctl", Now.AddDays(-30));
+            "host.threshold.breached", "host.threshold.cleared", "k10temp/Tctl", Now.AddDays(-30));
 
         Assert.Equal(0, samples);
         Assert.Equal(TimeSpan.Zero, p95);
@@ -146,14 +146,14 @@ public class LedgerRuleHistoryTests : IDisposable
     public void The_last_occurrence_respects_the_window_it_is_asked_about()
     {
         using ObservationLedger ledger = Open();
-        Record(ledger, "instance_update_finished", "Ketchup", Now.AddHours(-3));
+        Record(ledger, "server.update.finished", "Ketchup", Now.AddHours(-3));
 
         var history = new LedgerRuleHistory(ledger);
 
-        Assert.NotNull(history.LastOccurrence("instance_update_finished", "Ketchup", Now.AddHours(-4)));
+        Assert.NotNull(history.LastOccurrence("server.update.finished", "Ketchup", Now.AddHours(-4)));
         // Outside the window is not "no update ever" — it is "none in the window the rule asked about",
         // which is exactly what update_regression needs to distinguish.
-        Assert.Null(history.LastOccurrence("instance_update_finished", "Ketchup", Now.AddMinutes(-30)));
+        Assert.Null(history.LastOccurrence("server.update.finished", "Ketchup", Now.AddMinutes(-30)));
     }
 
     public void Dispose()

@@ -9,7 +9,7 @@
   "commands": [
     { "name": "kgsm", "package": "kgsm", "required": true, "probe": "kgsm --version", "why": "the reactor re-reads the world through kgsm-lib before deciding whether a condition still holds" },
 
-    { "name": "python3", "package": "python", "required": false, "probe": "python3 --version", "why": "deploy.sh's health probe reads the leaf_ready line out of this leaf's own journal, which bash parses badly", "without": "the probe degrades to `systemctl is-active` and says so rather than claiming a stronger check" }
+    { "name": "python3", "package": "python", "required": false, "probe": "python3 --version", "why": "deploy.sh's health probe reads the leaf.ready line out of this leaf's own journal, which bash parses badly", "without": "the probe degrades to `systemctl is-active` and says so rather than claiming a stronger check" }
   ],
   "services": [
     { "name": "kgsm-watchdog.service", "required": false, "why": "the watchdog is the producer of the crash, give-up and player events the reactor exists to observe", "without": "the reactor observes every other producer and simply never sees a fault, because nothing is emitting one" },

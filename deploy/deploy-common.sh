@@ -56,11 +56,11 @@ render_unit() {   # $1 = unit filename
 }
 
 # This daemon serves no socket and no port, so its health signal is the one thing it says for
-# itself: the `leaf_ready` line it writes to its own journal once ingestion is genuinely running.
+# itself: the `leaf.ready` line it writes to its own journal once ingestion is genuinely running.
 # "systemd launched it" is not that — a reactor that started and then failed to open its journal or
 # its ledger is exactly the state this probe has to fail on.
 #
-# READY_SINCE is set by deploy.sh immediately before the start, so a leaf_ready from the PREVIOUS
+# READY_SINCE is set by deploy.sh immediately before the start, so a leaf.ready from the PREVIOUS
 # run can never satisfy the check. Without it the probe passes instantly on every deploy, which is
 # the same as having no probe at all.
 REACTOR_JOURNAL_DIR="${REACTOR_JOURNAL_DIR:-/var/lib/kgsm-reactor/events}"

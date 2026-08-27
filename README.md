@@ -54,7 +54,7 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 ./deploy/deploy.sh    # every deploy. NO sudo, NO prompts.
 ```
 
-The deploy is verified against the `leaf_ready` line this leaf writes to its own journal — not
+The deploy is verified against the `leaf.ready` line this leaf writes to its own journal — not
 against "systemd launched it", which a reactor that came up and then failed to open its ledger would
 also satisfy.
 

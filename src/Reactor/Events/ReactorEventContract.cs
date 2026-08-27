@@ -20,7 +20,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Events;
 internal static class ReactorEvents
 {
     /// <summary>
-    /// <c>reactor_decided</c> — a rule reached a verdict about a subject.
+    /// <c>reactor.decided</c> — a rule reached a verdict about a subject.
     /// </summary>
     /// <remarks>
     /// ⚠ <b>Written on a transition, not on an evaluation.</b> A state rule re-evaluates one episode
@@ -29,7 +29,7 @@ internal static class ReactorEvents
     /// has not changed, and the history would read as how often the reactor looked rather than what it
     /// concluded.
     /// </remarks>
-    public const string Decided = "reactor_decided";
+    public const string Decided = "reactor.decided";
 
     /// <summary>The same name, typed so the writer can take it.</summary>
     /// <remarks>
@@ -39,14 +39,14 @@ internal static class ReactorEvents
     public static readonly EventName DecidedName = EventName.Parse(Decided);
 
     /// <summary>
-    /// <c>reactor_acted</c> — a decision was carried out, however it ended.
+    /// <c>reactor.acted</c> — a decision was carried out, however it ended.
     /// </summary>
     /// <remarks>
     /// ⚠ <b>Nothing emits this yet.</b> The reactor dispatches nothing, so writing one would be a claim
     /// about work that did not happen. It exists here because the vocabulary is decided as a whole —
     /// the shape is settled and the emitter arrives with act mode.
     /// </remarks>
-    public const string Acted = "reactor_acted";
+    public const string Acted = "reactor.acted";
 
     /// <summary>The prefix every event this leaf writes shares.</summary>
     /// <remarks>
@@ -54,7 +54,7 @@ internal static class ReactorEvents
     /// it. This prefix is how that is recognised — see <c>RuleCatalog</c>, where no rule may wake on
     /// one, and the test that enforces it.
     /// </remarks>
-    public const string Prefix = "reactor_";
+    public const string Prefix = "reactor.";
 }
 
 /// <summary>The payload field names, spelled once.</summary>
@@ -111,7 +111,7 @@ internal static class ReactorEventFields
     /// </remarks>
     public const string ActionInstance = "ActionInstance";
 
-    /// <summary>The decision's own identity, which <c>reactor_acted</c> refers back to.</summary>
+    /// <summary>The decision's own identity, which <c>reactor.acted</c> refers back to.</summary>
     public const string DecisionId = "DecisionId";
 
     /// <summary>When the condition opened. The envelope's timestamp is when it was decided.</summary>
@@ -138,12 +138,12 @@ internal static class ReactorEventFields
     /// </remarks>
     public const string SourceEventId = "SourceEventId";
 
-    /// <summary>Whether the action succeeded. <c>reactor_acted</c> only.</summary>
+    /// <summary>Whether the action succeeded. <c>reactor.acted</c> only.</summary>
     public const string Ok = "Ok";
 
-    /// <summary>What the action produced — a backup id — or null. <c>reactor_acted</c> only.</summary>
+    /// <summary>What the action produced — a backup id — or null. <c>reactor.acted</c> only.</summary>
     public const string Artifact = "Artifact";
 
-    /// <summary>What went wrong, or what else is worth reading. <c>reactor_acted</c> only.</summary>
+    /// <summary>What went wrong, or what else is worth reading. <c>reactor.acted</c> only.</summary>
     public const string Detail = "Detail";
 }

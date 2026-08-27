@@ -7,7 +7,7 @@ Used by deploy/deploy-common.sh's health_probe. It exists as a file rather than 
 check can be read, run and debugged on its own — a deploy that fails its health gate is exactly
 when somebody wants to run the probe by hand.
 
-The reactor serves no socket and no port, so `leaf_ready` in its own journal is its health signal.
+The reactor serves no socket and no port, so `leaf.ready` in its own journal is its health signal.
 The `since` bound is what makes the check mean anything: without it a line from the previous run
 satisfies the probe instantly, and the gate passes on a service that never came up.
 """
@@ -23,7 +23,7 @@ def main(directory: str, since: float) -> int:
     if not segments:
         return 1
 
-    # Only the newest segment. A leaf_ready older than this deploy proves nothing, and reading the
+    # Only the newest segment. A leaf.ready older than this deploy proves nothing, and reading the
     # whole history to find one would get slower every day for no added confidence.
     try:
         lines = open(segments[-1], encoding="utf-8").read().splitlines()
@@ -35,7 +35,7 @@ def main(directory: str, since: float) -> int:
             event = json.loads(line)
         except ValueError:
             continue
-        if event.get("EventType") != "leaf_ready":
+        if event.get("EventType") != "leaf.ready":
             continue
         stamp = str(event.get("Timestamp", "")).replace("Z", "+00:00")
         try:

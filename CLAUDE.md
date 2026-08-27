@@ -46,7 +46,7 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 ./deploy/deploy.sh   # every deploy. NO sudo, NO prompts.
 ```
 
-`deploy.sh` verifies against the **`leaf_ready` line this leaf writes to its own journal**, taking a
+`deploy.sh` verifies against the **`leaf.ready` line this leaf writes to its own journal**, taking a
 `READY_SINCE` stamp before the start so a line from the previous run cannot satisfy the check. That is
 a stronger check than the status socket would be: `/health` answering only proves Kestrel is listening,
 where the journal line is written after the ledger is open and the rules are resolved.
@@ -92,24 +92,33 @@ where the journal line is written after the ledger is open and the rules are res
   defect in the engine's own index, and a rate measured from a ledger with it would under-report
   exactly the bursts a ceiling has to be set above.
 - **The line's own id is carried beside the position, and is not the key.** `observations.event_id`,
-  `decisions.src_event_id` and `reactor_decided`'s `SourceEventId` all hold the UUIDv7 the line's
+  `decisions.src_event_id` and `reactor.decided`'s `SourceEventId` all hold the UUIDv7 the line's
   producer minted. The position *finds* the line; the id *proves* it is the right one. ⚠ **This is
   what makes `--verify` real:** comparing event types misses a shift that lands on the same kind of
   event, which is the likely case — a journal is mostly repetitions of a handful of types. Where
   either side has no id the check falls back to the type, because absence is unknown and never a
   mismatch.
-- **The ledger migrates in place, additively.** `ObservationLedger.AddColumnIfMissing` is the whole
-  mechanism, for both tables. Every column added here has been nullable, because a row restates a
-  journal line and a new reading is something older rows simply do not carry. ⚠ `CREATE TABLE IF NOT
-  EXISTS` leaves an existing table alone, so a new column without a migration means a host stamped
-  with the new schema version and no column — throwing on the next insert. Rebuilding instead is safe
-  (every row is derived) and throws away `observed_at`, the one reading that cannot be recovered.
+- **The ledger migrates in place.** `ObservationLedger.AddColumnIfMissing` covers the additive half,
+  for both tables: every column added here is nullable, because a row restates a journal line and a
+  new reading is something older rows simply do not carry. ⚠ `CREATE TABLE IF NOT EXISTS` leaves an
+  existing table alone, so a new column without a migration means a host stamped with the new schema
+  version and no column — throwing on the next insert. Rebuilding instead is safe (every row is
+  derived) and throws away `observed_at`, the one reading that cannot be recovered. A migration that
+  rewrites values a row already holds is a step of its own; `NormalizeEventTypes` is the one of those.
+- **The ledger holds one event vocabulary.** Both ingest paths store the name an event is called now,
+  and `NormalizeEventTypes` brings what earlier builds stored onto it at open — so a query asked in
+  the current name reaches every row about that event, and the population report counts one condition
+  once instead of splitting it across two spellings. `LegacyEventNames` in the journal package is the
+  only thing that knows what a name was called before, and it is asked in the one direction it
+  answers. ⚠ A **segment** keeps whatever its producer wrote, so a stored name and the line it points
+  at are equal as events long after they stop being equal as strings — which is why `--verify`
+  compares them through the same table.
 - **`EventClass` is a reporting bucket, not a judgment, and nothing may start gating on it.** What
   matters about an event is decided per rule against the plan's seven questions, never inherited from
   a bucket assigned at ingest.
-- **⚠ The reactor tails its own journal**, so every `reactor_decided` it writes comes straight back to
+- **⚠ The reactor tails its own journal**, so every `reactor.decided` it writes comes straight back to
   it. That is fine and the events are recorded like any other; the loop is stopped by the rule that
-  **no rule may wake on a `reactor_*` event**, which `RuleCatalogTests` fails the build over.
+  **no rule may wake on a `reactor.*` event**, which `RuleCatalogTests` fails the build over.
 - **The ledger upserts, the journal appends.** A state rule re-reads its episode every sweep and the
   ledger folds those into one row, so `DecisionStore.Record` returns a `DecisionChange` and only a
   transition is announced. Emitting per evaluation would make the journal a record of how often the
