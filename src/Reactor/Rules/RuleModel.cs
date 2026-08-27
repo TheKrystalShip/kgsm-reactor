@@ -29,6 +29,18 @@ internal enum RuleShape
 /// </remarks>
 internal enum RuleMode
 {
+    /// <summary>
+    /// Do not evaluate it at all.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Not the same as retiring one.</b> A rule that is off is live, listed and one field away
+    /// from running again — somebody silenced it while they work out whether it is right. A retired
+    /// rule is gone from the live list and kept only so the decisions it already made still resolve to
+    /// something that can be named. Offering one control for both would make un-deleting and
+    /// un-muting the same gesture.
+    /// </remarks>
+    Off,
+
     /// <summary>Evaluate and record. Dispatch nothing.</summary>
     Observe,
 

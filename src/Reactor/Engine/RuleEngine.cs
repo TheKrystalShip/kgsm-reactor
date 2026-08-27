@@ -221,8 +221,8 @@ internal sealed class RuleEngine : BackgroundService
             if (Effective(configured.Value) != configured)
             {
                 _logger.LogWarning(
-                    "Rule {Rule} is configured to {Mode}, but this build honours at most {Honours} — "
-                    + "treating it as {Honours}. Nothing will be staged or performed.",
+                    "Rule {Rule} is configured to {Mode}, but this build honours at most {Honours}, "
+                    + "which is what it will do. Nothing will be staged or performed.",
                     rule.Id, configured, Honours);
             }
 

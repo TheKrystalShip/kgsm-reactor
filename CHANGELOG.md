@@ -7,6 +7,46 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — a rule is data assembled from catalogs (`0.18.0`)
+
+A rule is a definition rather than a function: what wakes it, what subjects it decides about, an
+ordered list of guard rows over compiled signals, and one of the actions this build can perform.
+`Rules/Composition/` holds the catalogs it draws on — signals, subject sources and actions — the
+evaluator that runs one, the validator that refuses one it cannot honour, and `RuleStore`, which
+reads whole rules out of `rules.json`.
+
+The four rules this build ships are seeded as definitions, and every fixture they are tested against
+is run twice: once through the rule written by hand, once through its composition. Both produce the
+same verdict **and** the same sentence, including the cases that turn on a source that cannot be
+read. A composition reaching the same conclusion while losing the figures would be a decision record
+with a hole where the measurement was.
+
+What a rule may do stays a compiler question. `ReactorAction` is a closed union and the action
+catalog renders it rather than widening it, so the never-list — never uninstall, never delete a
+backup, never rewrite instance config, never moderate a player — is enforced exactly where it was.
+A rule cannot wake on what this leaf wrote itself, because `reactor.*` is not something the catalog
+offers.
+
+Each guard row owns its prose, with `{alias}` placeholders filled from the same reads its clauses
+used, and may carry a second sentence for the case where a signal it needs cannot be read — the
+trend reader's own "no working-set series" is true and useless beside the figures a decrement would
+have moved. A signal's arguments are bound once at rule level under an alias, so two mentions of the
+same lookback cannot come to mean different windows. A comparand is a figure or another of the
+rule's own signals, which is what lets one measurement be compared against another.
+
+A rule that names a signal this build does not measure, says something it never binds, is judged the
+instant its event lands, would do something outside the catalog, or shares an id with another rule is
+left out and reported — the rest of the file runs. An id is minted once and never reused, retired
+rules included: it is the actor on every line the rule produced.
+
+Rules carry authorship: who created one and who last changed it, each as a stable `provider:name`
+username. It is provenance beside the actor, never instead of it — the rule decided, and a person
+shaped the rule. A definition arriving without one is unattributed and stays that way; there is no
+fallback to the OS user. A rule can be off — live, listed, silent — which is a different state from
+retired, where the definition is kept only so its decisions still resolve to a rule that can be named.
+
+Nothing user-visible changes yet: the engine still evaluates the compiled catalog.
+
 ### Fixed — a working-set trend can be read at all (`0.17.0`)
 
 A history point's `ts` is an ISO-8601 instant, which is what kgsm-monitor serves. Reading it as a
