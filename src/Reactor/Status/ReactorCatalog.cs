@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 
@@ -78,6 +79,29 @@ public sealed record ReactorCatalog
     [JsonPropertyName("placeholders")]
     public required IReadOnlyList<PlaceholderInfo> Placeholders { get; init; }
 
+    /// <summary>
+    /// The ways a staged offer ends, in their wire spellings.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Four, and keeping them apart is the point. A surface folding lapse, dismissal and no-longer-
+    /// applicable into "not confirmed" loses the only signal that separates a rule nobody wants from
+    /// one whose condition is wrong from one that speaks too early — which is what somebody reviewing
+    /// a week of a proposing rule is trying to read.
+    /// </remarks>
+    [JsonPropertyName("resolutions")]
+    public required IReadOnlyList<OutcomeInfo> Resolutions { get; init; }
+
+    /// <summary>
+    /// How long an unanswered offer stays redeemable when a rule names no window of its own.
+    /// </summary>
+    /// <remarks>
+    /// Published so an editor can show what a blank field means. ⚠ It is not a safety control: the
+    /// condition is re-derived at redemption, so a stale offer answers "no longer applicable" instead
+    /// of executing.
+    /// </remarks>
+    [JsonPropertyName("proposalLifetimeHours")]
+    public required int ProposalLifetimeHours { get; init; }
+
     /// <summary>Assemble it from the catalogs this build compiles in.</summary>
     public static ReactorCatalog Read() => new()
     {
@@ -111,6 +135,20 @@ public sealed record ReactorCatalog
                 + "a no."),
         ],
         Honours = Engine.RuleEngine.Honours.ToString().ToLowerInvariant(),
+        Resolutions =
+        [
+            new(ReactorResolutions.Confirmed, "Confirmed",
+                "A person said yes. Whether the action then worked is a separate answer."),
+            new(ReactorResolutions.Dismissed, "Dismissed",
+                "A person said no. Nothing was attempted, and the world was not re-read to decide it."),
+            new(ReactorResolutions.Lapsed, "Lapsed",
+                "Nobody answered before it expired. A rule whose offers mostly end here is one nobody "
+                + "wants."),
+            new(ReactorResolutions.NoLongerApplicable, "No longer applicable",
+                "Somebody confirmed it and the condition had gone by then, so nothing was done. The "
+                + "safety property working, not a fault."),
+        ],
+        ProposalLifetimeHours = ReactorOptions.DefaultProposalLifetimeHours,
         Placeholders =
         [
             new("{subject}", "What is being decided about."),

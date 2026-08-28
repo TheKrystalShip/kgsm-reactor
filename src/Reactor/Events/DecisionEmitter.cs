@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 
+using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
@@ -12,7 +13,15 @@ using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Events;
 
-/// <summary>Puts a decision on the journal, where anything on this host can read it.</summary>
+/// <summary>
+/// Puts what the reactor concluded, offered and did on the journal, where anything on this host can
+/// read it.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>Every method here returns whether the line landed, and none of them throws.</b> A journal that
+/// will not take a line costs downstream its notice; it is never a reason to stop judging, and it is
+/// never a reason to undo something already performed. The ledger is the record either way.
+/// </remarks>
 internal interface IDecisionEmitter
 {
     /// <summary>
@@ -23,6 +32,27 @@ internal interface IDecisionEmitter
     /// cannot be written is a reason to keep judging and say so, not a reason to stop.
     /// </returns>
     ValueTask<bool> EmitAsync(Decision decision, CancellationToken token = default);
+
+    /// <summary>Write <paramref name="proposal"/> as a <c>reactor.proposed</c> line.</summary>
+    ValueTask<bool> EmitProposedAsync(Proposal proposal, CancellationToken token = default);
+
+    /// <summary>
+    /// Write an ended proposal as a <c>reactor.resolved</c> line.
+    /// </summary>
+    /// <remarks>
+    /// Takes the proposal as it stands <em>after</em> ending, so the line and the row carry one answer
+    /// rather than the line carrying arguments the row was built from.
+    /// </remarks>
+    ValueTask<bool> EmitResolvedAsync(Proposal proposal, CancellationToken token = default);
+
+    /// <summary>
+    /// Write an autonomous action as a <c>reactor.acted</c> line.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Only for act mode.</b> An action a person confirmed is a resolution carrying their name;
+    /// writing one here too would double-count what this host did on its own.
+    /// </remarks>
+    ValueTask<bool> EmitActedAsync(Decision decision, ActionResult result, CancellationToken token = default);
 }
 
 /// <summary>
@@ -89,6 +119,129 @@ internal sealed record DecidedPayload
 }
 
 /// <summary>
+/// The <c>reactor.proposed</c> payload, as it is written.
+/// </summary>
+/// <remarks>
+/// It carries the sentence and the figures rather than a pointer to the decision, for the same reason
+/// <see cref="DecidedPayload"/> does: a consumer has to be able to render an offer from the one line,
+/// and a join is a second read that can fail while the first succeeded.
+/// </remarks>
+internal sealed record ProposedPayload
+{
+    [JsonPropertyName(ReactorEventFields.Rule)]
+    public required string Rule { get; init; }
+
+    /// <summary>Null when nobody is known to have shaped the rule — never a host or a daemon name.</summary>
+    [JsonPropertyName(ReactorEventFields.RuleAuthor)]
+    public string? RuleAuthor { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Subject)]
+    public required string Subject { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.SubjectKind)]
+    public required string SubjectKind { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Severity)]
+    public required string Severity { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Reason)]
+    public required string Reason { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Action)]
+    public required string Action { get; init; }
+
+    /// <summary>Null when the action operates on no server — never an empty string standing in.</summary>
+    [JsonPropertyName(ReactorEventFields.ActionInstance)]
+    public string? ActionInstance { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.DecisionId)]
+    public required string DecisionId { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.ProposalHandle)]
+    public required string ProposalHandle { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.ExpiresAt)]
+    public required DateTimeOffset ExpiresAt { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.OpenedAt)]
+    public required DateTimeOffset OpenedAt { get; init; }
+}
+
+/// <summary>
+/// The <c>reactor.resolved</c> payload, as it is written.
+/// </summary>
+/// <remarks>
+/// ⚠ <b><see cref="Ok"/> is nullable and stays nullable.</b> Three of the four resolutions attempt
+/// nothing, and a <c>false</c> written for them would report a person working as intended as a broken
+/// action.
+/// </remarks>
+internal sealed record ResolvedPayload
+{
+    [JsonPropertyName(ReactorEventFields.Rule)]
+    public required string Rule { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Subject)]
+    public required string Subject { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Action)]
+    public required string Action { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.ActionInstance)]
+    public string? ActionInstance { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.DecisionId)]
+    public required string DecisionId { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.ProposalHandle)]
+    public required string ProposalHandle { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Resolution)]
+    public required string Resolution { get; init; }
+
+    /// <summary>Null when nobody answered, which is the whole content of a lapse.</summary>
+    [JsonPropertyName(ReactorEventFields.AnsweredBy)]
+    public string? AnsweredBy { get; init; }
+
+    /// <summary>Null when no action was attempted.</summary>
+    [JsonPropertyName(ReactorEventFields.Ok)]
+    public bool? Ok { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Artifact)]
+    public string? Artifact { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Detail)]
+    public string? Detail { get; init; }
+}
+
+/// <summary>The <c>reactor.acted</c> payload, as it is written.</summary>
+internal sealed record ActedPayload
+{
+    [JsonPropertyName(ReactorEventFields.Rule)]
+    public required string Rule { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Subject)]
+    public required string Subject { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Action)]
+    public required string Action { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.ActionInstance)]
+    public string? ActionInstance { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.DecisionId)]
+    public required string DecisionId { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Ok)]
+    public required bool Ok { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Artifact)]
+    public string? Artifact { get; init; }
+
+    [JsonPropertyName(ReactorEventFields.Detail)]
+    public string? Detail { get; init; }
+}
+
+/// <summary>
 /// The serializer for what this leaf writes.
 /// </summary>
 /// <remarks>
@@ -99,6 +252,9 @@ internal sealed record DecidedPayload
 /// </remarks>
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
 [JsonSerializable(typeof(DecidedPayload))]
+[JsonSerializable(typeof(ProposedPayload))]
+[JsonSerializable(typeof(ResolvedPayload))]
+[JsonSerializable(typeof(ActedPayload))]
 internal partial class ReactorJsonContext : JsonSerializerContext;
 
 /// <inheritdoc cref="IDecisionEmitter"/>
@@ -155,6 +311,146 @@ internal sealed class DecisionEmitter(
             // that stopped judging because it could not announce would be a worse failure.
             logger.LogError(ex, "Could not write {Event} for {Rule} on {Subject}.",
                 ReactorEvents.Decided, decision.RuleId, decision.Subject);
+            return false;
+        }
+    }
+
+    public async ValueTask<bool> EmitProposedAsync(Proposal proposal, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(proposal);
+
+        var payload = new ProposedPayload
+        {
+            Rule = proposal.RuleId,
+            RuleAuthor = proposal.RuleAuthor,
+            Subject = proposal.Subject,
+            SubjectKind = Spell(proposal.SubjectKind),
+            Severity = proposal.Severity.ToWire(),
+            Reason = proposal.Reason,
+            Action = proposal.ActionName,
+            ActionInstance = proposal.ActionInstance,
+            DecisionId = proposal.DecisionId,
+            ProposalHandle = proposal.Handle,
+            ExpiresAt = proposal.ExpiresAt,
+            OpenedAt = proposal.StagedAt,
+        };
+
+        return await WriteAsync(
+            ReactorEvents.ProposedName, proposal.RuleId,
+            JsonSerializer.SerializeToElement(payload, ReactorJsonContext.Default.ProposedPayload),
+            proposal.Severity,
+            // Neutral: an offer is a question, and an outcome here would have a surface colour it as a
+            // result. What became of it is the resolution's to report.
+            EventOutcome.Neutral,
+            $"offers to {proposal.Action} — {proposal.Reason}",
+            ReactorEvents.Proposed, proposal.Subject, token).ConfigureAwait(false);
+    }
+
+    public async ValueTask<bool> EmitResolvedAsync(Proposal proposal, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(proposal);
+
+        string resolution = ProposalStore.Wire(proposal.State);
+
+        var payload = new ResolvedPayload
+        {
+            Rule = proposal.RuleId,
+            Subject = proposal.Subject,
+            Action = proposal.ActionName,
+            ActionInstance = proposal.ActionInstance,
+            DecisionId = proposal.DecisionId,
+            ProposalHandle = proposal.Handle,
+            Resolution = resolution,
+            AnsweredBy = proposal.AnsweredBy,
+            Ok = proposal.Ok,
+            Detail = proposal.Detail,
+            Artifact = proposal.Artifact,
+        };
+
+        return await WriteAsync(
+            ReactorEvents.ResolvedName, proposal.RuleId,
+            JsonSerializer.SerializeToElement(payload, ReactorJsonContext.Default.ResolvedPayload),
+            proposal.Severity,
+            // Neutral as a family: a dismissal is a person working as intended and a failed confirm is
+            // not, and one outcome cannot be both. A consumer reads Resolution and Ok.
+            EventOutcome.Neutral,
+            Describe(proposal, resolution),
+            ReactorEvents.Resolved, proposal.Subject, token).ConfigureAwait(false);
+    }
+
+    public async ValueTask<bool> EmitActedAsync(
+        Decision decision, ActionResult result, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+
+        var payload = new ActedPayload
+        {
+            Rule = decision.RuleId,
+            Subject = decision.Subject,
+            Action = decision.ActionName,
+            ActionInstance = decision.ActionInstance,
+            DecisionId = decision.Id,
+            Ok = result.Ok,
+            Artifact = result.Artifact,
+            Detail = result.Detail,
+        };
+
+        return await WriteAsync(
+            ReactorEvents.ActedName, decision.RuleId,
+            JsonSerializer.SerializeToElement(payload, ReactorJsonContext.Default.ActedPayload),
+            decision.Severity,
+            // The ACTION's outcome, unlike the other three: something was attempted and either worked
+            // or did not, and that is exactly what this event reports.
+            result.Ok ? EventOutcome.Success : EventOutcome.Failure,
+            result.Ok
+                ? $"{decision.Action} — {result.Detail ?? "done"}"
+                : $"tried to {decision.Action} and could not — {result.Detail}",
+            ReactorEvents.Acted, decision.Subject, token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One ended proposal in the words a person reads.
+    /// </summary>
+    /// <remarks>
+    /// Each resolution gets its own sentence rather than a shared template with the word substituted:
+    /// "nobody answered" and "the condition had gone" are different things to have happened, and a
+    /// reader skimming a journal is who this is for.
+    /// </remarks>
+    private static string Describe(Proposal proposal, string resolution) => proposal.State switch
+    {
+        ProposalState.Confirmed when proposal.Ok is true =>
+            $"{proposal.AnsweredBy} confirmed — {proposal.Detail ?? proposal.Action}",
+        ProposalState.Confirmed =>
+            $"{proposal.AnsweredBy} confirmed and it could not be done — {proposal.Detail}",
+        ProposalState.Dismissed => $"{proposal.AnsweredBy} dismissed the offer to {proposal.Action}",
+        ProposalState.Lapsed =>
+            $"nobody answered the offer to {proposal.Action} before it expired",
+        ProposalState.NoLongerApplicable =>
+            $"no longer applicable when {proposal.AnsweredBy} confirmed — {proposal.Detail}",
+        _ => $"{resolution} — {proposal.Action}",
+    };
+
+    /// <summary>
+    /// Appends one line, and answers whether it landed.
+    /// </summary>
+    /// <remarks>
+    /// Shared by all four events because the failure handling is the part that must not differ: a
+    /// journal that will not take a line is logged loudly and nothing else, and an action already
+    /// performed is certainly not undone because its announcement did not land.
+    /// </remarks>
+    private async ValueTask<bool> WriteAsync(
+        EventName name, string ruleId, JsonElement data, EventSeverity severity, EventOutcome outcome,
+        string summary, string type, string subject, CancellationToken token)
+    {
+        try
+        {
+            return await writer
+                .AppendAsync(name, data, ActorFor(ruleId), Origin, severity, outcome, summary, token)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Could not write {Event} for {Rule} on {Subject}.", type, ruleId, subject);
             return false;
         }
     }

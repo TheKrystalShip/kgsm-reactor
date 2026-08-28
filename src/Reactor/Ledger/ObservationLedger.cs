@@ -296,18 +296,25 @@ internal sealed class ObservationLedger : IDisposable
     /// Runs a statement under the same lock every other access takes.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Internal so the decision store can own its own table and its own SQL while sharing this
     /// connection. One connection rather than two: the gate's questions cross both tables, and two
     /// connections to one file is how a reader comes to see a half-written view of them.
+    /// </para>
+    /// <para>
+    /// Answers how many rows it changed, which is what separates a write that landed from one whose
+    /// <c>WHERE</c> matched nothing — the difference between confirming a proposal and confirming one
+    /// somebody else confirmed a moment earlier.
+    /// </para>
     /// </remarks>
-    internal void Execute(string sql, Action<SqliteCommand>? bind = null)
+    internal int Execute(string sql, Action<SqliteCommand>? bind = null)
     {
         lock (_gate)
         {
             using SqliteCommand command = _connection.CreateCommand();
             command.CommandText = sql;
             bind?.Invoke(command);
-            command.ExecuteNonQuery();
+            return command.ExecuteNonQuery();
         }
     }
 

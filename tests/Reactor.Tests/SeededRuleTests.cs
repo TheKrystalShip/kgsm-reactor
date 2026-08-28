@@ -181,18 +181,24 @@ public class SeededRuleTests
     }
 
     /// <summary>
-    /// ⚠ The failure this guards is a status page contradicting the daemon.
+    /// A rule gets exactly the authority it asks for, up to the ceiling this build holds.
     /// </summary>
     /// <remarks>
-    /// Setting a rule to act and being silently observed is exactly what the engine refuses to allow
-    /// quietly — and a surface echoing the mode the rule asked for would make the refusal invisible,
-    /// since the warning it logs lives in a journal nobody reads.
+    /// ⚠ The failure this guards is a status page contradicting the daemon. Being set to act and
+    /// silently observed is exactly what the engine refuses to allow quietly — a surface echoing the
+    /// mode the rule asked for would make the refusal invisible, since the warning it logs lives in a
+    /// journal nobody reads.
     /// </remarks>
     [Fact]
-    public void A_mode_this_build_cannot_honour_is_what_it_actually_is()
+    public void A_rule_gets_the_authority_it_asks_for_up_to_the_ceiling()
     {
-        Assert.Equal(RuleMode.Observe, RuleEngine.Effective(RuleMode.Act));
-        Assert.Equal(RuleMode.Observe, RuleEngine.Effective(RuleMode.Propose));
+        Assert.All(
+            Enum.GetValues<RuleMode>().Where(m => m <= RuleEngine.Honours),
+            asked => Assert.Equal(asked, RuleEngine.Effective(asked)));
+
+        Assert.All(
+            Enum.GetValues<RuleMode>().Where(m => m > RuleEngine.Honours),
+            asked => Assert.Equal(RuleEngine.Honours, RuleEngine.Effective(asked)));
     }
 
     [Fact]

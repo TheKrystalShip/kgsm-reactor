@@ -12,9 +12,9 @@ namespace TheKrystalShip.Kgsm.Reactor.Events;
 /// check what the reactor judged instead of taking this leaf's word for what happened.
 /// </para>
 /// <para>
-/// <b>Two events, not one.</b> A decision and an action are separate immutable facts, exactly as a
-/// threshold breach and its clear are. Collapsed into one, "it decided and the action failed" has no
-/// spelling.
+/// <b>Four events, not fewer.</b> A verdict, an offer, an offer's end, and an action this leaf took
+/// on nobody's request are four immutable facts. Collapse any pair and a real case loses its
+/// spelling: "it decided and the action failed", or "it offered and nobody answered".
 /// </para>
 /// </remarks>
 internal static class ReactorEvents
@@ -39,14 +39,44 @@ internal static class ReactorEvents
     public static readonly EventName DecidedName = EventName.Parse(Decided);
 
     /// <summary>
-    /// <c>reactor.acted</c> — a decision was carried out, however it ended.
+    /// <c>reactor.proposed</c> — a rule staged an action for a person to confirm.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Nothing emits this yet.</b> The reactor dispatches nothing, so writing one would be a claim
-    /// about work that did not happen. It exists here because the vocabulary is decided as a whole —
-    /// the shape is settled and the emitter arrives with act mode.
+    /// ⚠ <b>An offer, and nothing has been done.</b> The action is held under a handle until somebody
+    /// redeems it or its lifetime runs out, and the commonest ending is that the condition resolves
+    /// itself and nobody ever answers. A line here is not a line about work.
+    /// </remarks>
+    public const string Proposed = "reactor.proposed";
+
+    /// <summary>The same name, typed so the writer can take it.</summary>
+    public static readonly EventName ProposedName = EventName.Parse(Proposed);
+
+    /// <summary>
+    /// <c>reactor.resolved</c> — a staged proposal reached its end, whichever end that was.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Exactly one per proposal, including the ones nobody answered.</b> A lapse is a fact and is
+    /// written like the rest — an offer that expired unread is the single most useful thing a week's
+    /// review can count, and it exists nowhere unless it is said.
+    /// </remarks>
+    public const string Resolved = "reactor.resolved";
+
+    /// <summary>The same name, typed so the writer can take it.</summary>
+    public static readonly EventName ResolvedName = EventName.Parse(Resolved);
+
+    /// <summary>
+    /// <c>reactor.acted</c> — this leaf carried an action out itself, however it ended.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
+    /// <see cref="Resolved"/> carrying their name. This is the one where the rule is the whole
+    /// authority, and keeping the two apart is what lets a surface answer "what did this host do on its
+    /// own" without subtracting one set from another.
     /// </remarks>
     public const string Acted = "reactor.acted";
+
+    /// <summary>The same name, typed so the writer can take it.</summary>
+    public static readonly EventName ActedName = EventName.Parse(Acted);
 
     /// <summary>The prefix every event this leaf writes shares.</summary>
     /// <remarks>
@@ -155,12 +185,62 @@ internal static class ReactorEventFields
     /// </remarks>
     public const string SourceEventId = "SourceEventId";
 
-    /// <summary>Whether the action succeeded. <c>reactor.acted</c> only.</summary>
+    /// <summary>
+    /// The token a staged proposal is redeemed with.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Spelled in full because a bare <c>Handle</c> already means a person.</b> An account event
+    /// carries one and it is somebody's name; this is a capability that names nobody, and one field
+    /// name standing for both would leave every consumer classifying whichever it met first.
+    /// </remarks>
+    public const string ProposalHandle = "ProposalHandle";
+
+    /// <summary>When an unanswered proposal stops being redeemable.</summary>
+    public const string ExpiresAt = "ExpiresAt";
+
+    /// <summary>How a proposal ended — see <see cref="ReactorResolutions"/>.</summary>
+    public const string Resolution = "Resolution";
+
+    /// <summary>Who answered, as <c>provider:name</c>, or null when nobody did.</summary>
+    public const string AnsweredBy = "AnsweredBy";
+
+    /// <summary>Whether the action succeeded, or null when none was attempted.</summary>
     public const string Ok = "Ok";
 
-    /// <summary>What the action produced — a backup id — or null. <c>reactor.acted</c> only.</summary>
+    /// <summary>What the action produced — a backup id — or null.</summary>
     public const string Artifact = "Artifact";
 
-    /// <summary>What went wrong, or what else is worth reading. <c>reactor.acted</c> only.</summary>
+    /// <summary>What went wrong, or what else is worth reading.</summary>
     public const string Detail = "Detail";
+}
+
+/// <summary>
+/// The four ways a staged proposal ends.
+/// </summary>
+/// <remarks>
+/// Kept apart rather than folded into confirmed-or-not, because each says something different about
+/// the rule that staged it: mostly confirmed is a candidate for acting on its own, mostly dismissed
+/// has a wrong condition, mostly lapsed is unwanted, and mostly stale speaks too early. A consumer
+/// counting "not confirmed" loses the only signal that separates them.
+/// </remarks>
+internal static class ReactorResolutions
+{
+    /// <summary>A person said yes, and the action was attempted.</summary>
+    public const string Confirmed = "confirmed";
+
+    /// <summary>A person said no. Nothing was attempted.</summary>
+    public const string Dismissed = "dismissed";
+
+    /// <summary>Nobody answered before the lifetime ran out.</summary>
+    public const string Lapsed = "lapsed";
+
+    /// <summary>
+    /// Somebody tried to confirm it and the condition had gone by then.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The safety property observed working.</b> The rule is re-evaluated at redemption rather
+    /// than trusted from staging, so a server that came back up on its own resolves the proposal
+    /// instead of having a restore run over it.
+    /// </remarks>
+    public const string NoLongerApplicable = "no_longer_applicable";
 }

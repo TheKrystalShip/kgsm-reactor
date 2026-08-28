@@ -125,6 +125,17 @@ internal sealed class RuleDocument
     [JsonPropertyName("suppressionMinutes")]
     public int? SuppressionMinutes { get; set; }
 
+    /// <summary>
+    /// How long an unanswered offer from this rule stays redeemable, or absent to follow the host-wide
+    /// setting.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Not a safety control. The condition is re-derived at redemption, so a stale offer answers "no
+    /// longer applicable" instead of executing. What this is for is the difference between offers.
+    /// </remarks>
+    [JsonPropertyName("proposalLifetimeHours")]
+    public int? ProposalLifetimeHours { get; set; }
+
     /// <summary><c>off</c>, <c>observe</c>, <c>propose</c> or <c>act</c>.</summary>
     [JsonPropertyName("mode")]
     public string Mode { get; set; } = "observe";
@@ -345,6 +356,9 @@ internal static class RuleStore
             Suppression: document.SuppressionMinutes is { } minutes
                 ? TimeSpan.FromMinutes(minutes)
                 : null,
+            ProposalLifetime: document.ProposalLifetimeHours is { } hours
+                ? TimeSpan.FromHours(hours)
+                : null,
             Mode: Enum.TryParse(document.Mode, ignoreCase: true, out RuleMode mode)
                 ? mode
                 // A mode nobody can read is not a licence to guess upward. Observing is what a rule
@@ -503,6 +517,8 @@ internal static class RuleStore
         Severity = definition.Severity.ToString().ToLowerInvariant(),
         SettleSeconds = (int)definition.Settle.TotalSeconds,
         SuppressionMinutes = definition.Suppression is { } window ? (int)window.TotalMinutes : null,
+        ProposalLifetimeHours =
+            definition.ProposalLifetime is { } lifetime ? (int)lifetime.TotalHours : null,
         Mode = definition.Mode.ToString().ToLowerInvariant(),
         Retired = definition.Retired,
         CreatedBy = ToDocument(definition.CreatedBy),

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.Kgsm.Reactor.Status;
@@ -114,10 +115,16 @@ public class ReactorCatalogTests
     /// <summary>
     /// The authority ceiling comes from the leaf, so a panel does not have to know which phases exist.
     /// </summary>
+    /// <remarks>
+    /// Read from the engine rather than restated, and spelled the way every other enumerated value on
+    /// the wire is. A literal here would be a second declaration of the ceiling, free to disagree with
+    /// the one the daemon actually enforces — which is the exact failure the field exists to prevent.
+    /// </remarks>
     [Fact]
     public void It_says_how_much_authority_this_build_will_honour()
     {
-        Assert.Equal("observe", Catalog.Honours);
+        Assert.Equal(RuleEngine.Honours.ToString().ToLowerInvariant(), Catalog.Honours);
+        Assert.Contains(Catalog.Honours, new[] { "off", "observe", "propose", "act" });
     }
 
     /// <summary>
@@ -152,6 +159,8 @@ public class ReactorCatalogTests
         Assert.NotEmpty(parsed.RootElement.GetProperty("signals").EnumerateArray());
         Assert.NotEmpty(parsed.RootElement.GetProperty("actions").EnumerateArray());
         Assert.NotEmpty(parsed.RootElement.GetProperty("operators").EnumerateArray());
-        Assert.Equal("observe", parsed.RootElement.GetProperty("honours").GetString());
+        Assert.Equal(
+            RuleEngine.Honours.ToString().ToLowerInvariant(),
+            parsed.RootElement.GetProperty("honours").GetString());
     }
 }

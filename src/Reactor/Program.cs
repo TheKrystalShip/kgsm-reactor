@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
@@ -21,6 +22,77 @@ namespace TheKrystalShip.Kgsm.Reactor;
 
 internal sealed class Program
 {
+    /// <summary>
+    /// Redeems a handle, and maps what came of it onto a status code.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠ <b>Three different things are 200, and that is correct.</b> Performed, dismissed and no longer
+    /// applicable are all the offer reaching a proper end — the third most of all, because it is the
+    /// safety property working rather than anything going wrong. A caller reading only the status code
+    /// still has to read the body to know which, which is why every one of them carries the outcome and
+    /// the sentence.
+    /// </para>
+    /// <para>
+    /// A failed action is 200 as well: the request succeeded and the engine refused, which is a fact
+    /// about the server rather than about the call. <c>ok:false</c> and the detail say so.
+    /// </para>
+    /// </remarks>
+    private static async Task<IResult> RedeemAsync(
+        string handle, HttpRequest request, ProposalService proposals, bool confirm, CancellationToken ct)
+    {
+        RedemptionRequest? body;
+        try
+        {
+            body = await System.Text.Json.JsonSerializer
+                .DeserializeAsync(request.Body, ProposalJsonContext.Default.RedemptionRequest, ct)
+                .ConfigureAwait(false);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return Results.BadRequest("the request body could not be read");
+        }
+
+        Redemption redeemed = confirm
+            ? await proposals.ConfirmAsync(handle, body?.By ?? string.Empty, ct).ConfigureAwait(false)
+            : await proposals.DismissAsync(handle, body?.By ?? string.Empty, ct).ConfigureAwait(false);
+
+        var result = new RedemptionResult
+        {
+            Outcome = Spell(redeemed.Outcome),
+            Detail = redeemed.Detail,
+            Proposal = redeemed.Proposal is { } proposal ? ProposalView.Of(proposal) : null,
+        };
+
+        int status = redeemed.Outcome switch
+        {
+            RedemptionOutcome.Unknown => StatusCodes.Status404NotFound,
+            RedemptionOutcome.Unattributable => StatusCodes.Status400BadRequest,
+            RedemptionOutcome.Expired or RedemptionOutcome.AlreadyAnswered =>
+                StatusCodes.Status409Conflict,
+            // The offer is still open and still redeemable; what could not be reached is the world.
+            // 503 rather than 500 because trying again later is exactly the right thing to do.
+            RedemptionOutcome.Unreadable => StatusCodes.Status503ServiceUnavailable,
+            _ => StatusCodes.Status200OK,
+        };
+
+        return Results.Json(result, ProposalJsonContext.Default.RedemptionResult, statusCode: status);
+    }
+
+    /// <summary>
+    /// An outcome in the spelling every enumerated value on this host uses.
+    /// </summary>
+    /// <remarks>
+    /// Lower case with underscores, so <c>NoLongerApplicable</c> reaches a consumer as
+    /// <c>no_longer_applicable</c> — the same string the journal carries for the same fact.
+    /// </remarks>
+    private static string Spell(RedemptionOutcome outcome) => outcome switch
+    {
+        RedemptionOutcome.NoLongerApplicable => "no_longer_applicable",
+        RedemptionOutcome.AlreadyAnswered => "already_answered",
+        _ => outcome.ToString().ToLowerInvariant(),
+    };
+
     /// <summary>How many days the population report covers when nothing says otherwise.</summary>
     private const int DefaultReportDays = 30;
 
@@ -191,6 +263,20 @@ internal sealed class Program
             sp.GetRequiredService<ILogger<MonitorFootprintSource>>()));
         builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
 
+        // Read once, at startup, rather than per evaluation: a sweep that re-read the file every thirty
+        // seconds would let a rule change under a decision half-taken, and every other configuration
+        // change on this leaf applies on restart. Shared rather than loaded twice — the engine judges
+        // through these rules and a redemption re-derives its condition through the same ones, and two
+        // readings of one file is how those come to disagree.
+        builder.Services.AddSingleton(sp => RuleStore.Load(
+            options.RulesPath, sp.GetRequiredService<ILogger<RuleEngine>>()));
+
+        // What a confirmed proposal actually does. Behind kgsm-lib like every other engine access on
+        // this leaf, and attributed to the rule rather than to whoever the daemon runs as.
+        builder.Services.AddSingleton<IActionPerformer, KgsmActionPerformer>();
+        builder.Services.AddSingleton<ProposalStore>();
+        builder.Services.AddSingleton<ProposalService>();
+
         // Registered as singletons and then handed to the host, rather than AddHostedService<T>()
         // alone: that registers them only as IHostedService, and the status endpoint has to be able to
         // ask the actual instances what they are holding.
@@ -262,6 +348,75 @@ internal sealed class Program
             // restarts the unit through the grant it already holds.
             host.MapGet("/catalog", () =>
                 Results.Json(ReactorCatalog.Read(), ReactorCatalogJsonContext.Default.ReactorCatalog));
+
+            // What a rule may WAKE on — read off what this host has actually observed, with each
+            // type's producer and how often it fires.
+            //
+            // ⚠ Beside the ledger rather than on /catalog, because it is a query over this host's own
+            // history rather than a property of the build. A hand-written list would drift from the
+            // ledger the first time any producer emitted something new.
+            host.MapGet("/triggers", (
+                ObservationLedger ledger,
+                TimeProvider clock,
+                IOptions<ReactorOptions> reactorOptions,
+                int? days) =>
+            {
+                int window = Math.Clamp(
+                    days ?? DefaultReviewDays, 1, reactorOptions.Value.RetentionDays);
+
+                return Results.Json(
+                    TriggerCatalog.Read(ledger, window, clock.GetUtcNow()),
+                    TriggerCatalogJsonContext.Default.TriggerCatalog);
+            });
+
+            // What this host is offering, and what it recently offered. Both halves in one answer
+            // because a surface needs both, and asking twice would show them a moment apart — an offer
+            // that lapsed between the calls would appear in neither.
+            host.MapGet("/proposals", (
+                ProposalService proposalService,
+                TimeProvider clock,
+                IOptions<ReactorOptions> reactorOptions,
+                int? days,
+                int? limit) =>
+            {
+                int window = Math.Clamp(
+                    days ?? DefaultReviewDays, 1, reactorOptions.Value.RetentionDays);
+
+                return Results.Json(
+                    new ProposalBoard
+                    {
+                        Honours = RuleEngine.Honours.ToString().ToLowerInvariant(),
+                        Open = [.. proposalService.Open().Select(ProposalView.Of)],
+                        Recent =
+                        [
+                            .. proposalService
+                                .Recent(clock.GetUtcNow() - TimeSpan.FromDays(window),
+                                    Math.Clamp(limit ?? DefaultReviewLimit, 1, MaxReviewLimit))
+                                .Select(ProposalView.Of),
+                        ],
+                        Days = window,
+                    },
+                    ProposalJsonContext.Default.ProposalBoard);
+            });
+
+            // The two writes this socket takes, and the only ones. Everything else here answers a
+            // question; these redeem a capability the leaf itself minted, and they have to live here
+            // because confirming re-derives the condition — which means re-evaluating the rule, which
+            // only the reactor can do.
+            //
+            // ⚠ The leaf checks that the caller NAMED itself and never that it was ALLOWED to. It holds
+            // no identity system and no tiers; the surface that authenticated the person is what knows
+            // whether a restore is theirs to authorise, exactly as it is for every other write on this
+            // host. What guards the socket itself is its mode and the handle being unguessable.
+            host.MapPost("/proposals/{handle}/confirm", (
+                    string handle, HttpRequest request, ProposalService proposalService,
+                    CancellationToken ct) =>
+                RedeemAsync(handle, request, proposalService, confirm: true, ct));
+
+            host.MapPost("/proposals/{handle}/dismiss", (
+                    string handle, HttpRequest request, ProposalService proposalService,
+                    CancellationToken ct) =>
+                RedeemAsync(handle, request, proposalService, confirm: false, ct));
 
             // What a rule WOULD decide about this host right now, without becoming one of its rules.
             // The thing that makes composing one safe: a rule that reads plausibly can still fire on
@@ -345,6 +500,7 @@ internal sealed class Program
         // problem on the ledger fails the start, where a first decision hours later would fail
         // quietly and look like a host with nothing to decide about.
         host.Services.GetRequiredService<DecisionStore>().Initialize();
+        host.Services.GetRequiredService<ProposalStore>().Initialize();
 
         // The last thing this daemon says. A consumer reading it knows the reactor went away because
         // somebody stopped it, rather than because it died while watching.

@@ -211,6 +211,18 @@
       "risk": "safe"
     },
     {
+      "key": "proposalLifetimeHours",
+      "env": "Reactor__ProposalLifetimeHours",
+      "label": "Offers expire after",
+      "description": "How long an offer waits for an answer before it expires unanswered. A shift, because a proposal is addressed to whoever notices next rather than to whoever was watching.",
+      "group": "rules",
+      "type": "int",
+      "default": "8",
+      "min": 1,
+      "unit": "h",
+      "risk": "safe"
+    },
+    {
       "key": "rulesPath",
       "env": "Reactor__RulesPath",
       "label": "Rule thresholds",

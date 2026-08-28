@@ -199,6 +199,17 @@ internal sealed class ReactorSettings
     [LeafField("maxDecisionsPerHour", "Decisions per hour", Group = "rules", Min = 0)]
     public int? MaxActionsPerHour { get; set; }
 
+    /// <summary>How long an unanswered proposal stays redeemable, for rules that name no window.</summary>
+    /// <remarks>
+    /// ⚠ Not a safety control. The condition is re-derived when a handle is redeemed, so a stale offer
+    /// answers "no longer applicable" rather than executing — shortening this only loses the offers
+    /// nobody was awake to see.
+    /// </remarks>
+    /// <panel>How long an offer waits for an answer before it expires unanswered. A shift, because a
+    /// proposal is addressed to whoever notices next rather than to whoever was watching.</panel>
+    [LeafField("proposalLifetimeHours", "Offers expire after", Group = "rules", Min = 1, Unit = "h")]
+    public int? ProposalLifetimeHours { get; set; }
+
     /// <summary>
     /// The per-rule thresholds file. Blank resolves to <c>rules.json</c> in the systemd state
     /// directory.

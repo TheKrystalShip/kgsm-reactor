@@ -80,6 +80,15 @@
     // story a ceiling most needs to let through, not the one it should cut off.
     "MaxActionsPerHour": 12,
 
+    // How long an unanswered proposal stays redeemable, for rules that name no window of their own.
+    // A shift, because a proposal is addressed to whoever notices next rather than to whoever was
+    // watching when it was staged.
+    //
+    // NOT a safety control: the condition is re-derived when a handle is redeemed, so a stale offer
+    // answers "no longer applicable" instead of executing. Shortening this only loses the offers
+    // nobody was awake to see.
+    "ProposalLifetimeHours": 8,
+
     // Where the rules this host runs are read from. Blank resolves to rules.json inside the systemd
     // state directory ($STATE_DIRECTORY, /var/lib/kgsm-reactor). A MISSING FILE IS THE ORDINARY CASE:
     // the host then runs the rules this build seeds, every one of them observing, which is the state

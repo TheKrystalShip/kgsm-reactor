@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `kgsm-reactor` is the **event-triggered** leaf of the KGSM ecosystem — the sibling of
 `kgsm-scheduler`, which is the clock-triggered one. It reads every producer's event journal,
-evaluates rules against what it sees, and records every decision; a rule's default mode is
-`observe`, so nothing acts until somebody moves it. The workspace keystone is
+evaluates rules against what it sees, and records every decision. A rule's default mode is `observe`,
+so nothing is offered or performed until somebody moves a named rule. The workspace keystone is
 `../system-architecture.md`; **the authority for this project is `../kgsm-reactor-plan.md`**, which
 holds the design, the boundary contract and every decision still open.
 
@@ -32,6 +32,18 @@ curl -s -X POST --unix-socket /run/kgsm-reactor/status.sock http://localhost/pre
 # What it MADE of what it saw — the same review --decisions prints, as JSON.
 # ?days= defaults to 7 and is clamped to the ledger's retention; ?limit= caps the log, never the readings.
 curl --unix-socket /run/kgsm-reactor/status.sock 'http://localhost/decisions?days=7' | jq
+
+# What this host is offering, and what recently became of its offers.
+curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/proposals \
+  | jq '{honours, open: [.open[] | {handle, rule, subject, action, expiresAt}],
+         endings: (.recent | group_by(.state) | map({(.[0].state): length}) | add)}'
+
+# Redeem one. ⚠ `by` is required and must be provider:name — the leaf refuses a confirmation that
+# names nobody. Confirming re-derives the condition first, so a server that came back up on its own
+# answers no_longer_applicable and nothing runs.
+curl -s -X POST --unix-socket /run/kgsm-reactor/status.sock \
+  http://localhost/proposals/<handle>/confirm \
+  -H 'Content-Type: application/json' -d '{"by":"local:heisen"}' | jq
 
 dotnet build kgsm-reactor.slnx -c Release
 dotnet test  kgsm-reactor.slnx                          # hermetic; no host, no journals, no engine
@@ -74,7 +86,8 @@ where the journal line is written after the ledger is open and the rules are res
 3. **It never acts on what another supervisor owns.** The watchdog owns crash-restart, autostart and
    caps; the scheduler owns timed restarts, scheduled backups and update sweeps. The reactor acts on
    what the watchdog has **given up** on.
-4. **A rule's default mode is `observe`.** Nothing acts until somebody moves it.
+4. **A rule's default mode is `observe`.** Nothing is offered or performed until somebody moves a
+   named rule. `RuleEngine.Honours` is a ceiling over that, never a substitute for it.
 5. **It degrades to silence, never to a guess.** Cannot read the world ⇒ no decision.
 6. **Every evaluation is recorded with its reason**, including the ones that decided not to act.
 7. **It holds no delivery channel.** No Discord token, no VAPID key, no SMTP.
@@ -179,6 +192,35 @@ where the journal line is written after the ledger is open and the rules are res
   `RuleEngine.Effective` and reported beside what the rule asked for. ⚠ **Off and retired are
   different.** Off is live, listed and one field from running again; retired is gone from the live list
   and kept only so its decisions still resolve to a rule that can be named.
+- **A proposal is safe because the condition is re-derived at redemption, not because the window is
+  short.** `ProposalService.ConfirmAsync` re-evaluates the rule against the world as it is now before
+  it performs anything, so an offer answered in the morning about a server that came back up overnight
+  ends as `no_longer_applicable`. That is what lets the lifetime be a shift where the assistant's
+  confirmations are seconds. ⚠ **Do not tune the lifetime as a safety control** — shortening it buys
+  nothing and loses the offers nobody was awake to see.
+- **⚠ Unreadable at redemption is not a no.** A world that would not answer leaves the offer open and
+  tells the person why. Ending it would record a conclusion nobody reached; performing anyway would act
+  on a reading taken hours ago.
+- **Redemption re-derives the condition and deliberately does not re-run the gate.** Suppression and
+  the hourly ceiling govern how often the *reactor* speaks; at redemption the person is speaking.
+- **Dispatch happens once, judged on `decisions.action_state` and not on the transition.** A state rule
+  re-decides its episode every sweep and its reason ages with the condition — "open four minutes"
+  becomes "open forty" — so a decision that *changed* is not one that should act again. The row is also
+  the only answer that survives a restart.
+- **One open offer per episode, enforced by a partial unique index on `decision_id`.** A check-then-
+  insert has a window between the two; the index does not.
+- **Two people confirming at once perform the action once.** The row is claimed by an `UPDATE ... WHERE
+  state = 'open'` *before* the action runs, and only the call that changed a row goes on to do
+  anything. ⚠ Reading the state first and writing afterwards would let both through.
+- **⚠ The status socket takes exactly two writes: confirm and dismiss.** Everything else answers a
+  question. These have to live here because confirming re-evaluates a rule, which only this leaf can
+  do. **The leaf checks that a caller *named* itself as `provider:name`, never that it was *allowed*
+  to** — it holds no identity system and no tiers, so authority stays with the surface that
+  authenticated the person. What guards the socket is its mode and the handle being unguessable.
+- **A rule is narrowed to one server with an ordinary guard row over `subject.id`.** Scope previews,
+  reads in the editor and writes its own sentence when it declines. An "applies to" field beside the
+  rows would be a second place a rule can decline from, invisible to the preview that exists to explain
+  exactly that.
 - **What could not be honoured is reported, never swallowed.** A misspelled signal, a step with no
   sentence, an action outside the catalog, a duplicate id, a rule judged the instant its event lands
   or an unparseable file each leaves that rule out with the rest of the file running, and lands in
@@ -187,9 +229,10 @@ where the journal line is written after the ledger is open and the rules are res
 - **The leaf publishes, the panel writes.** `GET /catalog` serves what a rule may be made of, with
   types, units and prose, so a panel renders an editor without holding a copy. `POST /preview` says
   what a proposed rule would decide about this host right now — a read that carries a body, storing
-  nothing, dispatching nothing and writing no decision. The socket stays read-only: composing and
-  storing is the panel's half, which writes the file and restarts the unit through the grant it
-  already holds. Validation happens twice — the panel against the catalog it was served, the leaf at
+  nothing, dispatching nothing and writing no decision. Composing and storing a rule is the panel's
+  half, which writes the file and restarts the unit through the grant it already holds — the socket
+  never edits a rule, and the only instructions it takes are the two redemptions. Validation happens
+  twice — the panel against the catalog it was served, the leaf at
   load, which is the authority. ⚠ **An outcome is spelled the way `/catalog` spells it**
   (`doesNotHold`, not an enum name lowercased), or a panel classifies against ids that match nothing.
 - **The rules file stays the leaf's even when the panel writes it.** The default path is inside this

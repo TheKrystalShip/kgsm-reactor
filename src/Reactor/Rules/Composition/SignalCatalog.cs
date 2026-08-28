@@ -163,6 +163,17 @@ internal static class SignalCatalog
 
     public static IReadOnlyList<Signal> All { get; } =
     [
+        // ---- what is being judged ----
+
+        // The subject itself, so a rule can be written about one named server and decline everywhere
+        // else. Scoping a rule is then an ordinary guard row that previews, reads in the editor and
+        // states its own reason — where a separate "applies to" field beside the rows would be a second
+        // place a rule can decline from, invisible to the preview that is supposed to explain it.
+        new("subject.id", "Subject", SignalKind.Text,
+            (r, _) => ValueTask.FromResult(SignalReading.Of(SignalValue.OfText(r.Subject))),
+            Description: "What this evaluation is about — an instance name, a sensor reference, a "
+                + "component. Comparing against it is how a rule is narrowed to one server."),
+
         // ---- what the supervisor says ----
 
         new("world.phase", "Supervisor phase", SignalKind.Text,

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Engine;
 using TheKrystalShip.Kgsm.Reactor.Events;
@@ -149,21 +150,90 @@ public class RuleEngineTests : IDisposable
 
     private static RuleEngine Build(
         FakeEvents events, ObservationLedger ledger, IWorldView world, ReactorOptions options,
-        FakeTimeProvider clock, IDecisionEmitter? emitter = null) =>
-        new(events, ledger, new DecisionStore(ledger), emitter ?? new RecordingEmitter(), world,
-            new LedgerRuleHistory(ledger), new EmptyFootprints(),
-            Microsoft.Extensions.Options.Options.Create(options), clock,
+        FakeTimeProvider clock, IDecisionEmitter? emitter = null,
+        IActionPerformer? performer = null)
+    {
+        IDecisionEmitter announcer = emitter ?? new RecordingEmitter();
+        var history = new LedgerRuleHistory(ledger);
+        var footprint = new EmptyFootprints();
+        RuleSet rules = RuleStore.Load(options.RulesPath);
+
+        var store = new ProposalStore(ledger);
+        store.Initialize();
+
+        var proposals = new ProposalService(
+            store, performer ?? new RefusingPerformer(), announcer, rules,
+            world, history, footprint, Microsoft.Extensions.Options.Options.Create(options), clock,
+            NullLogger<ProposalService>.Instance);
+
+        return new(events, ledger, new DecisionStore(ledger), announcer, world, history, footprint,
+            rules, proposals, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<RuleEngine>.Instance);
+    }
+
+    /// <summary>
+    /// A performer that refuses everything.
+    /// </summary>
+    /// <remarks>
+    /// The default for a test that is about deciding rather than doing: every rule here observes, so
+    /// nothing should reach a performer at all — and one that refused silently would let a test pass
+    /// while the engine dispatched behind it.
+    /// </remarks>
+    private sealed class RefusingPerformer : IActionPerformer
+    {
+        public Task<ActionResult> PerformAsync(
+            ReactorAction action, string actor, CancellationToken token) =>
+            throw new InvalidOperationException(
+                $"nothing in this test should have performed {action.Name}");
+    }
 
     /// <summary>An emitter that keeps what it was handed, so a test can ask what was announced.</summary>
     private sealed class RecordingEmitter : IDecisionEmitter
     {
         public List<Decision> Emitted { get; } = [];
 
+        public List<Proposal> Proposed { get; } = [];
+
+        public List<Proposal> Resolved { get; } = [];
+
+        public List<(Decision Decision, ActionResult Result)> Acted { get; } = [];
+
         public ValueTask<bool> EmitAsync(Decision decision, CancellationToken token = default)
         {
             Emitted.Add(decision);
             return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> EmitProposedAsync(Proposal proposal, CancellationToken token = default)
+        {
+            Proposed.Add(proposal);
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> EmitResolvedAsync(Proposal proposal, CancellationToken token = default)
+        {
+            Resolved.Add(proposal);
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> EmitActedAsync(
+            Decision decision, ActionResult result, CancellationToken token = default)
+        {
+            Acted.Add((decision, result));
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    /// <summary>A performer that records what it was asked to do and reports success.</summary>
+    private sealed class SpyPerformer : IActionPerformer
+    {
+        public List<(string Action, string Actor)> Performed { get; } = [];
+
+        public Task<ActionResult> PerformAsync(
+            ReactorAction action, string actor, CancellationToken token)
+        {
+            Performed.Add((action.Name, actor));
+            return Task.FromResult(ActionResult.Succeeded("backup-1", "done"));
         }
     }
 
@@ -287,28 +357,59 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule this build cannot honour the mode of runs at the mode it can, and says so.
+    /// ⚠ A decision records the authority that was actually in force, never the one asked for.
     /// </summary>
     /// <remarks>
     /// Being silently observed after asking to act is the failure the whole mode ladder exists to make
-    /// impossible to miss — the decision records what was actually in force, never what was asked for.
+    /// impossible to miss. The ladder clamps downwards only, so a rule inside the ceiling records
+    /// exactly what it asked for — and one above it records the ceiling, which is what
+    /// <see cref="RuleEngine.Effective"/> is asserted on directly.
     /// </remarks>
     [Fact]
-    public async Task A_rule_asking_to_act_is_recorded_as_having_observed()
+    public async Task A_decision_records_the_authority_that_was_in_force()
     {
         var events = new FakeEvents();
         var clock = new FakeTimeProvider(Now);
         using ObservationLedger ledger = OpenLedger();
+        var performer = new SpyPerformer();
 
         var engine = Build(
-            events, ledger, new FakeWorld(), Written(r => r with { Mode = RuleMode.Act }), clock);
+            events, ledger, new FakeWorld(), Written(r => r with { Mode = RuleMode.Act }), clock,
+            performer: performer);
 
         await WakeAndSweepAsync(
             engine, events, clock, Failed("Ketchup"),
             new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
         await engine.StopAsync(CancellationToken.None);
 
-        Assert.Equal(RuleMode.Observe, Assert.Single(Decisions(ledger)).Mode);
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal(RuleEngine.Effective(RuleMode.Act), decision.Mode);
+    }
+
+    /// <summary>
+    /// ⚠ An observing rule hands nothing to a performer, however loudly it fires.
+    /// </summary>
+    /// <remarks>
+    /// The default every rule starts at, and the one this whole leaf's caution rests on. Asserted with
+    /// a performer that throws rather than one that counts, so a dispatch nobody expected fails the
+    /// test where a silent counter would have to be remembered and checked.
+    /// </remarks>
+    [Fact]
+    public async Task An_observing_rule_dispatches_nothing()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+        var engine = Build(events, ledger, new FakeWorld(), Options(), clock);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision decision = Assert.Single(Decisions(ledger));
+        Assert.Equal(DecisionOutcome.Fired, decision.Outcome);
+        Assert.Equal(ActionState.None, decision.ActionState);
     }
 
     /// <summary>

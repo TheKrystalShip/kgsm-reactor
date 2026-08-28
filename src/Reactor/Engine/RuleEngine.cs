@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
@@ -43,6 +44,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
     private readonly RuleSet _rules;
+    private readonly ProposalService _proposals;
     private readonly TimeProvider _clock;
     private readonly ILogger<RuleEngine> _logger;
 
@@ -80,6 +82,8 @@ internal sealed class RuleEngine : BackgroundService
         IWorldView world,
         IRuleHistory history,
         IFootprintSource footprint,
+        RuleSet rules,
+        ProposalService proposals,
         IOptions<ReactorOptions> options,
         TimeProvider clock,
         ILogger<RuleEngine> logger)
@@ -94,11 +98,8 @@ internal sealed class RuleEngine : BackgroundService
         _options = options.Value;
         _clock = clock;
         _logger = logger;
-
-        // Read once, here, rather than per evaluation: a sweep that re-read the file every thirty
-        // seconds would let a rule change under a decision half-taken, and every other configuration
-        // change on this leaf applies on restart.
-        _rules = RuleStore.Load(_options.RulesPath, logger);
+        _rules = rules;
+        _proposals = proposals;
     }
 
     /// <summary>An evaluation that has been woken and is waiting out its settle window.</summary>
@@ -134,11 +135,18 @@ internal sealed class RuleEngine : BackgroundService
     /// The most authority this build can honour.
     /// </summary>
     /// <remarks>
-    /// Propose and act are later phases. Until they exist, a rule configured to one of them observes —
-    /// and this is the single place that fact is expressed, so the phase that builds them moves one
-    /// constant rather than hunting for every surface that assumed it.
+    /// <para>
+    /// The single place that fact is expressed, so every surface reads it from here rather than
+    /// assuming — <c>/status</c> and <c>/catalog</c> both report it, and the panel's editor offers a
+    /// mode against it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>This is a ceiling, not a setting.</b> Every rule still starts at
+    /// <see cref="RuleMode.Observe"/> and a host acts only where somebody has said so on a named rule.
+    /// Raising this authorises nothing on its own.
+    /// </para>
     /// </remarks>
-    internal static RuleMode Honours => RuleMode.Observe;
+    internal static RuleMode Honours => RuleMode.Act;
 
     /// <summary>
     /// What a rule may actually do, as opposed to what it was configured to do.
@@ -329,6 +337,11 @@ internal sealed class RuleEngine : BackgroundService
             }
         }
 
+        // An offer nobody answered has to end, and the sweep is the only clock this leaf has. It runs
+        // after the evaluations rather than before: a rule that has just re-offered something should
+        // not have that offer expired in the same pass by a window computed a moment earlier.
+        await _proposals.LapseExpiredAsync(token).ConfigureAwait(false);
+
         // Stamped at the end rather than the start, so it answers "when did a sweep last complete"
         // rather than "when was one last attempted" — a sweep that hung partway through would
         // otherwise keep reporting itself as recent.
@@ -415,8 +428,16 @@ internal sealed class RuleEngine : BackgroundService
             _ => Gate(rule, pending, action, now, verdict.Reason),
         };
 
+        string decisionId = Decision.IdFor(rule.Id, pending.Subject, pending.EpisodeKey);
+
+        // Read before the upsert overwrites it. A state rule re-decides its episode every sweep and its
+        // reason ages with the condition, so "the decision changed" is not "act again" — what makes
+        // dispatch happen once is this row already saying something was handed somewhere, which is also
+        // the only answer that survives a restart.
+        ActionState dispatched = _decisions.ActionStateOf(decisionId) ?? ActionState.None;
+
         var decision = new Decision(
-            Id: Decision.IdFor(rule.Id, pending.Subject, pending.EpisodeKey),
+            Id: decisionId,
             RuleId: rule.Id,
             Subject: pending.Subject,
             SubjectKind: pending.SubjectKind,
@@ -433,9 +454,9 @@ internal sealed class RuleEngine : BackgroundService
             Action: action.Describe(),
             ActionName: action.Name,
             ActionInstance: action.TargetInstance,
-            // Nothing is dispatched in this build, and the record says so rather than leaving a
-            // reader to infer it from the mode.
-            ActionState: ActionState.None,
+            // Carried forward rather than reset, so re-deciding an open episode does not erase the
+            // fact that its action was already offered or already performed.
+            ActionState: dispatched,
             OpenedAt: pending.OpenedAt,
             DecidedAt: now,
             Source: pending.Source);
@@ -471,11 +492,70 @@ internal sealed class RuleEngine : BackgroundService
         // Only a transition. The ledger folds a re-evaluated episode into one row that gets better
         // informed; the journal appends, and a condition that has held all afternoon is one judgment,
         // not one every thirty seconds.
-        if (change == DecisionChange.Unchanged)
+        if (change != DecisionChange.Unchanged
+            && await _emitter.EmitAsync(decision, token).ConfigureAwait(false))
+        {
+            Emitted++;
+        }
+
+        // Dispatch is judged on the row and not on the transition, deliberately: the announcement is
+        // about what changed, and this is about what has already been done. A decision whose reason
+        // aged from "open four minutes" to "open forty" is one judgment being refined, and acting on
+        // it twice would be the reactor doing the same thing to a server every time it looked.
+        if (outcome == DecisionOutcome.Fired && dispatched == ActionState.None)
+            await DispatchAsync(pending, decision, action, token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Hands a fired decision's action to whatever its mode permits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The mode is read from what was resolved, never from what the rule asked for.</b> A rule
+    /// configured to act on a build that honours less observes, and observing means this does nothing
+    /// at all — which is what makes the review before anything acts a review of real gate outcomes.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>An action of <c>none</c> is not a mode failure and is not reported as one.</b> Most rules
+    /// report and propose nothing; the decision record is their whole output, and staging an offer to
+    /// do nothing would fill somebody's inbox with questions that have no answer.
+    /// </para>
+    /// </remarks>
+    private async Task DispatchAsync(
+        Pending pending, Decision decision, ReactorAction action, CancellationToken token)
+    {
+        if (action is ReactorAction.Nothing)
             return;
 
-        if (await _emitter.EmitAsync(decision, token).ConfigureAwait(false))
-            Emitted++;
+        switch (pending.Rule.Mode)
+        {
+            case RuleMode.Propose:
+                Proposal? staged = await _proposals
+                    .StageAsync(decision, pending.Rule.Definition, token)
+                    .ConfigureAwait(false);
+
+                if (staged is not null)
+                    _decisions.SetActionState(decision.Id, ActionState.Proposed);
+
+                break;
+
+            case RuleMode.Act:
+                // Stamped before the attempt, so a daemon that dies mid-backup leaves a row saying
+                // something was handed to the engine rather than a row saying nothing was — and the
+                // next sweep does not hand it over again.
+                _decisions.SetActionState(decision.Id, ActionState.Dispatched);
+
+                ActionResult result = await _proposals
+                    .ActAsync(decision, action, token)
+                    .ConfigureAwait(false);
+
+                _decisions.SetActionState(
+                    decision.Id, result.Ok ? ActionState.Succeeded : ActionState.Failed);
+                break;
+
+            default:
+                break;
+        }
     }
 
     /// <summary>How long <paramref name="rule"/> stays quiet about one subject after firing.</summary>

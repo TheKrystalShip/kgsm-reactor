@@ -60,7 +60,14 @@ internal enum DecisionChange
 /// <summary>How far the action got.</summary>
 internal enum ActionState
 {
-    /// <summary>Nothing was dispatched, because the mode does not permit it.</summary>
+    /// <summary>
+    /// Nothing was dispatched.
+    /// </summary>
+    /// <remarks>
+    /// The decision did not fire, or its mode observes, or the rule's action is to report and nothing
+    /// else. All three are the same fact from the row's point of view — nothing was handed anywhere —
+    /// and the mode and the outcome beside it are what separate them.
+    /// </remarks>
     None,
 
     /// <summary>Staged for a human to confirm.</summary>

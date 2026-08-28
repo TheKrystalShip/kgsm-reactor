@@ -63,6 +63,24 @@ internal sealed record ReactorOptions
     /// </remarks>
     public const int DefaultMaxActionsPerHour = 12;
 
+    /// <summary>
+    /// The host-wide fallback for how long an unanswered proposal stays redeemable.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A shift. A proposal is addressed to whoever notices next, which is not necessarily anybody who
+    /// was awake when it was staged — so the seconds an assistant confirmation gets, held in front of
+    /// somebody who just asked, would expire every offer this leaf ever made.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>This is not what makes a proposal safe, and it must not be tuned as though it were.</b>
+    /// The condition is re-derived when the handle is redeemed: a server that came back up on its own
+    /// resolves the offer instead of having a restore run over it, however long ago it was made.
+    /// Shortening this buys nothing and loses the offers nobody saw overnight.
+    /// </para>
+    /// </remarks>
+    public const int DefaultProposalLifetimeHours = 8;
+
     /// <summary>The environment variable systemd exports from <c>StateDirectory=</c>.</summary>
     private const string StateDirectoryVariable = "STATE_DIRECTORY";
 
@@ -98,6 +116,9 @@ internal sealed record ReactorOptions
     public required int SweepIntervalSeconds { get; init; }
     public required int SuppressionWindowMinutes { get; init; }
     public required int MaxActionsPerHour { get; init; }
+
+    /// <summary>How long an unanswered proposal stays redeemable, for rules that name no window.</summary>
+    public required int ProposalLifetimeHours { get; init; }
 
     /// <summary>
     /// Where the rules this host runs are read from.
@@ -173,6 +194,8 @@ internal sealed record ReactorOptions
             SuppressionWindowMinutes =
                 AtLeast(settings.SuppressionWindowMinutes ?? DefaultSuppressionWindowMinutes, 0),
             MaxActionsPerHour = AtLeast(settings.MaxActionsPerHour ?? DefaultMaxActionsPerHour, 0),
+            ProposalLifetimeHours =
+                AtLeast(settings.ProposalLifetimeHours ?? DefaultProposalLifetimeHours, 1),
             RulesPath = ResolveStatePath(settings.RulesPath, RulesFileName),
         };
     }

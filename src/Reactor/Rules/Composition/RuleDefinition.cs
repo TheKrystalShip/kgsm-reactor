@@ -102,6 +102,12 @@ internal sealed record Clause(string Alias, ClauseOperator Operator, Comparand? 
     public static Clause Present(string alias) => new(alias, ClauseOperator.Present);
 
     public static Clause Absent(string alias) => new(alias, ClauseOperator.Absent);
+
+    public static Clause Is(string alias, string value) =>
+        new(alias, ClauseOperator.EqualTo, Comparand.Literal.Text(value));
+
+    public static Clause IsNot(string alias, string value) =>
+        new(alias, ClauseOperator.NotEqualTo, Comparand.Literal.Text(value));
 }
 
 /// <summary>
@@ -188,6 +194,16 @@ internal sealed record RuleAuthorship(string Actor, DateTimeOffset At);
 /// <param name="Severity">How loudly it speaks, for composition.</param>
 /// <param name="Settle">How long after a wake before it is evaluated.</param>
 /// <param name="Suppression">Its own quiet window, or null to follow the host-wide one.</param>
+/// <param name="ProposalLifetime">
+/// How long an unanswered offer from this rule stays redeemable, or null to follow the host-wide one.
+/// <para>
+/// ⚠ <b>Not what makes a proposal safe.</b> The condition is re-derived at redemption, so a stale
+/// offer answers <em>no longer applicable</em> rather than executing — which is why this can be
+/// measured in hours at all. What it is for is the difference between offers: capturing a broken
+/// state is worth answering all day, where rolling a server back stops being the right move once
+/// somebody has started working on it by hand.
+/// </para>
+/// </param>
 /// <param name="Mode">The authority it asks for. Clamped by what the build honours.</param>
 /// <param name="Retired">
 /// Stopped evaluating and out of the live list, definition kept. ⚠ Never erased: <c>rule:{Id}</c> is
@@ -214,6 +230,7 @@ internal sealed record RuleDefinition(
     EventSeverity Severity,
     TimeSpan Settle,
     TimeSpan? Suppression = null,
+    TimeSpan? ProposalLifetime = null,
     RuleMode Mode = RuleMode.Observe,
     bool Retired = false,
     bool Shipped = false,

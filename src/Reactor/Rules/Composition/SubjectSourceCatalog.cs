@@ -138,4 +138,16 @@ internal static class ActionCatalog
 
     public static ActionEntry? ById(string id) =>
         All.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The action <paramref name="id"/> names, for <paramref name="instance"/>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A name this build does not hold builds <see cref="ReactorAction.Nothing"/>.</b> An offer
+    /// staged months ago names its action as a string, and the catalog is what this build can actually
+    /// perform — reconstructing a missing one by hand would let a redemption carry out something the
+    /// never-list has since been narrowed to exclude.
+    /// </remarks>
+    public static ReactorAction Build(string id, string instance) =>
+        ById(id)?.Create(instance) ?? new ReactorAction.Nothing();
 }

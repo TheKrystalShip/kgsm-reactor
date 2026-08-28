@@ -172,6 +172,39 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     }
 
     /// <summary>
+    /// How far this decision's action already got, or null when the decision is new.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Read before the upsert, and what makes dispatch happen once.</b> A state rule re-decides
+    /// its episode every sweep and the reason changes as the condition ages — "open for four minutes"
+    /// becomes "open for forty" — so a decision that changed is not a decision that should act again.
+    /// The row is the record of whether anything was dispatched for it, which is also what survives a
+    /// restart: nothing in memory could answer this after the daemon came back.
+    /// </remarks>
+    public ActionState? ActionStateOf(string id) =>
+        ledger.Query(
+            "SELECT action_state FROM decisions WHERE id = $id;",
+            command => command.Parameters.AddWithValue("$id", id),
+            reader => Enum.TryParse(reader.GetString(0), out ActionState state) ? state : ActionState.None)
+            .Cast<ActionState?>()
+            .FirstOrDefault();
+
+    /// <summary>Records how far a decision's action got, without touching anything else on the row.</summary>
+    /// <remarks>
+    /// A column write rather than another <see cref="Record"/>: re-recording would re-stamp
+    /// <c>decided_at</c> and could report the decision as changed, which would put a second
+    /// <c>reactor.decided</c> line on the journal for one judgment.
+    /// </remarks>
+    public void SetActionState(string id, ActionState state) =>
+        ledger.Execute(
+            "UPDATE decisions SET action_state = $state WHERE id = $id;",
+            command =>
+            {
+                command.Parameters.AddWithValue("$id", id);
+                command.Parameters.AddWithValue("$state", state.ToString());
+            });
+
+    /// <summary>
     /// When this rule last fired for this subject, ignoring the episode currently being decided.
     /// </summary>
     /// <remarks>

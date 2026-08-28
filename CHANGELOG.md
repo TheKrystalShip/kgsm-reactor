@@ -7,6 +7,54 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — an offer a person answers (0.21.0)
+
+`RuleEngine.Honours` is `act`. A rule still starts at `observe` and still has to be moved by hand on a
+named rule; what changes is that the ceiling no longer clamps one that has been.
+
+**Propose stages an action under a handle and performs nothing.** The offer lives in the reactor's own
+database beside the decisions, is redeemed through `POST /proposals/{handle}/confirm`, and its lifetime
+is a shift rather than the seconds an assistant confirmation gets — a proposal is addressed to whoever
+notices next, not to whoever was watching. `Reactor__ProposalLifetimeHours` sets the host-wide default;
+a rule may carry its own `proposalLifetimeHours`.
+
+⚠ **The lifetime is not what makes it safe, and must not be tuned as though it were.** Confirming
+re-evaluates the rule against the world as it is *now*: a server that came back up on its own answers
+`no_longer_applicable` and nothing runs. Shortening the window buys nothing and loses the offers nobody
+was awake to see.
+
+The four ways an offer ends are kept apart — `confirmed`, `dismissed`, `lapsed`,
+`no_longer_applicable` — because each says something different about the rule that staged it. Lapsing
+is a sweep and writes its own journal line: an offer nobody answered is the most useful thing a week's
+review can count, and it exists nowhere unless it is said.
+
+**Act carries the action out with nobody behind it**, writing `reactor.acted` — kept separate from a
+resolution so a surface can answer "what did this host do on its own" without subtracting one set from
+another. A confirmed offer names the person who authorised it, with the rule as provenance beside them;
+that is the opposite way round.
+
+Dispatch is judged on the decision row rather than on the announcement: a state rule whose reason ages
+from "open four minutes" to "open forty" is one judgment being refined, and acting on it twice would be
+the reactor doing the same thing to a server every time it looked. Two people confirming at once
+perform it once — the row is claimed before the action runs.
+
+### Added — a rule can be narrowed to one server
+
+`subject.id` is a text signal, so scope is an ordinary guard row that previews, reads in the editor and
+writes its own sentence when it declines. An "applies to" field beside the rows would have been a
+second place a rule can decline from, invisible to the preview that exists to explain exactly that.
+
+### Added — the surfaces a panel needs
+
+`GET /proposals` answers what this host is offering and what it recently offered, in one call so the
+two cannot be read a moment apart. `GET /catalog` gains `resolutions` and `proposalLifetimeHours`.
+
+⚠ **The status socket takes two writes now, and only these two.** Confirming has to live in the leaf
+because it re-derives the condition, which means re-evaluating the rule. The leaf checks that a caller
+*named* itself as `provider:name` and never that it was *allowed* to — it holds no identity system and
+no tiers, so authority stays with the surface that authenticated the person, exactly as for every other
+write on this host.
+
 ### Added — what a rule would decide, before it becomes one (`0.20.0`)
 
 `POST /preview` takes a rule in the rules file's own shape and returns what it would conclude about
