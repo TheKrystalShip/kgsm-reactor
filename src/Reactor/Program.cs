@@ -50,7 +50,7 @@ internal sealed class Program
         }
         catch (System.Text.Json.JsonException)
         {
-            return Results.BadRequest("the request body could not be read");
+            return Refused("the request body could not be read");
         }
 
         Redemption redeemed = confirm
@@ -92,6 +92,23 @@ internal sealed class Program
         RedemptionOutcome.AlreadyAnswered => "already_answered",
         _ => outcome.ToString().ToLowerInvariant(),
     };
+
+    /// <summary>
+    /// A refusal carrying its reason, as text.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Text, not <c>Results.BadRequest(string)</c>.</b> This binary is Native AOT with no
+    /// reflection fallback, and that helper serialises its argument as JSON — for a bare string there
+    /// is no registered <c>JsonTypeInfo</c>, so it throws inside the response pipeline and the caller
+    /// gets an empty 500 instead of the sentence explaining what was wrong with their request. Every
+    /// refusal on this socket that carries prose goes through here.
+    /// </remarks>
+    private static IResult Refused(string why) =>
+        Results.Text(why, "text/plain; charset=utf-8", statusCode: StatusCodes.Status400BadRequest);
+
+    /// <summary>Nothing here by that name, with the same AOT-safe treatment as <see cref="Refused"/>.</summary>
+    private static IResult Missing(string what) =>
+        Results.Text(what, "text/plain; charset=utf-8", statusCode: StatusCodes.Status404NotFound);
 
     /// <summary>How many days the population report covers when nothing says otherwise.</summary>
     private const int DefaultReportDays = 30;
@@ -417,6 +434,96 @@ internal sealed class Program
                     CancellationToken ct) =>
                 RedeemAsync(handle, request, proposalService, confirm: false, ct));
 
+            // Storing a rule, and removing one.
+            //
+            // ⚠ <b>The leaf writes its own files; nothing else may.</b> A panel that wrote into the
+            // state directory would be validating with a copy of the catalog against a build it cannot
+            // see, and would need write access to a directory that is not its own. Here the only thing
+            // that knows what this build can honour is the thing that decides whether to store it — and
+            // it refuses in the response, while the person is still looking at what they wrote.
+            //
+            // Same attribution rule as a redemption: the caller must NAME itself. Whether it was
+            // allowed to is the authenticating surface's question, exactly as it is for every other
+            // write on this host.
+            host.MapPut("/rules/{id}", async (
+                string id, HttpRequest request, RuleRegistry registry, TimeProvider clock,
+                CancellationToken ct) =>
+            {
+                RuleWriteRequest? body;
+                try
+                {
+                    body = await System.Text.Json.JsonSerializer.DeserializeAsync(
+                        request.Body, RuleWriteJsonContext.Default.RuleWriteRequest, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    return Refused(
+                        $"the rule could not be read at line {ex.LineNumber}, "
+                        + $"position {ex.BytePositionInLine}: {ex.Message}");
+                }
+
+                if (body?.Rule is null)
+                    return Refused("no rule to store");
+
+                if (string.IsNullOrWhiteSpace(body.By) || !body.By.Contains(':', StringComparison.Ordinal))
+                    return Refused("'by' is required and must be provider:name");
+
+                // The route names the rule; a body disagreeing is a copied file about to be saved under
+                // the wrong identity, which is the one mistake that folds two rules' decisions together.
+                if (!string.Equals(body.Rule.Id, id, StringComparison.Ordinal))
+                {
+                    return Refused(
+                        $"this is /rules/{id} and the rule inside it is called '{body.Rule.Id}' — an id "
+                        + "is the actor on every decision a rule makes and cannot be changed by saving");
+                }
+
+                List<string> parseProblems = [];
+                RuleDefinition definition = RuleStore.FromDocument(body.Rule, parseProblems);
+
+                // Stamped here rather than taken from the body: authorship is a fact about who called,
+                // and a caller that could write its own would be able to sign a rule as somebody else.
+                var hand = new RuleAuthorship(body.By, clock.GetUtcNow());
+                definition = definition with
+                {
+                    Shipped = false,
+                    CreatedBy = registry.Current.Rules.Concat(registry.Current.Retired)
+                        .FirstOrDefault(r => r.Id == id)?.CreatedBy ?? hand,
+                    UpdatedBy = hand,
+                };
+
+                IReadOnlyList<string> problems =
+                    parseProblems.Count > 0 ? parseProblems : registry.Replace(definition);
+
+                var result = new RuleWriteResult
+                {
+                    Ok = problems.Count == 0,
+                    Problems = problems,
+                    Live = [.. registry.Current.Rules.Select(r => r.Id)],
+                };
+
+                return Results.Json(
+                    result, RuleWriteJsonContext.Default.RuleWriteResult,
+                    statusCode: problems.Count == 0
+                        ? StatusCodes.Status200OK
+                        : StatusCodes.Status422UnprocessableEntity);
+            });
+
+            // ⚠ Deleting is not retiring. A retired rule keeps its file so the decisions it already made
+            // still resolve to something nameable; deleting one leaves those naming an id nothing can
+            // describe. The panel retires — this is for a rule that was never meant to exist.
+            host.MapDelete("/rules/{id}", (string id, RuleRegistry registry) =>
+                registry.Remove(id)
+                    ? Results.Json(
+                        new RuleWriteResult
+                        {
+                            Ok = true,
+                            Problems = [],
+                            Live = [.. registry.Current.Rules.Select(r => r.Id)],
+                        },
+                        RuleWriteJsonContext.Default.RuleWriteResult)
+                    : Missing($"no rule called '{id}' is stored on this host"));
+
             // What a rule WOULD decide about this host right now, without becoming one of its rules.
             // The thing that makes composing one safe: a rule that reads plausibly can still fire on
             // nothing, and none of that is visible in an editor.
@@ -442,13 +549,13 @@ internal sealed class Program
                 catch (System.Text.Json.JsonException ex)
                 {
                     // The position is the whole value of this message to whoever is composing.
-                    return Results.BadRequest(
+                    return Refused(
                         $"the rule could not be read at line {ex.LineNumber}, "
                         + $"position {ex.BytePositionInLine}: {ex.Message}");
                 }
 
                 if (body?.Rule is null)
-                    return Results.BadRequest("no rule to preview");
+                    return Refused("no rule to preview");
 
                 List<string> problems = [];
                 RuleDefinition definition = RuleStore.FromDocument(body.Rule, problems);

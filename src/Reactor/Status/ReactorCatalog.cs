@@ -155,6 +155,8 @@ public sealed record ReactorCatalog
             new("{subject}", "What is being decided about."),
             new("{settleSeconds}", "How long the rule waited before judging."),
             new("{reason}", "The reader's own words. Only in the sentence for an unreadable signal."),
+            new("{openedAt}", "When the condition started, for a rule woken by an event."),
+            new("{openFor}", "How long it has been going on, for a rule woken by an event."),
             new("{alias}", "A signal's value, written for a person to read."),
             new("{alias:F1}", "The same, with a .NET numeric format."),
             new("{alias#}", "What this step compares that signal against."),

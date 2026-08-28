@@ -7,6 +7,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — the leaf writes its own rules (0.25.0)
+
+`PUT /rules/{id}` and `DELETE /rules/{id}` on the status socket. A panel that wrote into the state
+directory would be validating with a copy of the catalog against a build it cannot see, and would need
+write access to a directory that is not its own. The leaf is the only thing that knows what this build
+can honour, so it is the only thing that decides whether a rule is stored — and it refuses in the
+response, while the person is still looking at what they wrote.
+
+The route names the rule and a body disagreeing is refused: an id is the actor on every decision a
+rule makes, and saving is not how one changes. Authorship is stamped from the caller rather than read
+from the body, so a caller cannot sign a rule as somebody else; `by` is required in the same
+provider:name shape a redemption takes, and checked for having been named rather than for being
+allowed.
+
+`{openedAt}` and `{openFor}` join the catalog's placeholder list. They have been live intrinsics that
+`/catalog` never advertised while validation refused to bind either name, so a person could be refused
+for colliding with a token nothing had told them existed.
+
+### Fixed — a refusal on the status socket says why instead of 500ing
+
+`Results.BadRequest(string)` serialises its argument as JSON, and this binary is Native AOT with no
+reflection fallback, so a bare string had no registered `JsonTypeInfo` and threw inside the response
+pipeline. Every prose refusal on the socket — a malformed preview body, an unreadable redemption body
+— reached the caller as an empty 500 rather than as the sentence explaining what was wrong. They go
+through `Refused`/`Missing` now, which answer as text.
+
 ### Changed — a rule is a file, and no rule exists in code (0.24.0)
 
 **Rules are read from `rules.d/`, one JSON file each.** There is no rules document and no compiled
