@@ -54,9 +54,13 @@ internal sealed class StatusReporter(
             Problems = engine.Rules.Problems,
             Observations = new IngestStatus(ingest.Recorded, ingest.Dropped),
             Decisions = new DecisionStatus(engine.Recorded, engine.Emitted),
+            // Every rule this host holds, not only the ones being evaluated. A rule somebody switched
+            // off is still theirs to look at and switch back on, and reporting only what runs would
+            // take it off the page with the control that would have restored it.
             Rules =
             [
-                .. engine.Active.Select(active => Describe(active.Definition, active.Mode)),
+                .. engine.Rules.Rules.Select(
+                    definition => Describe(definition, RuleEngine.Effective(definition))),
             ],
             // Reported from the store rather than from what is running, because nothing runs them.
             Retired =
@@ -81,8 +85,10 @@ internal sealed class StatusReporter(
     /// not show it could not explain a decision either.
     /// <list type="bullet">
     /// <item><description>The <b>mode</b> is what the engine will honour, not what the rule asked for.
-    /// One asking for an authority this build has not built observes, so the asked-for value travels
-    /// beside it rather than in place of it.</description></item>
+    /// One asking for an authority this build has not built observes, and one switched off does
+    /// nothing, so the asked-for value travels beside it rather than in place of it — a surface that
+    /// wrote a rule back from the honoured value alone would file the clamp, or the switch, as the
+    /// authority somebody chose.</description></item>
     /// <item><description>The <b>suppression window</b> is the rule's own where it carries one and the
     /// host-wide setting where it does not. The gate block reports the host-wide figure, and a reader
     /// seeing only that would take it for the window in force on every rule, which for most of these
@@ -117,6 +123,7 @@ internal sealed class StatusReporter(
             [.. definition.Rows.Select(Describe)],
             Describe(definition.Default),
             definition.Author,
+            definition.Enabled,
             definition.Retired);
 
     private static GuardRowStatus Describe(GuardRow row) => new(

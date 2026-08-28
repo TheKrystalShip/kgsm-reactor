@@ -42,5 +42,6 @@
   "severity": "danger",
   "settleSeconds": 60,
   "mode": "observe",
+  "enabled": true,
   "retired": false
 }

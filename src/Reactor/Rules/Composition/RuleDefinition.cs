@@ -205,6 +205,16 @@ internal sealed record RuleAuthorship(string Actor, DateTimeOffset At);
 /// </para>
 /// </param>
 /// <param name="Mode">The authority it asks for. Clamped by what the build honours.</param>
+/// <param name="Enabled">
+/// Whether it runs at all. Off, it is evaluated for nothing and still listed, still editable, and
+/// still holding the authority it will resume with.
+/// <para>
+/// <b>Separate from <see cref="Mode"/> because they answer different questions</b> — whether this
+/// host judges the thing, and how far it may go once it has. Collapsing them into one field would
+/// make switching a rule off overwrite the authority somebody chose for it, so turning it back on
+/// would either invent a level nobody picked or quietly restore one they would have to check.
+/// </para>
+/// </param>
 /// <param name="Retired">
 /// Stopped evaluating and out of the live list, definition kept. Never erased: <c>rule:{Id}</c> is
 /// the actor on every line it produced, and a decision that cannot resolve to a rule that can be named
@@ -232,6 +242,7 @@ internal sealed record RuleDefinition(
     TimeSpan? Suppression = null,
     TimeSpan? ProposalLifetime = null,
     RuleMode Mode = RuleMode.Observe,
+    bool Enabled = true,
     bool Retired = false,
     bool Shipped = false,
     RuleAuthorship? CreatedBy = null,

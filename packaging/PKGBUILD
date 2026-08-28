@@ -11,7 +11,7 @@
 # packaging time is a unit nobody tested.
 
 pkgname=kgsm-reactor
-pkgver=0.25.0
+pkgver=0.27.0
 pkgrel=1
 pkgdesc="KGSM reactor — watches every component's event journal and records what happened"
 arch=('x86_64')

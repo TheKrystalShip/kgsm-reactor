@@ -259,6 +259,11 @@ public sealed record DecisionStatus(
 /// hand-written into the file, is unattributed — and there is no fallback to the OS user. A surface
 /// substituting the host or the person reading would invent a hand that was never on it.
 /// </remarks>
+/// <param name="Enabled">
+/// Whether it runs. Off, <c>mode</c> reads <c>off</c> and <c>configuredMode</c> carries the authority
+/// it resumes with — which is the pair a switch has to be rendered from, since the honoured value
+/// alone cannot say the difference between a rule that watches and one that was told to stop.
+/// </param>
 /// <param name="Retired">
 /// Kept so its decisions still resolve to a name, and never evaluated.
 /// </param>
@@ -279,6 +284,7 @@ public sealed record RuleStatus(
     [property: JsonPropertyName("rows")] IReadOnlyList<GuardRowStatus> Rows,
     [property: JsonPropertyName("default")] GuardRowStatus Default,
     [property: JsonPropertyName("author")] string? Author,
+    [property: JsonPropertyName("enabled")] bool Enabled,
     [property: JsonPropertyName("retired")] bool Retired);
 
 /// <summary>One evaluation waiting out its settle window.</summary>

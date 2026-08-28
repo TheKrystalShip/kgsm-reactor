@@ -420,7 +420,8 @@ internal sealed class ProposalService(
         // says today, which is what the re-derivation is for. A rule retired or deleted since resolves
         // to nothing here and the offer answers "no longer applicable" instead of acting.
         RuleDefinition? definition = registry.Current.Rules
-            .FirstOrDefault(r => string.Equals(r.Id, proposal.RuleId, StringComparison.Ordinal));
+            .FirstOrDefault(r => string.Equals(r.Id, proposal.RuleId, StringComparison.Ordinal)
+                                 && r.Enabled);
 
         if (definition is null)
         {

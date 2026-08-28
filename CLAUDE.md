@@ -247,10 +247,20 @@ where the journal line is written after the ledger is open and the rules are res
 - **Arguments bind once at rule level, under an alias.** Repeating them at each mention is how two
   mentions of "the last update" come to mean different windows. A signal that takes no arguments needs
   no binding: its own id is the alias.
-- **Mode is a field on the rule** — `off`, `observe`, `propose`, `act` — clamped by
-  `RuleEngine.Effective` and reported beside what the rule asked for. **Off and retired are
-  different.** Off is live, listed and one field from running again; retired is gone from the live list
-  and kept only so its decisions still resolve to a rule that can be named.
+- **Whether a rule runs and how far it may go are two fields.** `enabled` is the switch; `mode` is
+  the authority it asks for — `observe`, `propose`, `act` — clamped by what the build honours.
+  `RuleEngine.Effective(definition)` combines them and is the only place that does, so the engine and
+  `/status` cannot disagree about a rule. `RuleMode.Off` is what that resolves to for a rule that is
+  switched off, never something a rule asks for: one field carrying both would have to overwrite
+  `act` to say `off`, and switching the rule back on could then only guess. `/status` reports the
+  pair — `mode` is what the leaf will actually do, `configuredMode` what was asked for — and a
+  switched-off rule is reported among the live rules, since dropping it would take it off the page
+  along with the control that would restore it. A file written by hand as `"mode": "off"` is read as
+  the switch.
+- **Switched off and retired are different.** Switched off is live, listed and one switch from
+  running again; retired is gone from the live list and kept only so its decisions still resolve to a
+  rule that can be named. Both stop a pending proposal from that rule resolving, because both say
+  this host has stopped wanting what it offered.
 - **A proposal is safe because the condition is re-derived at redemption, not because the window is
   short.** `ProposalService.ConfirmAsync` re-evaluates the rule against the world as it is now before
   it performs anything, so an offer answered in the morning about a server that came back up overnight

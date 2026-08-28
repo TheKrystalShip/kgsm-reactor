@@ -192,6 +192,18 @@ internal sealed class RuleEngine : BackgroundService
         (RuleMode)Math.Min((int)configured, (int)Honours);
 
     /// <summary>
+    /// The mode a rule is actually in: what it asked for, clamped by the build, and nothing at all if
+    /// it is switched off.
+    /// </summary>
+    /// <remarks>
+    /// <b>The one place the switch and the authority are combined</b>, so the engine and the status
+    /// endpoint cannot come to different answers about the same rule — the failure that would produce
+    /// is a page reporting a rule as watching while nothing evaluates it.
+    /// </remarks>
+    internal static RuleMode Effective(RuleDefinition definition) =>
+        definition.Enabled ? Effective(definition.Mode) : RuleMode.Off;
+
+    /// <summary>
     /// The evaluations woken and waiting out their settle windows, soonest first.
     /// </summary>
     /// <remarks>
@@ -260,7 +272,15 @@ internal sealed class RuleEngine : BackgroundService
 
         foreach (RuleDefinition definition in _registry.Current.Rules)
         {
-            RuleMode effective = Effective(definition.Mode);
+            RuleMode effective = Effective(definition);
+
+            if (effective == RuleMode.Off)
+            {
+                _logger.LogInformation(
+                    "Rule {Rule} is switched off, and would {Mode} when it is switched back on.",
+                    definition.Id, definition.Mode);
+                continue;
+            }
 
             if (effective != definition.Mode)
             {
@@ -268,12 +288,6 @@ internal sealed class RuleEngine : BackgroundService
                     "Rule {Rule} asks for {Mode}, but this build honours at most {Honours}, "
                     + "which is what it will do. Nothing will be staged or performed.",
                     definition.Id, definition.Mode, Honours);
-            }
-
-            if (effective == RuleMode.Off)
-            {
-                _logger.LogInformation("Rule {Rule} is off on this host.", definition.Id);
-                continue;
             }
 
             active.Add(new ActiveRule(definition, RuleEvaluator.ToRule(definition), effective));

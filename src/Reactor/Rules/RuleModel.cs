@@ -31,14 +31,14 @@ internal enum RuleShape
 internal enum RuleMode
 {
     /// <summary>
-    /// Do not evaluate it at all.
+    /// Not evaluated at all.
     /// </summary>
     /// <remarks>
-    /// <b>Not the same as retiring one.</b> A rule that is off is live, listed and one field away
-    /// from running again — somebody silenced it while they work out whether it is right. A retired
-    /// rule is gone from the live list and kept only so the decisions it already made still resolve to
-    /// something that can be named. Offering one control for both would make un-deleting and
-    /// un-muting the same gesture.
+    /// <b>Something a rule is in, never something it asks for.</b> A rule declares the authority it
+    /// wants and, separately, whether it is switched on; this is what the pair resolves to when it is
+    /// switched off, and what a retired rule reports for the same reason. Keeping it out of the
+    /// configured values is what lets a rule be silenced without forgetting the authority it resumes
+    /// with — a single field carrying both would have to overwrite one to express the other.
     /// </remarks>
     Off,
 

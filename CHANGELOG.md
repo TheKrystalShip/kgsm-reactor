@@ -7,6 +7,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — a rule can be switched off without losing what it would do (0.27.0)
+
+`enabled` is a field of its own on a rule, beside `mode`. The two answer different questions —
+whether this host judges the thing, and how far it may go once it has — and a rule that is switched
+off is evaluated for nothing while staying listed, editable, and holding the authority it resumes
+with.
+
+**That separation is the whole feature.** A single field carrying both would have to overwrite `act`
+to say `off`, so switching a rule back on would either invent an authority nobody picked or quietly
+demote one somebody did. `/status` reports the pair: `mode` is what the leaf will actually do, which
+for a switched-off rule is nothing, and `configuredMode` carries what was asked for — so a surface
+can offer to switch a rule on and say what that would start.
+
+`RuleEngine.Effective(definition)` is the one place the switch and the authority combine, so the
+engine and the status endpoint cannot disagree about a rule. A switched-off rule is reported among
+the live rules rather than dropped from them: reporting only what runs would take a paused rule off
+the page along with the control that would restore it.
+
+A rule written by hand as `"mode": "off"` is read as a rule that is switched off, which is what that
+spelling means to the person typing it, and a file that never mentions `enabled` describes a rule
+that runs.
+
+### Fixed — a pending offer from a switched-off rule answers "no longer applicable"
+
+Redeeming a proposal re-derives its condition against the rule as it stands, and a rule that is
+switched off no longer resolves — the same answer retiring or deleting one gives. Switching a rule
+off is a statement that this host has stopped wanting what it offered, and an offer already staged
+is part of that.
+
 ### Changed — no emoji in prose or output
 
 Docs, comments and command output carry no emoji. The information lives in the words, and a status

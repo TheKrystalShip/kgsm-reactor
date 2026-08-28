@@ -95,6 +95,45 @@ public sealed class RuleRegistryTests : IDisposable
         Assert.Equal("The same rule, rewritten", only.Name);
     }
 
+    /// <summary>
+    /// Switching a rule off leaves it in the live list, holding what it would do.
+    /// </summary>
+    /// <remarks>
+    /// <b>Both halves matter to the switch that writes it.</b> A rule dropped from the live list is a
+    /// rule the panel cannot draw a control for, so switching one off would be a one-way trip; and an
+    /// authority lost on the way off is one nobody can be shown before they switch it back on.
+    /// </remarks>
+    [Fact]
+    public void A_rule_switched_off_stays_listed_and_keeps_its_authority()
+    {
+        using RuleRegistry registry = Open();
+        Assert.Empty(registry.Replace(Rule("first") with { Mode = RuleMode.Act }));
+
+        Assert.Empty(registry.Replace(Rule("first") with { Mode = RuleMode.Act, Enabled = false }));
+
+        RuleDefinition off = Assert.Single(registry.Current.Rules);
+        Assert.False(off.Enabled);
+        Assert.Equal(RuleMode.Act, off.Mode);
+        Assert.Empty(registry.Current.Retired);
+    }
+
+    /// <summary>The switch survives a restart, because it is a fact about the rule and not a session.</summary>
+    [Fact]
+    public void A_rule_switched_off_is_still_off_after_a_restart()
+    {
+        using (RuleRegistry first = Open())
+        {
+            Assert.Empty(first.Replace(Rule("first") with { Mode = RuleMode.Propose }));
+            Assert.Empty(first.Replace(Rule("first") with { Mode = RuleMode.Propose, Enabled = false }));
+        }
+
+        using RuleRegistry second = Open();
+
+        RuleDefinition off = Assert.Single(second.Current.Rules);
+        Assert.False(off.Enabled);
+        Assert.Equal(RuleMode.Propose, off.Mode);
+    }
+
     [Fact]
     public void A_retired_rule_keeps_its_file_and_stops_running()
     {

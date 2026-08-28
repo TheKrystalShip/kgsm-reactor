@@ -136,9 +136,24 @@ internal sealed class RuleDocument
     [JsonPropertyName("proposalLifetimeHours")]
     public int? ProposalLifetimeHours { get; set; }
 
-    /// <summary><c>off</c>, <c>observe</c>, <c>propose</c> or <c>act</c>.</summary>
+    /// <summary>
+    /// The authority it asks for: <c>observe</c>, <c>propose</c> or <c>act</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>off</c> is read here as <c>"enabled": false</c>, because that is what a person writing it by
+    /// hand means, and it is the spelling every rule used before the switch was its own field.
+    /// </remarks>
     [JsonPropertyName("mode")]
     public string Mode { get; set; } = "observe";
+
+    /// <summary>Whether it runs. Absent means it does.</summary>
+    /// <remarks>
+    /// Defaulting to on is what keeps a hand-written rule behaving the way its author expects: a file
+    /// somebody wrote to make this host judge something is not silently inert for omitting a field
+    /// they never knew about.
+    /// </remarks>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = true;
 
     /// <summary>Deleted, definition kept so its decisions still resolve to a rule that can be named.</summary>
     [JsonPropertyName("retired")]
@@ -401,10 +416,15 @@ internal static class RuleStore
                 ? TimeSpan.FromHours(hours)
                 : null,
             Mode: Enum.TryParse(document.Mode, ignoreCase: true, out RuleMode mode)
+                   && mode != RuleMode.Off
                 ? mode
                 // A mode nobody can read is not a licence to guess upward. Observing is what a rule
-                // has to earn its way out of, and it is where an unreadable one starts.
+                // has to earn its way out of, and it is where an unreadable one starts — and where a
+                // rule written as "off" starts too, since that spelling says whether it runs and
+                // leaves how far it may go unsaid.
                 : RuleMode.Observe,
+            Enabled: document.Enabled
+                     && !string.Equals(document.Mode, "off", StringComparison.OrdinalIgnoreCase),
             Retired: document.Retired,
             Shipped: false,
             CreatedBy: Authorship(document.CreatedBy),
@@ -561,6 +581,7 @@ internal static class RuleStore
         ProposalLifetimeHours =
             definition.ProposalLifetime is { } lifetime ? (int)lifetime.TotalHours : null,
         Mode = definition.Mode.ToString().ToLowerInvariant(),
+        Enabled = definition.Enabled,
         Retired = definition.Retired,
         CreatedBy = ToDocument(definition.CreatedBy),
         UpdatedBy = ToDocument(definition.UpdatedBy),

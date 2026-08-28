@@ -323,14 +323,73 @@ public class RuleStoreTests
     }
 
     [Fact]
-    public void Being_off_and_being_retired_are_different_things()
+    public void Being_switched_off_and_being_retired_are_different_things()
     {
         RuleSet set = RuleStore.Resolve(
-            [Minimal() with { Mode = RuleMode.Off }, Minimal() with { Id = "gone", Retired = true }], []);
+            [Minimal() with { Enabled = false }, Minimal() with { Id = "gone", Retired = true }], []);
 
-        // Off is still a live rule: listed, editable, one field from running again.
-        Assert.Equal(RuleMode.Off, Assert.Single(set.Rules).Mode);
+        // Switched off is still a live rule: listed, editable, one switch from running again.
+        Assert.False(Assert.Single(set.Rules).Enabled);
         Assert.Equal("gone", Assert.Single(set.Retired).Id);
+    }
+
+    /// <summary>
+    /// Switching a rule off keeps the authority it will resume with.
+    /// </summary>
+    /// <remarks>
+    /// <b>The whole reason the switch is not a mode.</b> A rule somebody trusted to act and then paused
+    /// has to come back acting; a single field carrying both would have to overwrite "act" to say
+    /// "off", so turning it on again would either invent an authority or quietly demote one.
+    /// </remarks>
+    [Fact]
+    public void A_rule_switched_off_still_says_what_it_would_do()
+    {
+        string dir = DirOf(Minimal() with { Mode = RuleMode.Act, Enabled = false });
+
+        RuleDefinition read = Assert.Single(RuleStore.LoadDirectory(dir).Rules);
+
+        Assert.False(read.Enabled);
+        Assert.Equal(RuleMode.Act, read.Mode);
+    }
+
+    /// <summary>A rule written by hand as <c>"mode": "off"</c> is a rule that is switched off.</summary>
+    /// <remarks>
+    /// That spelling says whether a rule runs, not how far it may go, so it is read as the switch and
+    /// the authority is left where an unstated one starts.
+    /// </remarks>
+    [Fact]
+    public void A_mode_written_as_off_is_the_switch()
+    {
+        string dir = Dir(("ok", """
+            {
+              "id": "ok", "name": "The first one", "wakes": ["server.crashed"],
+              "subjects": { "source": "from_event" },
+              "default": { "then": "doesNotHold", "say": "nothing about {subject}" },
+              "action": "none", "settleSeconds": 60,
+              "mode": "off"
+            }
+            """));
+
+        RuleDefinition read = Assert.Single(RuleStore.LoadDirectory(dir).Rules);
+
+        Assert.False(read.Enabled);
+        Assert.Equal(RuleMode.Observe, read.Mode);
+    }
+
+    /// <summary>A file that never mentions the switch describes a rule that runs.</summary>
+    [Fact]
+    public void A_rule_that_says_nothing_about_the_switch_is_on()
+    {
+        string dir = Dir(("ok", """
+            {
+              "id": "ok", "name": "The first one", "wakes": ["server.crashed"],
+              "subjects": { "source": "from_event" },
+              "default": { "then": "doesNotHold", "say": "nothing about {subject}" },
+              "action": "none", "settleSeconds": 60
+            }
+            """));
+
+        Assert.True(Assert.Single(RuleStore.LoadDirectory(dir).Rules).Enabled);
     }
 
     /// <summary>The smallest rule that can run: one event, one conclusion, one sentence.</summary>

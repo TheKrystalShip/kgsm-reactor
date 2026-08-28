@@ -91,5 +91,6 @@
   "settleSeconds": 120,
   "suppressionMinutes": 1440,
   "mode": "observe",
+  "enabled": true,
   "retired": false
 }

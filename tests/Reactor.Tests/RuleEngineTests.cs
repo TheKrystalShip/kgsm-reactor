@@ -429,30 +429,57 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// A rule that is off is never evaluated, which is a different state from being retired.
+    /// A rule that is switched off is never evaluated, which is a different state from being retired.
     /// </summary>
     /// <remarks>
-    /// It stays in the store, listed and one field from running again — somebody silenced it while
+    /// It stays in the store, listed and one switch from running again — somebody silenced it while
     /// they work out whether it is right. A retired rule is gone from the live list and kept only so
     /// its old decisions still resolve to a name.
     /// </remarks>
     [Fact]
-    public async Task A_rule_that_is_off_is_never_evaluated()
+    public async Task A_rule_that_is_switched_off_is_never_evaluated()
     {
         var events = new FakeEvents();
         var clock = new FakeTimeProvider(Now);
         using ObservationLedger ledger = OpenLedger();
 
         var engine = Build(
-            events, ledger, new FakeWorld(), Written(r => r with { Mode = RuleMode.Off }), clock);
+            events, ledger, new FakeWorld(), Written(r => r with { Enabled = false }), clock);
 
         await engine.StartAsync(CancellationToken.None);
         await engine.StopAsync(CancellationToken.None);
 
         Assert.Empty(engine.Active);
-        // Still a rule this host holds: muted is not deleted.
+        // Still a rule this host holds: switched off is not deleted.
         Assert.Equal("give_up_backup", Assert.Single(engine.Rules.Rules).Id);
         Assert.Empty(Decisions(ledger));
+    }
+
+    /// <summary>
+    /// The authority survives the switch, so the rule comes back as what it was.
+    /// </summary>
+    /// <remarks>
+    /// Asserted through a real write and read rather than on the record, because the round trip through
+    /// the file is where an authority would be lost — and losing it would silently demote a rule
+    /// somebody had trusted to act.
+    /// </remarks>
+    [Fact]
+    public async Task A_rule_switched_back_on_runs_at_the_authority_it_was_paused_at()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        using ObservationLedger ledger = OpenLedger();
+
+        var engine = Build(
+            events, ledger, new FakeWorld(),
+            Written(r => r with { Mode = RuleMode.Act, Enabled = false }), clock);
+
+        await engine.StartAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        RuleDefinition paused = Assert.Single(engine.Rules.Rules);
+        Assert.Equal(RuleMode.Off, RuleEngine.Effective(paused));
+        Assert.Equal(RuleMode.Act, RuleEngine.Effective(paused with { Enabled = true }));
     }
 
     /// <summary>A retired rule is kept for its record and is not among the rules that run.</summary>
