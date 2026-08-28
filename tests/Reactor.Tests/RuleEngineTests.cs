@@ -173,7 +173,13 @@ public class RuleEngineTests : IDisposable
             world, history, footprint, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<ProposalService>.Instance);
 
-        return new(events, ledger, new DecisionStore(ledger), announcer, world, history, footprint,
+        // Initialized, like the singleton the daemon resolves. A store the engine holds without it
+        // having been through Initialize is a harness that differs from production in the one place a
+        // difference is invisible — everything still works, until something is added to Initialize.
+        var decisions = new DecisionStore(ledger);
+        decisions.Initialize();
+
+        return new(events, ledger, decisions, announcer, world, history, footprint,
             rules, proposals, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<RuleEngine>.Instance);
     }
@@ -751,6 +757,108 @@ public class RuleEngineTests : IDisposable
         Assert.Equal(SubjectKind.Instance, announced.SubjectKind);
         Assert.Equal("create_backup", announced.ActionName);
         Assert.Equal("Ketchup", announced.ActionInstance);
+    }
+
+    /// <summary>
+    /// ⚠ A rule that declines to judge on thin evidence records that and announces nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A coverage gate is the reactor describing its own evidence, not the host.</b> "This instance
+    /// has not been measured for long enough" is unactionable by construction and is the permanent
+    /// steady state for anything recently installed — so on a fleet of new servers it is not one line,
+    /// it is a line per server forever, drowning the ones that mean something.
+    /// </para>
+    /// <para>
+    /// It stays on the ledger, where <c>--decisions</c> reads it, because knowing what the reactor
+    /// cannot yet say is exactly what tuning a gate needs.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_verdict_the_rule_withheld_is_recorded_and_never_announced()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        var emitter = new RecordingEmitter();
+        using ObservationLedger ledger = OpenLedger();
+
+        // The drift rule with nothing measured: every coverage gate refuses, which is a withheld
+        // verdict rather than a source that would not answer.
+        var engine = Build(
+            events, ledger, new FakeWorld(), Options(observe: "memory_declaration_drift"), clock,
+            emitter);
+
+        await engine.StartAsync(CancellationToken.None);
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Empty(emitter.Emitted);
+        Assert.Equal(0, engine.Emitted);
+    }
+
+    /// <summary>
+    /// ⚠ A source that would not answer is announced, where a rule declining is not.
+    /// </summary>
+    /// <remarks>
+    /// The distinction the quieting turns on. A supervisor that cannot be reached is an operational
+    /// fact somebody may need to act on, and collapsing it into the same silence as a coverage gate
+    /// would hide a leaf going down behind the noise reduction meant to make it visible.
+    /// </remarks>
+    [Fact]
+    public async Task A_source_that_would_not_answer_is_still_announced()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        var emitter = new RecordingEmitter();
+        using ObservationLedger ledger = OpenLedger();
+        var world = new FakeWorld
+        {
+            Answer = Reading<InstanceRunState>.Unavailable("the supervisor is not answering"),
+        };
+        var engine = Build(events, ledger, world, Options(), clock, emitter);
+
+        await WakeAndSweepAsync(
+            engine, events, clock, Failed("Ketchup"),
+            new EventPosition("kgsm-watchdog", "s.ndjson", 10), TimeSpan.FromMinutes(2));
+        await engine.StopAsync(CancellationToken.None);
+
+        Decision announced = Assert.Single(emitter.Emitted);
+        Assert.Equal(DecisionOutcome.Unreadable, announced.Outcome);
+        Assert.False(announced.Withheld);
+        Assert.Contains("supervisor", announced.Reason);
+    }
+
+    /// <summary>
+    /// ⚠ A rule that stops firing says so, even when what replaced it is a verdict it withheld.
+    /// </summary>
+    /// <remarks>
+    /// The one exception, and it is the one that keeps the quieting honest. A condition being judged
+    /// and then no longer being judged is news precisely because something was being judged — a
+    /// footprint the monitor loses would otherwise take a firing rule quietly off the air.
+    /// </remarks>
+    [Fact]
+    public async Task A_firing_rule_that_goes_quiet_announces_that_it_has()
+    {
+        var events = new FakeEvents();
+        var clock = new FakeTimeProvider(Now);
+        var emitter = new RecordingEmitter();
+        using ObservationLedger ledger = OpenLedger();
+        var world = new FakeWorld();
+        var engine = Build(events, ledger, world, Options(), clock, emitter);
+        var position = new EventPosition("kgsm-watchdog", "s.ndjson", 10);
+
+        await WakeAndSweepAsync(engine, events, clock, Failed("Ketchup"), position, TimeSpan.FromMinutes(2));
+        Assert.Equal(DecisionOutcome.Fired, Assert.Single(emitter.Emitted).Outcome);
+
+        // The supervisor stops answering: the same episode is now unreadable rather than firing.
+        world.Answer = Reading<InstanceRunState>.Unavailable("the supervisor is not answering");
+        await events.EmitAsync(Failed("Ketchup"), position);
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await engine.SweepAsync(CancellationToken.None);
+        await engine.StopAsync(CancellationToken.None);
+
+        Assert.Equal(2, emitter.Emitted.Count);
+        Assert.Equal(DecisionOutcome.Unreadable, emitter.Emitted[1].Outcome);
     }
 
 }

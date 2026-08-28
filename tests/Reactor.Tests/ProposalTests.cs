@@ -534,6 +534,7 @@ public sealed class ProposalTests : IDisposable
             Mode: RuleMode.Propose,
             Outcome: DecisionOutcome.Fired,
             Reason: reason,
+            Withheld: false,
             RuleAuthor: null,
             Action: "take a pinned backup of Ketchup",
             ActionName: ActionCatalog.CreateBackup,

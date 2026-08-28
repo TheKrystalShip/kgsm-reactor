@@ -40,6 +40,7 @@ public class DecisionEmissionTests : IDisposable
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "still given up on after 60s (6 consecutive failures)",
+            Withheld: false,
             RuleAuthor: author,
             Action: "take a pinned backup of starbound",
             ActionName: "create_backup",

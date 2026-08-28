@@ -47,6 +47,7 @@ public class DecisionReportTests : IDisposable
             Mode: RuleMode.Observe,
             Outcome: outcome,
             Reason: "because",
+            Withheld: false,
             RuleAuthor: null,
             Action: "take a pinned backup",
             ActionName: "create_backup",

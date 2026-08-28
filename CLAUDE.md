@@ -150,7 +150,20 @@ where the journal line is written after the ledger is open and the rules are res
 - **The ledger upserts, the journal appends.** A state rule re-reads its episode every sweep and the
   ledger folds those into one row, so `DecisionStore.Record` returns a `DecisionChange` and only a
   transition is announced. Emitting per evaluation would make the journal a record of how often the
-  reactor looked rather than what it concluded.
+  reactor looked rather than what it concluded. ⚠ `Record` compares the **outcome** and nothing else —
+  a reason whose figures age as the condition does is the same judgment better informed.
+- **Everything is recorded; `RuleEngine.Announceable` decides what is announced.** The ledger holds
+  every evaluation with its reason and `--decisions` reads it; the journal is a different audience —
+  an audit log somebody skims, where a line costs attention whether or not it was worth having.
+- **⚠ A withheld verdict is recorded and never announced.** Both halves of `Unreadable` are "cannot
+  tell" and they are not the same news: `Verdict.Unreadable` is *something would not answer* (an
+  operational fact — announced), `Verdict.Withhold` is *the rule declined to judge on evidence it
+  read* (every coverage gate — recorded only). A gate reports what this leaf cannot yet say about an
+  instance, which is unactionable by construction and the steady state for anything recently
+  installed. `RuleEvaluator.ConcludeAsync` is the only place that can tell them apart — one step out
+  they are indistinguishable. **The one exception:** a withheld verdict replacing a rule that was
+  *firing* is announced, because a condition that stops being judged is news exactly when something
+  was being judged.
 - **Writing an event needs nothing from kgsm-lib.** `IEventJournalWriter.AppendAsync` takes a
   `JsonElement`, so emission is local and costs no package release. **Typed consumption is the part
   that does** — kgsm-bot reads through `RegisterHandler<T>() where T : KgsmEventDataBase`, which needs

@@ -397,6 +397,37 @@ internal sealed class RuleEngine : BackgroundService
     }
 
     /// <summary>
+    /// Whether a decision is worth putting on the journal every component on this host shares.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Everything is recorded; this decides only what is announced.</b> The ledger holds every
+    /// evaluation with its reason, and <c>--decisions</c> reads it. The journal is a different
+    /// audience: an audit log somebody skims, and a line there costs their attention whether or not
+    /// it was worth having.
+    /// </para>
+    /// <para>
+    /// <b>Only a transition</b>, because a condition that has held all afternoon is one judgment, not
+    /// one every thirty seconds.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>And never a verdict the rule withheld</b> — a coverage gate reports what this leaf cannot
+    /// yet say about an instance, which is unactionable by construction and the permanent steady state
+    /// for anything recently installed. <b>Except when it replaces a rule that was firing:</b> a
+    /// condition that stops being judged is news exactly when something was being judged, and
+    /// swallowing that would let a rule go quiet without anybody being told it had.
+    /// </para>
+    /// </remarks>
+    private bool Announceable(
+        DecisionChange change, Decision decision, DecisionOutcome? previously)
+    {
+        if (change == DecisionChange.Unchanged)
+            return false;
+
+        return !decision.Withheld || previously == DecisionOutcome.Fired;
+    }
+
+    /// <summary>
     /// When the condition began, for a sentence that wants to date it, or null when nothing observed
     /// it beginning.
     /// </summary>
@@ -446,6 +477,10 @@ internal sealed class RuleEngine : BackgroundService
         // the only answer that survives a restart.
         ActionState dispatched = _decisions.ActionStateOf(decisionId) ?? ActionState.None;
 
+        // Read beside it, and for the same reason: whether a change is worth announcing depends on
+        // what it changed from, and the upsert below is about to overwrite it.
+        DecisionOutcome? previously = _decisions.OutcomeOf(decisionId);
+
         var decision = new Decision(
             Id: decisionId,
             RuleId: rule.Id,
@@ -456,6 +491,9 @@ internal sealed class RuleEngine : BackgroundService
             Mode: pending.Rule.Mode,
             Outcome: outcome,
             Reason: reason,
+            // Carried from the verdict, and only meaningful while the outcome is unreadable: a rule
+            // that went on to fire or settle read enough to say so.
+            Withheld: verdict.Withheld && outcome == DecisionOutcome.Unreadable,
             // Copied onto the decision rather than joined at read time. A decision six months old
             // must still name who had shaped the rule when it fired, and resolving it through the
             // store later means editing a rule silently rewrites the attribution of everything it
@@ -499,10 +537,7 @@ internal sealed class RuleEngine : BackgroundService
             return;
         }
 
-        // Only a transition. The ledger folds a re-evaluated episode into one row that gets better
-        // informed; the journal appends, and a condition that has held all afternoon is one judgment,
-        // not one every thirty seconds.
-        if (change != DecisionChange.Unchanged
+        if (Announceable(change, decision, previously)
             && await _emitter.EmitAsync(decision, token).ConfigureAwait(false))
         {
             Emitted++;

@@ -7,6 +7,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a verdict the rule withheld is recorded, not announced (0.23.0)
+
+**A coverage gate is this leaf describing its own evidence, not the host.** *"This instance has not been
+measured for long enough to judge"* is unactionable by construction and is the permanent steady state
+for anything recently installed — so on a fleet of new servers it is not one line, it is a line per
+server, drowning the ones that mean something. Half the reactor's audit rows on a live host were
+exactly that.
+
+`Verdict.Withhold` marks a row that concluded `unreadable` on evidence it successfully read, apart from
+`Verdict.Unreadable`, which is something refusing to answer. The evaluator is the only place that can
+tell them apart; one step out they are both "cannot tell". The distinction is carried on the decision
+and stops there — the wire outcome, the payload and every consumer are untouched, because a withheld
+verdict is never written.
+
+**A source that would not answer is still announced.** A supervisor that cannot be reached is an
+operational fact somebody may need to act on, and collapsing it into the same silence as a coverage gate
+would hide a leaf going down behind the noise reduction meant to make it visible.
+
+**And a rule that stops firing says so**, even when what replaces it is a verdict this leaf would
+otherwise withhold — a footprint the monitor loses would otherwise take a firing rule quietly off the
+air.
+
+Measured on a live host: a ledger rebuild announced **1** decision where it had announced **5**, and the
+four it kept quiet about are all on the ledger, where `--decisions` reads them.
+
 ### Changed — messages written for somebody who was not watching (0.22.0)
 
 Every sentence this leaf produces is read somewhere the rest of the record is not: an audit row, a push

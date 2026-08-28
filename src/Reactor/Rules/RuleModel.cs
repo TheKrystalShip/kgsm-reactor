@@ -74,14 +74,40 @@ internal enum VerdictKind
     Unreadable,
 }
 
-/// <summary>A rule's answer, and why. The reason is recorded whichever way it went.</summary>
-internal readonly record struct Verdict(VerdictKind Kind, string Reason)
+/// <summary>
+/// A rule's answer, and why. The reason is recorded whichever way it went.
+/// </summary>
+/// <param name="Kind">Whether the condition holds.</param>
+/// <param name="Reason">Why, in words. Present on every verdict, including the ones that decide nothing.</param>
+/// <param name="Withheld">
+/// Whether the rule declined to judge on the evidence it has, as opposed to something refusing to
+/// answer.
+/// <para>
+/// <b>Both are <see cref="VerdictKind.Unreadable"/>, and they are not the same news.</b> A supervisor
+/// that could not be reached is an operational fact somebody may need to act on. A rule saying
+/// <em>"this instance has not been measured for long enough to judge"</em> is the rule describing its
+/// own evidence — unactionable by construction, and the permanent steady state for anything recently
+/// installed. Recorded either way; only the first is worth announcing.
+/// </para>
+/// </param>
+internal readonly record struct Verdict(VerdictKind Kind, string Reason, bool Withheld = false)
 {
     public static Verdict Holds(string reason) => new(VerdictKind.Holds, reason);
 
     public static Verdict DoesNotHold(string reason) => new(VerdictKind.DoesNotHold, reason);
 
+    /// <summary>Something would not answer, so nothing could be established.</summary>
     public static Verdict Unreadable(string reason) => new(VerdictKind.Unreadable, reason);
+
+    /// <summary>
+    /// The rule read what it needed and decided that is not enough to judge on.
+    /// </summary>
+    /// <remarks>
+    /// A coverage gate — a span too short, a sample too thin, a distribution with too few points. The
+    /// reading succeeded; the rule is refusing to draw a conclusion from it, which is the refusal that
+    /// keeps it from reporting noise as a finding.
+    /// </remarks>
+    public static Verdict Withhold(string reason) => new(VerdictKind.Unreadable, reason, Withheld: true);
 }
 
 /// <summary>

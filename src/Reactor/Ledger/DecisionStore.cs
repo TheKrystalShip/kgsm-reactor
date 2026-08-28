@@ -48,6 +48,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             mode          TEXT    NOT NULL,
             outcome       TEXT    NOT NULL,
             reason        TEXT    NOT NULL,
+            withheld      INTEGER NOT NULL DEFAULT 0,
             rule_author   TEXT    NULL,
             action        TEXT    NOT NULL,
             action_name   TEXT    NOT NULL,
@@ -92,6 +93,9 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             // build shipped, and stamping the build's name on it afterwards would invent a hand that
             // was never on it.
             ("rule_author", "TEXT NULL"),
+            // 0, because a row written before the distinction existed was announced. Defaulting it to
+            // 1 would claim this leaf had stayed quiet about decisions it had in fact published.
+            ("withheld", "INTEGER NOT NULL DEFAULT 0"),
         ];
 
         foreach ((string column, string definition) in wanted)
@@ -126,14 +130,15 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             """
             INSERT INTO decisions
                 (id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
-                 rule_author, action, action_name, action_inst, action_state, opened_at, decided_at,
-                 src_producer, src_segment, src_offset, src_event_id)
+                 withheld, rule_author, action, action_name, action_inst, action_state, opened_at,
+                 decided_at, src_producer, src_segment, src_offset, src_event_id)
             VALUES ($id, $rule, $subject, $subjectKind, $episode, $severity, $mode, $outcome, $reason,
-                    $author, $action, $actionName, $actionInstance, $actionState, $openedAt, $decidedAt,
-                    $producer, $segment, $offset, $eventId)
+                    $withheld, $author, $action, $actionName, $actionInstance, $actionState, $openedAt,
+                    $decidedAt, $producer, $segment, $offset, $eventId)
             ON CONFLICT(id) DO UPDATE SET
                 outcome      = excluded.outcome,
                 reason       = excluded.reason,
+                withheld     = excluded.withheld,
                 -- Re-stamped with each pass, because a rule edited between two sweeps of one open
                 -- episode was a different rule on the second: the decision names the hand that was
                 -- on it when this verdict was reached, not the hand that opened the episode.
@@ -152,6 +157,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
                 command.Parameters.AddWithValue("$mode", decision.Mode.ToString());
                 command.Parameters.AddWithValue("$outcome", decision.Outcome.ToString());
                 command.Parameters.AddWithValue("$reason", decision.Reason);
+                command.Parameters.AddWithValue("$withheld", decision.Withheld ? 1 : 0);
                 command.Parameters.AddWithValue(
                     "$author", (object?)decision.RuleAuthor ?? DBNull.Value);
                 command.Parameters.AddWithValue("$action", decision.Action);
@@ -267,13 +273,30 @@ internal sealed class DecisionStore(ObservationLedger ledger)
             },
             reader => (reader.GetString(0), reader.GetString(1)));
 
+    /// <summary>
+    /// What this decision last concluded, or null when it has never been recorded.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Read before the upsert overwrites it.</b> Whether a change is worth announcing depends on
+    /// what it changed <em>from</em>: a rule that stops firing is news even when the verdict replacing
+    /// it is one this leaf would never announce on its own.
+    /// </remarks>
+    public DecisionOutcome? OutcomeOf(string id) =>
+        ledger.Query(
+            "SELECT outcome FROM decisions WHERE id = $id;",
+            command => command.Parameters.AddWithValue("$id", id),
+            reader => Enum.TryParse(reader.GetString(0), out DecisionOutcome outcome)
+                ? outcome
+                : (DecisionOutcome?)null)
+            .FirstOrDefault();
+
     /// <summary>Every decision since <paramref name="since"/>, newest first. For the report.</summary>
     public IReadOnlyList<Decision> Since(DateTimeOffset since) =>
         ledger.Query(
             """
             SELECT id, rule_id, subject, subject_kind, episode_key, severity, mode, outcome, reason,
                    action, action_name, action_inst, action_state, opened_at, decided_at,
-                   src_producer, src_segment, src_offset, src_event_id, rule_author
+                   src_producer, src_segment, src_offset, src_event_id, rule_author, withheld
             FROM decisions WHERE decided_at >= $since ORDER BY decided_at DESC;
             """,
             command => command.Parameters.AddWithValue("$since", since.ToUnixTimeMilliseconds()),
@@ -298,6 +321,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
         // keeps meaning what it did. A reader whose columns shift by one is a reader that silently
         // reports the action where the reason was.
         RuleAuthor: reader.FieldCount > 19 && !reader.IsDBNull(19) ? reader.GetString(19) : null,
+        Withheld: reader.FieldCount > 20 && reader.GetInt64(20) != 0,
         Action: reader.GetString(9),
         ActionName: reader.GetString(10),
         ActionInstance: reader.IsDBNull(11) ? null : reader.GetString(11),

@@ -145,6 +145,15 @@ internal readonly record struct EventSource(
 /// nobody signed carries none, and there is no fallback to the OS user.
 /// </para>
 /// </param>
+/// <param name="Withheld">
+/// Whether the rule declined to judge on evidence it read, rather than something refusing to answer.
+/// <para>
+/// ⚠ <b>Recorded, and deliberately not announced.</b> A coverage gate reports what the reactor cannot
+/// yet say about an instance, which is a fact about this leaf's evidence and not about the host —
+/// unactionable by construction, and the steady state for anything recently installed. It stays on the
+/// ledger, where a review reads it, and off the journal every other component shares.
+/// </para>
+/// </param>
 /// <param name="Action">What it would do, described rather than performed.</param>
 /// <param name="ActionName">The same action as a stable name other programs compare against.</param>
 /// <param name="ActionInstance">The server the action would operate on, or null when it operates on none.</param>
@@ -162,6 +171,7 @@ internal sealed record Decision(
     RuleMode Mode,
     DecisionOutcome Outcome,
     string Reason,
+    bool Withheld,
     string? RuleAuthor,
     string Action,
     string ActionName,

@@ -202,9 +202,16 @@ internal static class RuleEvaluator
 
         // A sentence that cannot state its own figures is not a decision worth recording. The verdict
         // becomes "cannot tell" rather than a conclusion with a hole where the measurement was.
-        return unreadable is null
-            ? new Verdict(row.Outcome, text)
-            : await UnreadableAsync(definition, row, scope, unreadable, token).ConfigureAwait(false);
+        if (unreadable is not null)
+            return await UnreadableAsync(definition, row, scope, unreadable, token).ConfigureAwait(false);
+
+        // ⚠ A row that concludes `unreadable` is the rule declining on evidence it successfully read,
+        // which is a different fact from a source refusing to answer — every coverage gate in every
+        // rule is written this way. Marked here because this is the only place that can tell them
+        // apart: one step further out they are both just "cannot tell".
+        return row.Outcome == VerdictKind.Unreadable
+            ? Verdict.Withhold(text)
+            : new Verdict(row.Outcome, text);
     }
 
     private static async ValueTask<Verdict> UnreadableAsync(
