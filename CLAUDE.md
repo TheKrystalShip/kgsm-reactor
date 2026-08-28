@@ -298,10 +298,14 @@ where the journal line is written after the ledger is open and the rules are res
   own state directory, so a host with no kgsm-api reads and writes it directly; a panel edits a rule by
   asking the leaf to, never by writing into the directory itself. The leaf is told a path and never
   learns whose it is — which is what keeps it from becoming the first leaf to depend on the API.
-- **⚠ A deploy never writes into the state directory.** `deploy.sh` refreshes the pristine samples under
-  the install prefix, where `--delete` is correct because they are code; `setup.sh` seeds the state
-  directory once and only for a file that is not already there. Keeping both copies is what lets the
-  panel offer "reset to the sample" without a deploy reaching a rule somebody is running.
+- **⚠ Nothing but the leaf writes into the state directory.** The samples live beside the binary in
+  `<prefix>/rules.d` — code, refreshed whole by a deploy (where `--delete` is correct) and by a package
+  upgrade. `RuleRegistry` copies them into the state directory **the first time it creates one**, which
+  is the only first-run signal there is: seeding an empty directory instead would put a deleted rule
+  back on the next start. Keeping both copies is what lets the panel offer "reset to the sample"
+  without an upgrade reaching a rule somebody is running.
+- **⚠ The samples are not packaged into `/var/lib` and not in `backup=()`.** Pacman would reinstate a
+  deleted sample on the next upgrade, and deleting a rule has to stick.
 - **A decision carries who shaped the rule, beside the rule that made it.** `rule:<id>` stays the
   actor; `RuleAuthor` is provenance, a stable `provider:name` username, on the ledger and on
   `reactor.decided`. ⚠ **Copied onto the decision, never joined at read time** — otherwise editing a

@@ -11,7 +11,7 @@
 # packaging time is a unit nobody tested.
 
 pkgname=kgsm-reactor
-pkgver=0.14.0
+pkgver=0.25.0
 pkgrel=1
 pkgdesc="KGSM reactor — watches every component's event journal and records what happened"
 arch=('x86_64')
@@ -63,6 +63,17 @@ package() {
     # a file you edited rather than over it.
     install -Dm640 "${repo}/deploy/kgsm-reactor.env.example" \
         "${pkgdir}/etc/kgsm-reactor/kgsm-reactor.env"
+
+    # The rules this build ships, beside the binary. CODE, not state: refreshed whole by every
+    # upgrade, read by nothing at runtime except the leaf's own first-run copy into its state
+    # directory. Keeping the pristine set here is what lets a rule be put back to what it shipped as
+    # without an upgrade ever reaching a rule somebody is running.
+    #
+    # ⚠ Not installed into /var/lib and not listed in backup=(). Deleting a rule is a supported
+    # action and has to stick; pacman's backup handling would reinstate a deleted sample on the next
+    # upgrade, which is the one behaviour this must not have.
+    install -dm755 "${prefix}/rules.d"
+    install -m644 "${repo}"/deploy/rules.d/*.json "${prefix}/rules.d/"
 
     # The leaf config descriptor, in the directory kgsm-api scans. Packaged rather than installed by
     # a script, so it can never describe a different build than the one beside it.

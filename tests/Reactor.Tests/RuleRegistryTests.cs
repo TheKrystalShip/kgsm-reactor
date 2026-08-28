@@ -25,7 +25,11 @@ public sealed class RuleRegistryTests : IDisposable
             Directory.Delete(_dir, recursive: true);
     }
 
-    private RuleRegistry Open() => new(_dir, NullLogger<RuleRegistry>.Instance);
+    // Opened with no samples: these cases are about writing, and a seeded directory would put four
+    // rules in front of every assertion about one.
+    private RuleRegistry Open() => new(
+        _dir, NullLogger<RuleRegistry>.Instance,
+        samples: Path.Combine(Path.GetTempPath(), "kgsm-reactor-no-samples"));
 
     private static RuleDefinition Rule(string id) => new(
         Id: id,
@@ -159,6 +163,75 @@ public sealed class RuleRegistryTests : IDisposable
             await Task.Delay(50);
 
         Assert.Equal("byhand", Assert.Single(registry.Current.Rules).Id);
+    }
+
+    /// <summary>
+    /// A host that has never run the reactor starts with the rules it shipped.
+    /// </summary>
+    /// <remarks>
+    /// No package scriptlet and no privileged step: the leaf creates its own state directory anyway,
+    /// so the one moment it knows a host is new is the moment it creates one. Copied rather than
+    /// linked — from here they are ordinary rules, and an upgrade must not reach them.
+    /// </remarks>
+    [Fact]
+    public void A_directory_that_did_not_exist_is_seeded_with_the_shipped_samples()
+    {
+        using RuleRegistry registry = new(_dir, NullLogger<RuleRegistry>.Instance, samples: ShippedRules.Directory);
+
+        Assert.Equal(
+            ShippedRules.All.Select(r => r.Id).Order(StringComparer.Ordinal),
+            registry.Current.Rules.Select(r => r.Id).Order(StringComparer.Ordinal));
+        Assert.Empty(registry.Current.Problems);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Deleting every rule sticks.</b>
+    /// </summary>
+    /// <remarks>
+    /// The first-run signal is whether the directory EXISTED, never whether it holds anything. Seeding
+    /// an empty directory would put the samples back on the next start and quietly undo somebody who
+    /// meant it — and "this host judges nothing" is a state a host is allowed to be in.
+    /// </remarks>
+    [Fact]
+    public void An_emptied_directory_is_not_seeded_again()
+    {
+        using (RuleRegistry first = new(_dir, NullLogger<RuleRegistry>.Instance, samples: ShippedRules.Directory))
+            Assert.NotEmpty(first.Current.Rules);
+
+        foreach (string file in Directory.EnumerateFiles(_dir, "*.json"))
+            File.Delete(file);
+
+        using RuleRegistry second = new(_dir, NullLogger<RuleRegistry>.Instance, samples: ShippedRules.Directory);
+
+        Assert.Empty(second.Current.Rules);
+        Assert.Empty(Directory.EnumerateFiles(_dir, "*.json"));
+    }
+
+    /// <summary>An edited rule survives a restart, which is the other half of seeding once.</summary>
+    [Fact]
+    public void A_second_start_leaves_an_edited_rule_alone()
+    {
+        using (RuleRegistry first = new(_dir, NullLogger<RuleRegistry>.Instance, samples: ShippedRules.Directory))
+        {
+            RuleDefinition edited = first.Current.Rules[0] with { Name = "Renamed by somebody" };
+            Assert.Empty(first.Replace(edited));
+        }
+
+        using RuleRegistry second = new(_dir, NullLogger<RuleRegistry>.Instance, samples: ShippedRules.Directory);
+
+        Assert.Contains(second.Current.Rules, r => r.Name == "Renamed by somebody");
+    }
+
+    [Fact]
+    public void A_host_with_no_samples_to_install_starts_empty_rather_than_failing()
+    {
+        using RuleRegistry registry = new(
+            _dir, NullLogger<RuleRegistry>.Instance,
+            samples: Path.Combine(Path.GetTempPath(), $"absent-{Guid.NewGuid():N}"));
+
+        Assert.Empty(registry.Current.Rules);
+        Assert.Empty(registry.Current.Problems);
+        Assert.True(Directory.Exists(_dir));
     }
 
     [Fact]

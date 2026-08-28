@@ -7,6 +7,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the leaf installs its own sample rules on first start (0.26.0)
+
+The rules a fresh host runs are copied out of `/opt/kgsm-reactor/rules.d` into the state directory
+the first time the daemon starts, by the daemon. No package scriptlet, no provisioning step and no
+privileged moment: `StateDirectory=` already hands this leaf a directory of its own, and the one
+instant it can tell a host is new is the instant it creates one.
+
+**Whether the directory existed is the first-run signal, and nothing else is.** Seeding an empty one
+would put the samples back on the next start, and deleting a rule has to stick — "this host judges
+nothing" is a state a host is allowed to be in.
+
+The package ships the samples beside the binary, where an upgrade refreshes them whole and nothing
+at runtime reads them again. They are deliberately not installed into `/var/lib` and not listed in
+`backup=()`: pacman would reinstate a deleted sample on the next upgrade, which is the one behaviour
+this must not have. Keeping the pristine copies is also what lets a rule be put back to what it
+shipped as without an upgrade reaching a rule somebody is running.
+
 ### Added — the leaf writes its own rules (0.25.0)
 
 `PUT /rules/{id}` and `DELETE /rules/{id}` on the status socket. A panel that wrote into the state
@@ -65,8 +82,7 @@ join before anything is written, then writes beside and renames, so a rule is ne
 daemon then declines to run.
 
 `Reactor__RulesPath` becomes `Reactor__RulesDirectory`. `deploy.sh` refreshes the pristine samples
-under the install prefix and never touches the state directory; `setup.sh` seeds the state directory
-once, and only for a file that is not already there.
+under the install prefix and never touches the state directory.
 
 ### Changed — a verdict the rule withheld is recorded, not announced (0.23.0)
 

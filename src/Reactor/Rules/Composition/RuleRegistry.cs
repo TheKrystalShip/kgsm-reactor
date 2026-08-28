@@ -57,33 +57,42 @@ internal sealed class RuleRegistry : IDisposable
         get { lock (_gate) return _current; }
     }
 
-    public RuleRegistry(string directory, ILogger<RuleRegistry> logger, TimeProvider? clock = null)
+    public RuleRegistry(
+        string directory, ILogger<RuleRegistry> logger, TimeProvider? clock = null,
+        string? samples = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
 
         _directory = directory ?? string.Empty;
         _logger = logger;
-        _current = RuleStore.LoadDirectory(_directory, logger);
 
+        if (_directory.Length > 0)
+        {
+            // ⚠ Whether the directory EXISTED is the first-run signal, and the only one there is.
+            // After this the directory is there whatever it holds, so an empty one means somebody
+            // deleted every rule — which has to stick. Seeding on "empty" instead would put the
+            // samples back on the next start and quietly undo them.
+            bool fresh = !System.IO.Directory.Exists(_directory);
+
+            try
+            {
+                System.IO.Directory.CreateDirectory(_directory);
+                if (fresh)
+                    Seed(samples ?? DefaultSamples());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(
+                    "rules: {Directory} could not be prepared ({Message}). Rules cannot be written here.",
+                    _directory, ex.Message);
+            }
+        }
+
+        _current = RuleStore.LoadDirectory(_directory, logger);
         Announce(_current);
 
-        if (_directory.Length == 0)
+        if (_directory.Length == 0 || !System.IO.Directory.Exists(_directory))
             return;
-
-        // The directory is created rather than waited for. A host whose samples were never installed
-        // still has somewhere for its first rule to land, and the watcher needs the directory to exist
-        // before it can watch it.
-        try
-        {
-            System.IO.Directory.CreateDirectory(_directory);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _logger.LogWarning(
-                "rules: {Directory} could not be created ({Message}). Rules cannot be written here.",
-                _directory, ex.Message);
-            return;
-        }
 
         clock ??= TimeProvider.System;
         _debounce = clock.CreateTimer(_ => Reload(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -114,6 +123,67 @@ internal sealed class RuleRegistry : IDisposable
             _logger.LogWarning(
                 "rules: {Directory} could not be watched ({Message}). Edits made on disk will not be "
                 + "picked up until this service restarts.", _directory, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Where the samples this build ships sit: beside the binary, installed with it.
+    /// </summary>
+    /// <remarks>
+    /// Not configurable and not searched for. They are part of the build the same way the binary is —
+    /// a package puts them there, a deploy rsyncs them there, and both are refreshed whole every time.
+    /// Nothing at runtime reads them except the one first-run copy below.
+    /// </remarks>
+    private static string DefaultSamples() =>
+        Path.Combine(AppContext.BaseDirectory, "rules.d");
+
+    /// <summary>
+    /// Copy the shipped samples into a directory that has just been created.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>First run only, and a copy rather than a link.</b> From this moment they are ordinary rules
+    /// with nothing special about them: editable, retirable, deletable, and never touched again by an
+    /// upgrade. The pristine copies stay beside the binary, which is what lets a rule be put back to
+    /// what it shipped as without an upgrade ever reaching a rule somebody is running.
+    /// </para>
+    /// <para>
+    /// ⚠ A sample that cannot be copied is reported and skipped. A host that ends up with three of
+    /// four is a host running three rules, which is a state it is allowed to be in — refusing to start
+    /// over it would take the whole leaf down for something a person can fix at their leisure.
+    /// </para>
+    /// </remarks>
+    private void Seed(string samples)
+    {
+        if (!System.IO.Directory.Exists(samples))
+        {
+            _logger.LogInformation(
+                "rules: no samples at {Samples}, so {Directory} starts empty.", samples, _directory);
+            return;
+        }
+
+        int copied = 0;
+        foreach (string file in System.IO.Directory.EnumerateFiles(samples, "*" + RuleStore.RuleFileExtension))
+        {
+            string target = Path.Combine(_directory, Path.GetFileName(file));
+
+            try
+            {
+                File.Copy(file, target, overwrite: false);
+                copied++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(
+                    "rules: {Sample} could not be installed: {Message}", Path.GetFileName(file), ex.Message);
+            }
+        }
+
+        if (copied > 0)
+        {
+            _logger.LogInformation(
+                "rules: {Count} sample(s) installed into {Directory}. Every one observes; promoting "
+                + "one is a decision.", copied, _directory);
         }
     }
 

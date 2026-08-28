@@ -12,6 +12,10 @@ post_install() {
 
   kgsm-reactor needs no configuration: /etc/kgsm-reactor/kgsm-reactor.env holds overrides only.
 
+  It installs its sample rules into /var/lib/kgsm-reactor/rules.d the first time it starts, one file
+  per rule, and they are ordinary rules from that moment — editable, retirable and deletable. An
+  upgrade never touches them; the pristine copies stay in /opt/kgsm-reactor/rules.d.
+
   Every rule ships in `observe` mode, so it records what it would have decided and acts on nothing.
   Read what it made of a week before moving one:
 
