@@ -90,8 +90,8 @@ internal sealed record ReactorOptions
     /// <summary>The ledger's filename inside whichever state directory holds it.</summary>
     private const string LedgerFileName = "reactor.db";
 
-    /// <summary>The rules file's name inside whichever state directory holds it.</summary>
-    private const string RulesFileName = "rules.json";
+    /// <summary>The rules directory's name inside whichever state directory holds it.</summary>
+    private const string RulesDirectoryName = "rules.d";
 
     public required bool Enabled { get; init; }
     public required string KgsmPath { get; init; }
@@ -121,13 +121,14 @@ internal sealed record ReactorOptions
     public required int ProposalLifetimeHours { get; init; }
 
     /// <summary>
-    /// Where the rules this host runs are read from.
+    /// The directory the rules this host runs are read from, one file per rule.
     /// </summary>
     /// <remarks>
-    /// Absent is the ordinary case: the host then runs the rules this build seeds, every one of them
-    /// observing, which is the state a rule has to earn its way out of.
+    /// Every rule lives here and nowhere else — the samples this build ships are installed into it at
+    /// setup and are ordinary files from then on. An empty directory means no rules, which is a state
+    /// a host is allowed to be in.
     /// </remarks>
-    public required string RulesPath { get; init; }
+    public required string RulesDirectory { get; init; }
 
     /// <summary>The status socket's mode when nothing configures one: owner and group, read/write.</summary>
     private const UnixFileMode DefaultSocketMode =
@@ -196,7 +197,7 @@ internal sealed record ReactorOptions
             MaxActionsPerHour = AtLeast(settings.MaxActionsPerHour ?? DefaultMaxActionsPerHour, 0),
             ProposalLifetimeHours =
                 AtLeast(settings.ProposalLifetimeHours ?? DefaultProposalLifetimeHours, 1),
-            RulesPath = ResolveStatePath(settings.RulesPath, RulesFileName),
+            RulesDirectory = ResolveStatePath(settings.RulesDirectory, RulesDirectoryName),
         };
     }
 

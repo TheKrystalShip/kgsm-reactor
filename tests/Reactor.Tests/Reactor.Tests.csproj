@@ -25,6 +25,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The rules this build ships, copied in so the tests read the artifacts themselves rather than
+         a copy of them. No rule exists in code, so these files are the only definition there is: a
+         sample that stops parsing or names a signal this build dropped fails here. -->
+    <Content Include="../../deploy/rules.d/*.json"
+             Link="rules.d/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

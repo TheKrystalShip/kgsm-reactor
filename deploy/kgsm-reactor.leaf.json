@@ -223,10 +223,10 @@
       "risk": "safe"
     },
     {
-      "key": "rulesPath",
-      "env": "Reactor__RulesPath",
-      "label": "Rule thresholds",
-      "description": "Where the per-rule thresholds live. Each rule ships with figures that carry the measurement behind them; this file is where different ones are written. Leave it blank to keep it in this service's own state directory, which is what a normal install wants. A missing file means every rule runs on what it shipped with.",
+      "key": "rulesDirectory",
+      "env": "Reactor__RulesDirectory",
+      "label": "Rules directory",
+      "description": "Where this host's rules live — one file per rule. The samples that came with the leaf were installed here and can be edited, retired or deleted like any other. Leave it blank to keep them in this service's own state directory, which is what a normal install wants. An empty directory means the reactor judges nothing.",
       "group": "rules",
       "type": "path",
       "default": "",

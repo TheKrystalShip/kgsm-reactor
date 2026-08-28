@@ -58,7 +58,7 @@ public class ReactorCatalogTests
         HashSet<string> sources = [.. Catalog.SubjectSources.Select(s => s.Id)];
         HashSet<string> actions = [.. Catalog.Actions.Select(a => a.Id)];
 
-        Assert.All(SeededRules.All, rule =>
+        Assert.All(ShippedRules.All, rule =>
         {
             Assert.Contains(rule.SubjectSource, sources);
             Assert.Contains(rule.ActionId, actions);

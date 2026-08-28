@@ -211,31 +211,30 @@ internal sealed class ReactorSettings
     public int? ProposalLifetimeHours { get; set; }
 
     /// <summary>
-    /// The per-rule thresholds file. Blank resolves to <c>rules.json</c> in the systemd state
-    /// directory.
+    /// The directory the rules are read from, one file per rule. Blank resolves to <c>rules.d</c> in
+    /// the systemd state directory.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A file of its own because thresholds are two-dimensional — rule by parameter — and this
-    /// surface is one flat key per value. Expressing that here would mean a key per rule per
-    /// threshold and a property added to this type every time a rule gains one.
+    /// A directory rather than a document because a rule is edited, retired and reset on its own. One
+    /// file holding all of them makes every write a rewrite of every rule, and makes a parse error in
+    /// one of them the loss of the rest.
     /// </para>
     /// <para>
-    /// <b>The path travels through configuration; the file stays the leaf's.</b> A host with no
-    /// Control Panel reads and writes the default location directly. A panel that manages the
-    /// thresholds writes its own copy and points this at it — so the daemon is told a path and never
-    /// learns whose it is, and no leaf comes to depend on the API.
+    /// <b>The path travels through configuration; the files stay the leaf's.</b> A host with no
+    /// Control Panel reads and writes the default location directly. A panel edits a rule by asking
+    /// this daemon to, never by writing into the directory itself — so no leaf comes to depend on the
+    /// API.
     /// </para>
     /// <para>
-    /// Read once at startup. A change applies on restart, which is what applying any configuration
-    /// change to a leaf already does.
+    /// Watched while the daemon runs, so a file written by hand takes effect without a restart.
     /// </para>
     /// </remarks>
-    /// <panel>Where the per-rule thresholds live. Each rule ships with figures that carry the
-    /// measurement behind them; this file is where different ones are written. Leave it blank to keep
-    /// it in this service's own state directory, which is what a normal install wants. A missing file
-    /// means every rule runs on what it shipped with.</panel>
-    [LeafField("rulesPath", "Rule thresholds", Group = "rules", Type = LeafType.Path,
+    /// <panel>Where this host's rules live — one file per rule. The samples that came with the leaf
+    /// were installed here and can be edited, retired or deleted like any other. Leave it blank to keep
+    /// them in this service's own state directory, which is what a normal install wants. An empty
+    /// directory means the reactor judges nothing.</panel>
+    [LeafField("rulesDirectory", "Rules directory", Group = "rules", Type = LeafType.Path,
         Risk = LeafRisk.Wiring)]
-    public string RulesPath { get; set; } = string.Empty;
+    public string RulesDirectory { get; set; } = string.Empty;
 }

@@ -151,17 +151,6 @@ internal sealed class RuleDocument
     public AuthorshipDocument? UpdatedBy { get; set; }
 }
 
-/// <summary>The rules file.</summary>
-/// <remarks>
-/// A wrapper object rather than a bare array so the file has somewhere to grow a sibling field without
-/// every reader having to tell one from a rule.
-/// </remarks>
-internal sealed class RulesDocument
-{
-    [JsonPropertyName("rules")]
-    public List<RuleDocument> Rules { get; set; } = [];
-}
-
 [JsonSourceGenerationOptions(
     // Hand-editable over SSH as well as panel-written, so it tolerates what a person writes: comments
     // explaining why a rule exists, and a trailing comma after the last one.
@@ -170,7 +159,7 @@ internal sealed class RulesDocument
     PropertyNameCaseInsensitive = true,
     WriteIndented = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-[JsonSerializable(typeof(RulesDocument))]
+[JsonSerializable(typeof(RuleDocument))]
 internal sealed partial class RulesJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -191,65 +180,114 @@ internal sealed record RuleSet(
     IReadOnlyList<string> Problems);
 
 /// <summary>
-/// Reads the rules a host runs.
+/// Reads the rules a host runs, one file per rule.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A leaf-owned file even when the panel writes it</b>, which is what keeps this leaf standalone.
-/// The default path is inside this daemon's own state directory, so a host with no kgsm-api reads and
-/// writes it directly; a panel that manages it writes its own copy and points the daemon at it through
-/// <c>Reactor__RulesPath</c> on the existing override channel. The leaf is told a path and never learns
-/// whose it is — no leaf depends on the API, and this does not become the first one that does.
+/// <b>A directory of one-rule files, and nothing else is a source.</b> No rule exists in code: the
+/// samples this build ships are ordinary files installed into the state directory at setup, read
+/// through this loader like any other. That is deliberate — a rule defined in code would never
+/// travel through the parser or the validator, leaving the path every hand-written rule depends on
+/// exercised only by hand-written rules.
 /// </para>
 /// <para>
-/// <b>Read once, at startup.</b> No watcher: applying a configuration change already restarts the
-/// unit, and a file provider that watches costs an inotify watch out of the same per-user budget the
-/// game servers on this host draw from.
+/// <b>Leaf-owned even when the panel writes it</b>, which is what keeps this leaf standalone. The
+/// directory sits inside this daemon's own state directory, so a host with no kgsm-api reads and
+/// writes it directly. A panel edits a rule by asking the leaf to, never by reaching into the
+/// directory itself — no leaf depends on the API, and this does not become the first one that does.
 /// </para>
 /// <para>
-/// <b>No file means the seeds.</b> A host that has never been configured runs the four rules this
-/// build ships, all observing — which is the state a rule has to earn its way out of.
+/// <b>A file that cannot be read costs one rule, not the set.</b> Each is parsed on its own, so a
+/// typo in one leaves the rest running and names the file that has to be fixed.
+/// </para>
+/// <para>
+/// <b>An empty directory means no rules</b>, which is a legitimate state and not a fault. A host
+/// that deletes every sample gets a reactor that observes nothing and says so.
 /// </para>
 /// </remarks>
 internal static class RuleStore
 {
-    /// <summary>Load the rules a host runs, falling back to the seeds when nothing has been written.</summary>
-    public static RuleSet Load(string path)
+    /// <summary>The extension a rule file carries. Anything else in the directory is ignored.</summary>
+    public const string RuleFileExtension = ".json";
+
+    /// <summary>Load every rule in a directory. Missing or empty yields no rules and no problems.</summary>
+    public static RuleSet LoadDirectory(string directory)
     {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            return Resolve(SeededRules.All, []);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            return Resolve([], []);
+
+        List<string> files;
+        try
+        {
+            // Sorted so a duplicate id is refused against the same file on every host, rather than
+            // against whichever one the filesystem happened to hand back first.
+            files = [.. Directory.EnumerateFiles(directory, "*" + RuleFileExtension).Order(StringComparer.Ordinal)];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Resolve([], [$"{directory} could not be listed: {ex.Message} — no rules are running"]);
+        }
+
+        List<string> problems = [];
+        List<RuleDefinition> parsed = [];
+
+        foreach (string file in files)
+        {
+            RuleDefinition? definition = ReadFile(file, problems);
+            if (definition is not null)
+                parsed.Add(definition);
+        }
+
+        return Resolve(parsed, problems);
+    }
+
+    /// <summary>
+    /// One rule file, or null with the reason recorded.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The filename is not the id.</b> The id inside the file is what everything keys on, and it
+    /// is checked against the filename rather than derived from it — a file somebody copied and
+    /// renamed without editing would otherwise install a second rule under the first one's identity,
+    /// silently folding two rules' decisions together.
+    /// </remarks>
+    private static RuleDefinition? ReadFile(string path, List<string> problems)
+    {
+        string stem = Path.GetFileNameWithoutExtension(path);
 
         try
         {
             using FileStream stream = File.OpenRead(path);
-            RulesDocument? document =
-                JsonSerializer.Deserialize(stream, RulesJsonContext.Default.RulesDocument);
+            RuleDocument? document = JsonSerializer.Deserialize(stream, RulesJsonContext.Default.RuleDocument);
 
             if (document is null)
-                return Resolve(SeededRules.All, [$"{path} holds no object — the shipped rules are running"]);
+            {
+                problems.Add($"{stem} holds no object, so it defines no rule");
+                return null;
+            }
 
-            List<string> problems = [];
-            List<RuleDefinition> parsed = [];
+            if (!string.Equals(document.Id, stem, StringComparison.Ordinal))
+            {
+                problems.Add(
+                    $"{stem}{RuleFileExtension} declares the id '{document.Id}' — a rule file is named "
+                    + "for the id inside it, and an id is the actor on every decision the rule makes");
+                return null;
+            }
 
-            foreach (RuleDocument rule in document.Rules)
-                parsed.Add(Read(rule, problems));
-
-            return Resolve(parsed, problems);
+            return Read(document, problems);
         }
         catch (JsonException ex)
         {
             // The position is the whole value of this message: "line 7, position 22" is the difference
             // between a fixable typo and a file somebody rewrites from scratch.
-            return Resolve(SeededRules.All,
-            [
-                $"{path} could not be parsed at line {ex.LineNumber}, position {ex.BytePositionInLine}: "
-                + $"{ex.Message} — the shipped rules are running",
-            ]);
+            problems.Add(
+                $"{stem}{RuleFileExtension} could not be parsed at line {ex.LineNumber}, position "
+                + $"{ex.BytePositionInLine}: {ex.Message} — that rule is not running");
+            return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return Resolve(SeededRules.All,
-                [$"{path} could not be read: {ex.Message} — the shipped rules are running"]);
+            problems.Add($"{stem}{RuleFileExtension} could not be read: {ex.Message} — that rule is not running");
+            return null;
         }
     }
 
@@ -296,12 +334,12 @@ internal static class RuleStore
         return new RuleSet(live, retired, problems);
     }
 
-    /// <summary>Load, and log whatever could not be honoured.</summary>
-    public static RuleSet Load(string path, ILogger logger)
+    /// <summary>Load a directory, and log whatever could not be honoured.</summary>
+    public static RuleSet LoadDirectory(string directory, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        RuleSet set = Load(path);
+        RuleSet set = LoadDirectory(directory);
 
         foreach (string problem in set.Problems)
             logger.LogWarning("rules: {Problem}", problem);
@@ -309,14 +347,17 @@ internal static class RuleStore
         return set;
     }
 
-    /// <summary>The file as it would be written, which is how a host seeds one it can then edit.</summary>
-    public static string Write(IEnumerable<RuleDefinition> definitions)
+    /// <summary>One rule as its file, which is the only shape a rule is ever stored in.</summary>
+    public static string Write(RuleDefinition definition)
     {
-        ArgumentNullException.ThrowIfNull(definitions);
+        ArgumentNullException.ThrowIfNull(definition);
 
-        var document = new RulesDocument { Rules = [.. definitions.Select(ToDocument)] };
-        return JsonSerializer.Serialize(document, RulesJsonContext.Default.RulesDocument);
+        return JsonSerializer.Serialize(ToDocument(definition), RulesJsonContext.Default.RuleDocument);
     }
+
+    /// <summary>The path a rule occupies in a directory. The id names the file.</summary>
+    public static string PathOf(string directory, string ruleId) =>
+        Path.Combine(directory, ruleId + RuleFileExtension);
 
     /// <summary>
     /// One rule as it is written, turned into one this build can evaluate.

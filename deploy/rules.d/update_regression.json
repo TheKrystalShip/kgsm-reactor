@@ -1,0 +1,46 @@
+// Offer a rollback when a failure arrives close behind an update.
+//
+// Proximity in time is not proof the update caused the crash, which is why this only ever offers.
+// The two lookups below both read the same 30 minute window: one to find out whether an update
+// happened at all, the other to say how long ago it was. Binding them once under names keeps the
+// two mentions of that window from drifting apart.
+{
+  "id": "update_regression",
+  "name": "Offer a rollback after an update-shaped failure",
+  "wakes": ["server.crash.exhausted", "server.crashed"],
+  "subjects": { "source": "from_event" },
+  "signals": [
+    {
+      "alias": "lastUpdate",
+      "signal": "history.lastOccurrence",
+      "args": { "eventType": "server.update.finished", "withinMinutes": "30" }
+    },
+    {
+      "alias": "sinceUpdate",
+      "signal": "history.minutesSince",
+      "args": { "eventType": "server.update.finished", "withinMinutes": "30" }
+    }
+  ],
+  "rows": [
+    {
+      "when": [{ "signal": "lastUpdate", "op": "absent" }],
+      "then": "doesNotHold",
+      "say": "nothing updated {subject} in the last {lastUpdate@withinMinutes} minutes, so whatever is wrong with it did not arrive with an update"
+    },
+    {
+      "when": [{ "signal": "world.running", "op": "isTrue" }],
+      "then": "doesNotHold",
+      "say": "{subject} is running again"
+    }
+  ],
+  "default": {
+    "when": [],
+    "then": "holds",
+    "say": "{subject} failed {sinceUpdate}m after an update finished and is not running now — near enough in time that the update is worth ruling out before anything else"
+  },
+  "action": "propose_restore",
+  "severity": "danger",
+  "settleSeconds": 60,
+  "mode": "observe",
+  "retired": false
+}

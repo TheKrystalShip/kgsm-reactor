@@ -123,33 +123,36 @@ public class RuleEngineTests : IDisposable
     private static ReactorOptions Options(
         string observe = "give_up_backup", int suppressionMinutes = 30, int ceiling = 4)
     {
-        string rules = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}.json");
-        File.WriteAllText(rules, RuleStore.Write(
-            observe.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(id => SeededRules.All.Single(r => r.Id == id))));
-
         return ReactorOptions.FromSettings(new ReactorSettings
         {
-            RulesPath = rules,
+            RulesDirectory = RulesIn(
+                observe.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(ShippedRules.Named)),
             SuppressionWindowMinutes = suppressionMinutes,
             MaxActionsPerHour = ceiling,
             LedgerPath = "/unused",
         });
     }
 
-    /// <summary>Options for one rule, edited before it is written to the file.</summary>
-    private static ReactorOptions Written(Func<RuleDefinition, RuleDefinition> edit)
+    /// <summary>A directory holding these rules, one file each, exactly as a host stores them.</summary>
+    private static string RulesIn(IEnumerable<RuleDefinition> rules)
     {
-        string rules = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}.json");
-        File.WriteAllText(rules, RuleStore.Write(
-            [edit(SeededRules.All.Single(r => r.Id == "give_up_backup"))]));
+        string dir = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
 
-        return ReactorOptions.FromSettings(new ReactorSettings
+        foreach (RuleDefinition rule in rules)
+            File.WriteAllText(RuleStore.PathOf(dir, rule.Id), RuleStore.Write(rule));
+
+        return dir;
+    }
+
+    /// <summary>Options for one rule, edited before it is written to its file.</summary>
+    private static ReactorOptions Written(Func<RuleDefinition, RuleDefinition> edit) =>
+        ReactorOptions.FromSettings(new ReactorSettings
         {
-            RulesPath = rules,
+            RulesDirectory = RulesIn([edit(ShippedRules.Named("give_up_backup"))]),
             LedgerPath = "/unused",
         });
-    }
 
     /// <summary>Options for one rule somebody signed.</summary>
     private static ReactorOptions Authored(RuleAuthorship created, RuleAuthorship updated) =>
@@ -163,13 +166,13 @@ public class RuleEngineTests : IDisposable
         IDecisionEmitter announcer = emitter ?? new RecordingEmitter();
         var history = new LedgerRuleHistory(ledger);
         var footprint = new EmptyFootprints();
-        RuleSet rules = RuleStore.Load(options.RulesPath);
+        var registry = new RuleRegistry(options.RulesDirectory, NullLogger<RuleRegistry>.Instance);
 
         var store = new ProposalStore(ledger);
         store.Initialize();
 
         var proposals = new ProposalService(
-            store, performer ?? new RefusingPerformer(), announcer, rules,
+            store, performer ?? new RefusingPerformer(), announcer, registry,
             world, history, footprint, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<ProposalService>.Instance);
 
@@ -180,7 +183,7 @@ public class RuleEngineTests : IDisposable
         decisions.Initialize();
 
         return new(events, ledger, decisions, announcer, world, history, footprint,
-            rules, proposals, Microsoft.Extensions.Options.Options.Create(options), clock,
+            registry, proposals, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<RuleEngine>.Instance);
     }
 

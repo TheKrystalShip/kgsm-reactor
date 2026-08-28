@@ -10,15 +10,47 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// <remarks>
 /// A rule that is live but structurally unable to evaluate is the failure this file exists to prevent:
 /// it looks configured, it appears on the status socket, and it decides nothing forever. Every check
-/// here runs through the same validator the daemon runs at load, so a seed cannot be held to a
+/// here runs through the same validator the daemon runs at load, so a sample cannot be held to a
 /// different standard from a rule somebody writes.
 /// </remarks>
-public class SeededRuleTests
+public class ShippedRuleTests
 {
+    [Fact]
+    public void Every_shipped_sample_loads()
+    {
+        Assert.Empty(ShippedRules.Problems);
+        Assert.NotEmpty(ShippedRules.All);
+    }
+
+    /// <summary>
+    /// A sample arrives observing, which is the authority a rule has to earn its way out of.
+    /// </summary>
+    /// <remarks>
+    /// It is the difference between a host that starts recording what it would have concluded and one
+    /// that starts acting on rules nobody has read yet. Promoting one is a decision somebody makes
+    /// after reading what it decided.
+    /// </remarks>
+    [Fact]
+    public void Every_shipped_sample_arrives_observing() =>
+        Assert.All(ShippedRules.All, rule => Assert.Equal(RuleMode.Observe, rule.Mode));
+
+    /// <summary>
+    /// The id inside a sample is the name of its file.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The loader refuses a mismatch, so this is not what protects the daemon — it is what stops a
+    /// sample from being shipped that the loader would then refuse on every host that installs it.
+    /// </remarks>
+    [Fact]
+    public void Every_shipped_sample_is_named_for_its_id() =>
+        Assert.All(ShippedRules.All, rule => Assert.True(
+            File.Exists(Path.Combine(ShippedRules.Directory, rule.Id + ".json")),
+            $"{rule.Id} is not in a file called {rule.Id}.json"));
+
     [Fact]
     public void Every_shipped_rule_passes_the_validator_a_written_one_faces()
     {
-        Assert.All(SeededRules.All, rule =>
+        Assert.All(ShippedRules.All, rule =>
             Assert.Empty(RuleValidation.Problems(rule)));
     }
 
@@ -27,7 +59,7 @@ public class SeededRuleTests
     {
         // The id is the actor string an audit row carries, and the key the decision id is derived from.
         // Two rules sharing one would silently merge their decisions.
-        string[] ids = [.. SeededRules.All.Select(r => r.Id)];
+        string[] ids = [.. ShippedRules.All.Select(r => r.Id)];
 
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
@@ -39,17 +71,17 @@ public class SeededRuleTests
     /// The reactor tails every producer's journal including its own, so a decision it writes comes
     /// straight back in. A rule waking on one would decide about its own decision, write that, and be
     /// woken by it — at the sweep interval, forever, with a plausible-looking ledger. What this asserts
-    /// now is that the refusal exists at all: the seeds are clean, and a rule that named one is
-    /// rejected at load with the rest of the file still running.
+    /// now is that the refusal exists at all: the samples are clean, and a rule that named one is
+    /// rejected at load with every other rule still running.
     /// </remarks>
     [Fact]
     public void No_rule_can_wake_on_something_this_leaf_wrote_itself()
     {
-        Assert.All(SeededRules.All, rule =>
+        Assert.All(ShippedRules.All, rule =>
             Assert.DoesNotContain(rule.Wakes, type =>
                 type.StartsWith(Events.ReactorEvents.Prefix, StringComparison.Ordinal)));
 
-        RuleDefinition looping = SeededRules.All[0] with
+        RuleDefinition looping = ShippedRules.All[0] with
         {
             Id = "loops",
             Wakes = [Events.ReactorEvents.Decided],
@@ -103,12 +135,12 @@ public class SeededRuleTests
     [Fact]
     public void Every_rule_waits_before_it_judges()
     {
-        Assert.All(SeededRules.All, rule => Assert.True(
+        Assert.All(ShippedRules.All, rule => Assert.True(
             rule.Settle > TimeSpan.Zero,
             $"{rule.Id} is judged the instant its event lands"));
 
         Assert.Contains(
-            RuleValidation.Problems(SeededRules.All[0] with { Settle = TimeSpan.Zero }),
+            RuleValidation.Problems(ShippedRules.All[0] with { Settle = TimeSpan.Zero }),
             problem => problem.Contains("the instant its event lands"));
     }
 
@@ -116,8 +148,8 @@ public class SeededRuleTests
     /// The gate values as measured, pinned so that changing one is a decision rather than a drift.
     /// </summary>
     /// <remarks>
-    /// Each came from 30 days of this host's journals, and each has a reason recorded beside it in
-    /// <c>SeededRules</c>. A test that only asserted "some positive number" would let a future edit
+    /// Each came from 30 days of this host's journals, and each has a reason recorded beside it in the
+    /// sample file that carries it. A test that only asserted "some positive number" would let a future edit
     /// quietly undo the measurement; this fails and points at the field that moved.
     /// </remarks>
     [Theory]
@@ -127,7 +159,7 @@ public class SeededRuleTests
     [InlineData("memory_declaration_drift", 120, 1440)] // nothing to settle; a fortnight's figure holds a day
     public void The_measured_gate_values_are_what_ships(string id, int settleSeconds, int? suppressionMinutes)
     {
-        RuleDefinition rule = Assert.Single(SeededRules.All, r => r.Id == id);
+        RuleDefinition rule = Assert.Single(ShippedRules.All, r => r.Id == id);
 
         Assert.Equal(TimeSpan.FromSeconds(settleSeconds), rule.Settle);
         Assert.Equal(
@@ -152,7 +184,7 @@ public class SeededRuleTests
     {
         Assert.Equal(
             shape,
-            Assert.Single(SeededRules.All, r => r.Id == id).Shape.ToString().ToLowerInvariant());
+            Assert.Single(ShippedRules.All, r => r.Id == id).Shape.ToString().ToLowerInvariant());
     }
 
     /// <summary>
@@ -162,11 +194,11 @@ public class SeededRuleTests
     public void An_edge_rule_must_name_something_that_wakes_it()
     {
         Assert.All(
-            SeededRules.All.Where(r => r.Shape == RuleShape.Edge),
+            ShippedRules.All.Where(r => r.Shape == RuleShape.Edge),
             rule => Assert.NotEmpty(rule.Wakes));
 
         Assert.Contains(
-            RuleValidation.Problems(SeededRules.All[0] with { Wakes = [] }),
+            RuleValidation.Problems(ShippedRules.All[0] with { Wakes = [] }),
             problem => problem.Contains("names no event to wake on"));
     }
 
@@ -177,7 +209,7 @@ public class SeededRuleTests
     {
         // What a host gets when nobody has configured anything. Every rule watching, nothing staged,
         // nothing performed — the state a rule has to earn its way out of.
-        Assert.All(SeededRules.All, rule => Assert.Equal(RuleMode.Observe, rule.Mode));
+        Assert.All(ShippedRules.All, rule => Assert.Equal(RuleMode.Observe, rule.Mode));
     }
 
     /// <summary>

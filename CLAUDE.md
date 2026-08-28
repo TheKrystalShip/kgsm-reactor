@@ -15,9 +15,9 @@ holds the design, the boundary contract and every decision still open.
 # What it is doing right now. A unix socket, never a port.
 curl --unix-socket /run/kgsm-reactor/status.sock http://localhost/status | jq
 
-# The rules as they are actually running, and anything in the file that could not be honoured.
+# The rules as they are actually running, and any file that could not be honoured.
 curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/status \
-  | jq '{rulesPath, rulesFilePresent, problems,
+  | jq '{rulesDirectory, ruleFiles, problems,
          rules: [.rules[] | {id, mode, author, steps: (.rows | length)}]}'
 
 # What a rule may be MADE of on this build — what the panel renders its editor from.
@@ -173,12 +173,33 @@ where the journal line is written after the ledger is open and the rules are res
   which passes alone and fails under a parallel run. `EventIngestServiceTests.StartAndStopAsync` takes
   an explicit readiness condition for this reason. The daemon is unaffected: registration and
   `Initialize` are both inside `ExecuteAsync`, in that order.
-- **A rule is data; the catalogs it draws on are code.** `rules.json` (the state directory, or
-  `Reactor__RulesPath`) holds what wakes each rule, where its subjects come from, an ordered list of
-  guard rows over signals, and one action. `Rules/Composition/` holds the rest: `SignalCatalog`,
-  `SubjectSourceCatalog` and `ActionCatalog` are compiled, so a person composes from what this build
-  can do and cannot reach past it. **A host with no file runs `SeededRules`** — the four rules this
-  build ships, all observing.
+- **A rule is data; the catalogs it draws on are code.** One JSON file per rule under `rules.d/` (the
+  state directory, or `Reactor__RulesDirectory`) holds what wakes it, where its subjects come from, an
+  ordered list of guard rows over signals, and one action. `Rules/Composition/` holds the rest:
+  `SignalCatalog`, `SubjectSourceCatalog` and `ActionCatalog` are compiled, so a person composes from
+  what this build can do and cannot reach past it.
+- **⚠ No rule exists in code.** The four this build ships are files in `deploy/rules.d/`, installed
+  into the state directory by `setup.sh` and ordinary rules from that moment. A rule defined in code
+  would never travel through the parser, the validator or the watcher, leaving the path every
+  hand-written rule depends on exercised only by hand-written rules — so the samples are what proves
+  it. `ShippedRules` in the test project loads those same files through `RuleStore.LoadDirectory`.
+  **An empty directory means no rules**, which is a state a host is allowed to be in.
+- **The id inside a file is the file's name, and the loader checks rather than derives.** A file
+  somebody copied and renamed would otherwise install a second rule under the first one's identity,
+  folding two rules' decisions together under one actor.
+- **A file that cannot be read costs one rule, not the set** — which is the whole reason a rule is a
+  file. Each is parsed alone, and the problem names the file to fix.
+- **`RuleRegistry` owns the set, and everything reads through it.** The engine judges through these
+  rules and a redemption re-derives its condition through the same ones; a holder keeping its own copy
+  would leave the two judging by different rules for as long as the daemon ran. A reload replaces the
+  whole set in one assignment, so a sweep that started before a write finishes on the rules it began
+  with. ⚠ **Evaluations still settling are dropped on a reload** — the rule that scheduled one may no
+  longer say the same thing, and the condition reopens on the next match anyway.
+- **The directory is watched, so a hand edit applies without a restart.** Debounced, because one save
+  arrives as several filesystem events and an editor writing through a temporary file produces a
+  burst. A write through the panel goes via `RuleRegistry.Replace`, which validates against the set the
+  rule would join, writes beside and renames, and adopts the result — so a rule is never stored that
+  the daemon then declines to run.
 - **⚠ Signals are compiled because some are derived.** `drift.pctVsDeclared` is a footprint and a
   blueprint compared; expressing that as data needs an expression language, which would arrive one
   convenience at a time and end in predicates that parse while meaning something other than they read.
@@ -186,7 +207,7 @@ where the journal line is written after the ledger is open and the rules are res
   is what `abs(drift)` would have been.
 - **⚠ Absent is a value; unreadable is not.** A blueprint declaring no minimum has been read, and the
   answer is "there is none". One that could not be read is a failure that ends the whole rule as
-  `Unreadable` with the reader's own words. The four seeded rules turn on that distinction in five
+  `Unreadable` with the reader's own words. The four shipped rules turn on that distinction in five
   places.
 - **Rows are ordered and the first match decides; a row is an AND.** OR is another row with the same
   outcome — which is why the drift rule has three positive-drift rows, each with its own sentence. A
@@ -273,19 +294,22 @@ where the journal line is written after the ledger is open and the rules are res
   twice — the panel against the catalog it was served, the leaf at
   load, which is the authority. ⚠ **An outcome is spelled the way `/catalog` spells it**
   (`doesNotHold`, not an enum name lowercased), or a panel classifies against ids that match nothing.
-- **The rules file stays the leaf's even when the panel writes it.** The default path is inside this
-  daemon's own state directory, so a host with no kgsm-api reads and writes it directly; a panel that
-  manages it writes its own copy and points `Reactor__RulesPath` at it over the existing override
-  channel. The leaf is told a path and never learns whose it is — which is what keeps it from becoming
-  the first leaf to depend on the API.
+- **The rules stay the leaf's even when the panel edits them.** The directory is inside this daemon's
+  own state directory, so a host with no kgsm-api reads and writes it directly; a panel edits a rule by
+  asking the leaf to, never by writing into the directory itself. The leaf is told a path and never
+  learns whose it is — which is what keeps it from becoming the first leaf to depend on the API.
+- **⚠ A deploy never writes into the state directory.** `deploy.sh` refreshes the pristine samples under
+  the install prefix, where `--delete` is correct because they are code; `setup.sh` seeds the state
+  directory once and only for a file that is not already there. Keeping both copies is what lets the
+  panel offer "reset to the sample" without a deploy reaching a rule somebody is running.
 - **A decision carries who shaped the rule, beside the rule that made it.** `rule:<id>` stays the
   actor; `RuleAuthor` is provenance, a stable `provider:name` username, on the ledger and on
   `reactor.decided`. ⚠ **Copied onto the decision, never joined at read time** — otherwise editing a
   rule rewrites the attribution of everything it ever decided, and retiring one erases the trace. ⚠
-  **No fallback to the OS user**: a seeded rule, or one hand-written over SSH, is unattributed and says
+  **No fallback to the OS user**: a shipped sample, or a rule hand-written over SSH, is unattributed and says
   so.
 - **Settle and suppression are measured, and they stay measured.** The two windows are properties of
-  how a condition behaves over time, read off 30 days of a host and pinned by `SeededRuleTests` with
+  how a condition behaves over time, read off 30 days of a host and pinned by `ShippedRuleTests` with
   each figure's basis. A composed rule that quietly lost the 45-minute threshold window would be a new
   rule wearing an old one's name, and its decisions would fold into the old one's episodes.
 - **The settings file and `ReactorSettings` must agree**, in both directions, and

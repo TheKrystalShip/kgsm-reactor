@@ -1,0 +1,95 @@
+// Report an instance whose measured memory no longer matches what its blueprint declares.
+//
+// The long ladder in front of the verdict is all coverage: a peak measured over one evening says
+// nothing about a world, a server launched with a heap argument reports that argument rather than
+// what it needs, and a blueprint with no declared minimum has nothing to be compared against. Each
+// of those concludes on its own so the reason names which one stopped it, instead of every thin
+// case arriving as the same silence.
+//
+// This is the one sample that wakes on nothing: it sweeps every instance the monitor has measured,
+// because a footprint drifts rather than happening.
+{
+  "id": "memory_declaration_drift",
+  "name": "Report a footprint that has drifted from what the blueprint declares",
+  "wakes": [],
+  "subjects": { "source": "instances_with_footprint" },
+  "signals": [],
+  "rows": [
+    {
+      "when": [{ "signal": "footprint.spanDays", "op": "lt", "value": 2 }],
+      "then": "unreadable",
+      "say": "{subject} has only been observed across {footprint.spanDays:F1} days, short of the {footprint.spanDays#:0.###} days a world's growth shows up over"
+    },
+    {
+      "when": [{ "signal": "footprint.observedHours", "op": "lt", "value": 5 }],
+      "then": "unreadable",
+      "say": "{subject} has been measured for {footprint.observedHours:F1} hours, short of the {footprint.observedHours#:0.###} hours a peak means anything over"
+    },
+    {
+      "when": [
+        { "signal": "footprint.runs", "op": "lt", "value": 2 },
+        { "signal": "footprint.observedHours", "op": "lt", "value": 24 }
+      ],
+      "then": "unreadable",
+      "say": "{subject} has been seen to start {footprint.runs} time(s) and has not run the {footprint.observedHours#:0.###} hours that would stand in for a second one"
+    },
+    {
+      "when": [{ "signal": "footprint.workingSetPeakMb", "op": "absent" }],
+      "then": "unreadable",
+      "say": "no working set has been measured for {subject}"
+    },
+    {
+      "when": [{ "signal": "declaration.heapFlag", "op": "present" }],
+      "then": "doesNotHold",
+      "say": "{subject} launches with {declaration.heapFlag}, so its {footprint.workingSetPeakMb}MB working set is that setting rather than a measurement of what the world needs"
+    },
+    {
+      "when": [{ "signal": "declaration.minRamMb", "op": "absent" }],
+      "then": "unreadable",
+      "say": "{subject}'s blueprint declares no minimum to compare against"
+    },
+    {
+      "when": [{ "signal": "drift.absPctVsDeclared", "op": "lt", "value": 25 }],
+      "then": "doesNotHold",
+      "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, within {drift.absPctVsDeclared#:0.###}% of it (measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days)"
+    },
+    {
+      "when": [
+        { "signal": "drift.pctVsDeclared", "op": "gt", "value": 0 },
+        { "signal": "footprint.oomKills", "op": "gt", "value": 0 }
+      ],
+      "then": "holds",
+      "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, {drift.absPctVsDeclared:F0}% above it (measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days), and the kernel has killed {footprint.oomKills} process(es) in it for want of memory"
+    },
+    {
+      "when": [
+        { "signal": "drift.pctVsDeclared", "op": "gt", "value": 0 },
+        { "signal": "footprint.stallSeconds", "op": "gt", "value": 0 }
+      ],
+      "then": "holds",
+      "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, {drift.absPctVsDeclared:F0}% above it (measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days), having stalled {footprint.stallSeconds:F0}s waiting on memory"
+    },
+    {
+      "when": [{ "signal": "drift.pctVsDeclared", "op": "gt", "value": 0 }],
+      "then": "holds",
+      "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, {drift.absPctVsDeclared:F0}% above it (measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days), without ever stalling on memory"
+    },
+    {
+      "when": [{ "signal": "trend.growthPct", "op": "gt", "value": 10 }],
+      "then": "doesNotHold",
+      "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, but its working set is still climbing — up {trend.growthPct:F0}% across the window — so it has not found its ceiling and the gap may close on its own",
+      "sayWhenUnreadable": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, but whether it has stopped growing cannot be told: {reason}"
+    }
+  ],
+  "default": {
+    "when": [],
+    "then": "holds",
+    "say": "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares {declaration.minRamMb}MB, {drift.absPctVsDeclared:F0}% below it (measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days), and settled — its working set moved {trend.growthPct:+0;-0}% over {trend.points} measurements"
+  },
+  "action": "none",
+  "severity": "info",
+  "settleSeconds": 120,
+  "suppressionMinutes": 1440,
+  "mode": "observe",
+  "retired": false
+}

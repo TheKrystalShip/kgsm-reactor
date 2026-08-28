@@ -102,7 +102,7 @@
     // never binds, judged the instant its event lands, or sharing an id with another rule is left out
     // and reported on /status — the rest of the file still runs. "I saved it and nothing happened" is
     // the one outcome this must never produce.
-    "RulesPath": ""
+    "RulesDirectory": ""
   },
 
   "Logging": {

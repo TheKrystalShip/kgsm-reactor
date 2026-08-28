@@ -75,7 +75,51 @@ health_probe() {
 # Nothing one-shot and privileged beyond the standard provisioning: the ledger and the journal both
 # live under the state directory systemd creates from StateDirectory=, and this leaf ships no
 # root-owned component.
-setup_project_extras() { :; }
+# The state directory and its rules, seeded once.
+#
+# ⚠ A sample is copied ONLY when no file of that name is there. This runs on every setup.sh, and
+# setup.sh is re-runnable by design, so anything less careful would overwrite an edited rule the next
+# time somebody re-provisioned the host. deploy.sh never comes near this directory at all.
+#
+# systemd creates the state directory itself via StateDirectory= on first start, but setup.sh runs
+# before the service ever has, so it is created here — owned by the user the service runs as, which is
+# the same user that owns everything else this script provisions.
+RULES_STATE_DIR="/var/lib/${PROJECT}/rules.d"
+
+setup_project_extras() {
+    # Escalate only where the filesystem actually requires it. A host that has been set up before
+    # already owns both directories, so a re-run costs nothing and asks for nothing — which is what
+    # makes re-running this safe enough to do without thinking about it.
+    local as_root=""
+    [[ -w "/var/lib" || -d "/var/lib/${PROJECT}" ]] || as_root="$SUDO"
+    $as_root install -d -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "/var/lib/${PROJECT}"
+
+    as_root=""
+    [[ -w "/var/lib/${PROJECT}" ]] || as_root="$SUDO"
+    $as_root install -d -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "$RULES_STATE_DIR"
+
+    as_root=""
+    [[ -w "$RULES_STATE_DIR" ]] || as_root="$SUDO"
+
+    local seeded=0 kept=0 sample name
+    for sample in "${REPO_DIR}"/deploy/rules.d/*.json; do
+        [[ -e "$sample" ]] || continue
+        name="$(basename "$sample")"
+
+        if [[ -e "${RULES_STATE_DIR}/${name}" ]]; then
+            kept=$((kept + 1))
+            continue
+        fi
+
+        $as_root install -m 0640 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" \
+            "$sample" "${RULES_STATE_DIR}/${name}"
+        seeded=$((seeded + 1))
+    done
+
+    log "rules: ${seeded} sample(s) installed, ${kept} left as they are → ${RULES_STATE_DIR}"
+    [[ "$seeded" -gt 0 ]] && log "        every one arrives observing; promoting one is a decision"
+    return 0
+}
 # ── END PROJECT BLOCK ─────────────────────────────────────────────────────────
 
 # ── Derived paths (do not edit) ───────────────────────────────────────────────

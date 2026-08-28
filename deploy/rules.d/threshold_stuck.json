@@ -1,0 +1,85 @@
+// Report a threshold breach that is not clearing the way this host's breaches usually do.
+//
+// "Unusually long" is measured against the subject's own history rather than a figure written here,
+// because a sensor that sits hot for twenty minutes every evening and one that never breaches at
+// all cannot share a threshold. Below five closed episodes there is no distribution worth comparing
+// against, and the rule says so instead of guessing.
+{
+  "id": "threshold_stuck",
+  "name": "Report a threshold breach that is not clearing",
+  "wakes": ["host.threshold.breached"],
+  "subjects": {
+    "source": "open_episodes",
+    "args": {
+      "opensWith": "host.threshold.breached",
+      "closesWith": "host.threshold.cleared",
+      "withinDays": "30"
+    }
+  },
+  "signals": [
+    {
+      "alias": "episodeOpen",
+      "signal": "episode.isOpen",
+      "args": {
+        "opensWith": "host.threshold.breached",
+        "closesWith": "host.threshold.cleared",
+        "withinDays": "30"
+      }
+    },
+    {
+      "alias": "breachAge",
+      "signal": "episode.openAge",
+      "args": {
+        "opensWith": "host.threshold.breached",
+        "closesWith": "host.threshold.cleared",
+        "withinDays": "30"
+      }
+    },
+    {
+      "alias": "p95",
+      "signal": "episode.durationP95",
+      "args": {
+        "opensWith": "host.threshold.breached",
+        "closesWith": "host.threshold.cleared",
+        "withinDays": "30"
+      }
+    },
+    {
+      "alias": "closed",
+      "signal": "episode.closedSamples",
+      "args": {
+        "opensWith": "host.threshold.breached",
+        "closesWith": "host.threshold.cleared",
+        "withinDays": "30"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "when": [{ "signal": "episodeOpen", "op": "isFalse" }],
+      "then": "doesNotHold",
+      "say": "no threshold on {subject} is currently breached"
+    },
+    {
+      "when": [{ "signal": "closed", "op": "lt", "value": 5 }],
+      "then": "unreadable",
+      "say": "{subject} has only {closed} breach(es) on record that cleared — too few to say what unusually long means on this host"
+    },
+    {
+      "when": [{ "signal": "breachAge", "op": "gt", "vsSignal": "p95" }],
+      "then": "holds",
+      "say": "{subject} has been over its threshold for {breachAge} — 95% of the {closed} breaches on record here cleared within {p95}, so this one is not clearing the way they do"
+    }
+  ],
+  "default": {
+    "when": [],
+    "then": "doesNotHold",
+    "say": "{subject} has been over its threshold for {breachAge}, inside the {p95} that 95% of its breaches clear within"
+  },
+  "action": "none",
+  "severity": "warn",
+  "settleSeconds": 2700,
+  "suppressionMinutes": 240,
+  "mode": "observe",
+  "retired": false
+}

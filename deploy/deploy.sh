@@ -67,6 +67,18 @@ STOPPED=1
 log "syncing publish tree → ${PREFIX}"
 rsync -a --delete --exclude='*.pdb' --exclude='*.xml' "$PUBLISH_DIR/" "$PREFIX/"
 
+# ── 3b. The pristine sample rules ─────────────────────────────────────────────
+# ⚠ Into the INSTALL PREFIX, never the state directory. These are code: refreshed on every deploy so
+# they always match the binary, and read by nothing at runtime. The rules the host actually runs live
+# in the state directory, are owned by whoever edited them, and no deploy may touch them — setup.sh
+# seeds those once and only for a file that is not already there.
+#
+# Keeping the pristine copies here is what lets the panel offer "reset to the sample" without a deploy
+# ever reaching a rule somebody is running.
+log "refreshing sample rules → ${PREFIX}/rules.d"
+mkdir -p "${PREFIX}/rules.d"
+rsync -a --delete "${REPO_DIR}/deploy/rules.d/" "${PREFIX}/rules.d/"
+
 # The health probe accepts only a `leaf.ready` written at or after this moment. Taken BEFORE the
 # start, because the one written by the run being replaced would otherwise satisfy the check
 # instantly and the gate would pass on a service that never came up.

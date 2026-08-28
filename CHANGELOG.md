@@ -7,6 +7,41 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a rule is a file, and no rule exists in code (0.24.0)
+
+**Rules are read from `rules.d/`, one JSON file each.** There is no rules document and no compiled
+rule set: the four this build ships are files in `deploy/rules.d/`, installed into the state directory
+by `setup.sh` and ordinary rules from that moment on.
+
+The reason for removing the code path rather than keeping it as a fallback is that a rule defined in
+code never travels through the parser, the validator or the watcher — so the path every hand-written
+rule depends on would have been exercised only by hand-written rules. The samples are now what proves
+it works. `ShippedRules` in the test project loads those same files through `RuleStore.LoadDirectory`,
+which is how a sample that stops parsing or names a dropped signal fails the build.
+
+An empty directory means no rules, and that is a legitimate state rather than a fault.
+
+**A file that cannot be read costs one rule, not the set.** Each is parsed alone and the problem names
+the file to fix, where one document meant a typo anywhere took every rule down with it at the moment
+somebody was editing one of them. The id inside a file is checked against the filename rather than
+derived from it: a file copied and renamed would otherwise install a second rule under the first one's
+identity, folding two rules' decisions together under one actor.
+
+**`RuleRegistry` owns the set and everything reads through it**, so the engine and a redemption cannot
+come to judge by different rules. A reload replaces the whole set in one assignment, leaving a sweep
+that started before a write to finish on the rules it began with. Evaluations still settling are
+dropped on a reload — the rule that scheduled one may no longer say the same thing, and the condition
+reopens on the next match.
+
+**The directory is watched, so a rule takes effect without a restart.** Debounced, because one save
+arrives as several filesystem events. `RuleRegistry.Replace` validates a rule against the set it would
+join before anything is written, then writes beside and renames, so a rule is never stored that the
+daemon then declines to run.
+
+`Reactor__RulesPath` becomes `Reactor__RulesDirectory`. `deploy.sh` refreshes the pristine samples
+under the install prefix and never touches the state directory; `setup.sh` seeds the state directory
+once, and only for a file that is not already there.
+
 ### Changed — a verdict the rule withheld is recorded, not announced (0.23.0)
 
 **A coverage gate is this leaf describing its own evidence, not the host.** *"This instance has not been

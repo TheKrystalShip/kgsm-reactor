@@ -4,7 +4,7 @@ using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>
-/// The rules file: what a host runs, and what it does with a rule it cannot honour.
+/// The rules directory: what a host runs, and what it does with a rule it cannot honour.
 /// </summary>
 /// <remarks>
 /// ⚠ <b>Nothing here may throw and nothing here may be silent.</b> A daemon that refused to start over
@@ -14,92 +14,147 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// </remarks>
 public class RuleStoreTests
 {
-    private static string Write(string body)
+    /// <summary>A directory holding one file per entry, named for the id it is given.</summary>
+    private static string Dir(params (string Id, string Body)[] files)
     {
-        string path = Path.Combine(Path.GetTempPath(), $"rules-{Guid.NewGuid():N}.json");
-        File.WriteAllText(path, body);
-        return path;
+        string dir = Path.Combine(Path.GetTempPath(), $"rules-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+
+        foreach ((string id, string body) in files)
+            File.WriteAllText(Path.Combine(dir, id + ".json"), body);
+
+        return dir;
+    }
+
+    /// <summary>The same, for rules that already exist as definitions.</summary>
+    private static string DirOf(params RuleDefinition[] rules) =>
+        Dir([.. rules.Select(r => (r.Id, RuleStore.Write(r)))]);
+
+    /// <summary>
+    /// A host whose directory is empty judges nothing, and that is not a fault.
+    /// </summary>
+    /// <remarks>
+    /// No rule exists in code, so there is nothing to fall back to and nothing that should be invented.
+    /// Somebody who deleted every rule meant to.
+    /// </remarks>
+    [Fact]
+    public void An_empty_directory_means_no_rules()
+    {
+        RuleSet set = RuleStore.LoadDirectory(Dir());
+
+        Assert.Empty(set.Rules);
+        Assert.Empty(set.Retired);
+        Assert.Empty(set.Problems);
     }
 
     [Fact]
-    public void A_host_with_no_file_runs_the_rules_this_build_ships()
+    public void A_directory_that_is_not_there_means_no_rules()
     {
-        RuleSet set = RuleStore.Load(Path.Combine(Path.GetTempPath(), $"absent-{Guid.NewGuid():N}.json"));
+        RuleSet set = RuleStore.LoadDirectory(
+            Path.Combine(Path.GetTempPath(), $"absent-{Guid.NewGuid():N}"));
 
-        Assert.Equal(SeededRules.All.Count, set.Rules.Count);
+        Assert.Empty(set.Rules);
         Assert.Empty(set.Problems);
-        Assert.Empty(set.Retired);
     }
 
     /// <summary>
-    /// ⚠ The seeds survive being written out and read back unchanged.
+    /// ⚠ A rule survives being written out and read back unchanged.
     /// </summary>
     /// <remarks>
-    /// Which is what makes seeding a file a safe thing to do: a host that writes its shipped rules out
-    /// so they can be edited must get back exactly the rules it was running, or the act of exposing
-    /// them changes them.
+    /// Every edit is a write followed by a read, so a round trip that lost a field would change a rule
+    /// each time somebody touched it — and would do so most to the rules people edit most.
     /// </remarks>
     [Fact]
-    public void The_shipped_rules_round_trip_through_the_file()
+    public void A_rule_round_trips_through_its_file()
     {
-        string path = Write(RuleStore.Write(SeededRules.All));
-
-        RuleSet set = RuleStore.Load(path);
+        RuleSet set = RuleStore.LoadDirectory(DirOf([.. ShippedRules.All]));
 
         Assert.Empty(set.Problems);
+        Assert.Equal(ShippedRules.All.Select(r => r.Id), set.Rules.Select(r => r.Id));
         Assert.Equal(
-            SeededRules.All.Select(r => r.Id),
-            set.Rules.Select(r => r.Id));
-        Assert.Equal(RuleStore.Write(SeededRules.All), RuleStore.Write(set.Rules));
+            ShippedRules.All.Select(RuleStore.Write),
+            set.Rules.Select(RuleStore.Write));
     }
 
     [Fact]
-    public void A_stored_rule_decides_exactly_as_the_seed_it_was_written_from()
+    public void A_stored_rule_decides_exactly_as_the_one_it_was_written_from()
     {
-        string path = Write(RuleStore.Write(SeededRules.All));
-        RuleDefinition stored = RuleStore.Load(path).Rules.Single(r => r.Id == "give_up_backup");
+        string dir = DirOf([.. ShippedRules.All]);
+        RuleDefinition stored = RuleStore.LoadDirectory(dir).Rules.Single(r => r.Id == "give_up_backup");
 
-        Assert.Equal(
-            SeededRules.All.Single(r => r.Id == "give_up_backup").Rows[0].Message,
-            stored.Rows[0].Message);
+        Assert.Equal(ShippedRules.Named("give_up_backup").Rows[0].Message, stored.Rows[0].Message);
         Assert.Equal(TimeSpan.FromMinutes(2), stored.Settle);
         Assert.Equal(TimeSpan.FromMinutes(15), stored.Suppression);
         Assert.Equal(ActionCatalog.CreateBackup, stored.ActionId);
     }
 
+    /// <summary>
+    /// ⚠ A file that cannot be parsed costs one rule, not the directory.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole reason a rule is a file. One document meant a typo anywhere took every rule
+    /// down with it, at the moment somebody was editing one of them.
+    /// </remarks>
     [Fact]
-    public void A_file_that_cannot_be_parsed_leaves_the_shipped_rules_running_and_says_where()
+    public void A_file_that_cannot_be_parsed_leaves_the_others_running_and_says_where()
     {
-        string path = Write("""{ "rules": [ { "id": "x",, } ] }""");
+        string dir = Dir(
+            ("broken", """{ "id": "broken",, }"""),
+            ("ok", RuleStore.Write(Minimal())));
 
-        RuleSet set = RuleStore.Load(path);
+        RuleSet set = RuleStore.LoadDirectory(dir);
 
-        Assert.Equal(SeededRules.All.Count, set.Rules.Count);
+        Assert.Equal("ok", Assert.Single(set.Rules).Id);
         string problem = Assert.Single(set.Problems);
+        Assert.Contains("broken.json", problem);
         Assert.Contains("line", problem);
-        Assert.Contains("the shipped rules are running", problem);
+    }
+
+    /// <summary>
+    /// ⚠ The filename is checked against the id, never used as one.
+    /// </summary>
+    /// <remarks>
+    /// A file somebody copied and renamed without editing would otherwise install a second rule under
+    /// the first one's identity, folding two rules' decisions together under one actor.
+    /// </remarks>
+    [Fact]
+    public void A_file_whose_name_disagrees_with_the_id_inside_it_is_refused()
+    {
+        RuleSet set = RuleStore.LoadDirectory(Dir(("copy_of_ok", RuleStore.Write(Minimal()))));
+
+        Assert.Empty(set.Rules);
+        Assert.Contains(set.Problems, p => p.Contains("copy_of_ok.json") && p.Contains("'ok'"));
+    }
+
+    [Fact]
+    public void Anything_that_is_not_a_rule_file_is_left_alone()
+    {
+        string dir = DirOf([Minimal()]);
+        File.WriteAllText(Path.Combine(dir, "notes.txt"), "a reminder about the rule next door");
+        File.WriteAllText(Path.Combine(dir, "ok.json.bak"), "{ not json at all");
+
+        RuleSet set = RuleStore.LoadDirectory(dir);
+
+        Assert.Equal("ok", Assert.Single(set.Rules).Id);
+        Assert.Empty(set.Problems);
     }
 
     [Fact]
     public void Comments_and_a_trailing_comma_are_what_a_person_writes()
     {
-        string path = Write("""
+        string dir = Dir(("quiet", """
+            // why this rule exists
             {
-              // why this rule exists
-              "rules": [
-                {
-                  "id": "quiet", "name": "Never says anything",
-                  "wakes": ["server.crashed"],
-                  "subjects": { "source": "from_event" },
-                  "rows": [],
-                  "default": { "then": "doesNotHold", "say": "nothing to report about {subject}" },
-                  "action": "none", "severity": "info", "settleSeconds": 60,
-                },
-              ],
+              "id": "quiet", "name": "Never says anything",
+              "wakes": ["server.crashed"],
+              "subjects": { "source": "from_event" },
+              "rows": [],
+              "default": { "then": "doesNotHold", "say": "nothing to report about {subject}" },
+              "action": "none", "severity": "info", "settleSeconds": 60,
             }
-            """);
+            """));
 
-        RuleSet set = RuleStore.Load(path);
+        RuleSet set = RuleStore.LoadDirectory(dir);
 
         Assert.Empty(set.Problems);
         Assert.Equal("quiet", Assert.Single(set.Rules).Id);
@@ -224,9 +279,7 @@ public class RuleStoreTests
     [Fact]
     public void A_rule_nobody_signed_stays_unattributed()
     {
-        string path = Write(RuleStore.Write([Minimal()]));
-
-        Assert.Null(RuleStore.Load(path).Rules.Single().Author);
+        Assert.Null(RuleStore.LoadDirectory(DirOf([Minimal()])).Rules.Single().Author);
     }
 
     [Fact]
@@ -238,29 +291,23 @@ public class RuleStoreTests
             UpdatedBy = new RuleAuthorship("local:claude", new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero)),
         };
 
-        string path = Write(RuleStore.Write([edited]));
-
-        Assert.Equal("local:claude", RuleStore.Load(path).Rules.Single().Author);
+        Assert.Equal("local:claude", RuleStore.LoadDirectory(DirOf([edited])).Rules.Single().Author);
     }
 
     [Fact]
     public void An_authorship_with_an_empty_actor_is_no_authorship()
     {
-        string path = Write("""
+        string dir = Dir(("ok", """
             {
-              "rules": [
-                {
-                  "id": "ok", "name": "The first one", "wakes": ["server.crashed"],
-                  "subjects": { "source": "from_event" },
-                  "default": { "then": "doesNotHold", "say": "nothing about {subject}" },
-                  "action": "none", "settleSeconds": 60,
-                  "createdBy": { "actor": "  ", "at": "2026-08-01T00:00:00+00:00" }
-                }
-              ]
+              "id": "ok", "name": "The first one", "wakes": ["server.crashed"],
+              "subjects": { "source": "from_event" },
+              "default": { "then": "doesNotHold", "say": "nothing about {subject}" },
+              "action": "none", "settleSeconds": 60,
+              "createdBy": { "actor": "  ", "at": "2026-08-01T00:00:00+00:00" }
             }
-            """);
+            """));
 
-        Assert.Null(RuleStore.Load(path).Rules.Single().Author);
+        Assert.Null(RuleStore.LoadDirectory(dir).Rules.Single().Author);
     }
 
     // ---- modes ----
@@ -269,10 +316,10 @@ public class RuleStoreTests
     [Fact]
     public void An_unreadable_mode_observes()
     {
-        string path = Write(RuleStore.Write([Minimal() with { Mode = RuleMode.Act }])
-            .Replace("\"act\"", "\"whatever\"", StringComparison.Ordinal));
+        string dir = Dir(("ok", RuleStore.Write(Minimal() with { Mode = RuleMode.Act })
+            .Replace("\"act\"", "\"whatever\"", StringComparison.Ordinal)));
 
-        Assert.Equal(RuleMode.Observe, RuleStore.Load(path).Rules.Single().Mode);
+        Assert.Equal(RuleMode.Observe, RuleStore.LoadDirectory(dir).Rules.Single().Mode);
     }
 
     [Fact]

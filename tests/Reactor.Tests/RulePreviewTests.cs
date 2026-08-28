@@ -25,10 +25,10 @@ public class RulePreviewTests
             Now, CancellationToken.None);
 
     private static RuleDefinition Drift =>
-        SeededRules.All.Single(r => r.Id == "memory_declaration_drift");
+        ShippedRules.All.Single(r => r.Id =="memory_declaration_drift");
 
     private static RuleDefinition GiveUp =>
-        SeededRules.All.Single(r => r.Id == "give_up_backup");
+        ShippedRules.All.Single(r => r.Id =="give_up_backup");
 
     private static InstanceFootprint Measured(string instance, double peakMb) => new(
         Instance: instance,

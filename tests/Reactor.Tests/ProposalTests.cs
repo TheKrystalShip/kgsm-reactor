@@ -37,13 +37,13 @@ public sealed class ProposalTests : IDisposable
     private readonly string _path =
         Path.Combine(Path.GetTempPath(), $"kgsm-reactor-proposals-{Guid.NewGuid():N}.db");
 
-    private readonly List<string> _ruleFiles = [];
+    private readonly List<string> _ruleDirs = [];
 
     public void Dispose()
     {
         File.Delete(_path);
-        foreach (string file in _ruleFiles)
-            File.Delete(file);
+        foreach (string dir in _ruleDirs)
+            Directory.Delete(dir, recursive: true);
     }
 
     /// <summary>
@@ -428,7 +428,7 @@ public sealed class ProposalTests : IDisposable
     [Fact]
     public async Task A_rule_may_name_its_own_lifetime()
     {
-        RuleDefinition rule = SeededRules.All.Single(r => r.Id == "give_up_backup")
+        RuleDefinition rule = ShippedRules.Named("give_up_backup")
             with { ProposalLifetime = TimeSpan.FromMinutes(90) };
 
         Harness harness = Build(rules: [rule]);
@@ -457,7 +457,7 @@ public sealed class ProposalTests : IDisposable
     public async Task A_rule_scoped_to_one_server_declines_for_every_other(
         string subject, bool holds)
     {
-        RuleDefinition seeded = SeededRules.All.Single(r => r.Id == "give_up_backup");
+        RuleDefinition seeded = ShippedRules.Named("give_up_backup");
 
         var scoped = seeded with
         {
@@ -485,14 +485,16 @@ public sealed class ProposalTests : IDisposable
 
     private Harness Build(IReadOnlyList<RuleDefinition>? rules = null)
     {
-        string file = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}.json");
-        _ruleFiles.Add(file);
-        File.WriteAllText(file,
-            RuleStore.Write(rules ?? [SeededRules.All.Single(r => r.Id == "give_up_backup")]));
+        string dir = Path.Combine(Path.GetTempPath(), $"kgsm-reactor-rules-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        _ruleDirs.Add(dir);
+
+        foreach (RuleDefinition rule in rules ?? [ShippedRules.Named("give_up_backup")])
+            File.WriteAllText(RuleStore.PathOf(dir, rule.Id), RuleStore.Write(rule));
 
         ReactorOptions options = ReactorOptions.FromSettings(new ReactorSettings
         {
-            RulesPath = file,
+            RulesDirectory = dir,
             LedgerPath = _path,
         });
 
@@ -507,7 +509,8 @@ public sealed class ProposalTests : IDisposable
         var emitter = new RecordingEmitter();
 
         var service = new ProposalService(
-            store, performer, emitter, RuleStore.Load(file), world,
+            store, performer, emitter,
+            new RuleRegistry(dir, NullLogger<RuleRegistry>.Instance), world,
             new LedgerRuleHistory(ledger), new EmptyFootprints(), Options.Create(options), clock,
             NullLogger<ProposalService>.Instance);
 
@@ -547,7 +550,7 @@ public sealed class ProposalTests : IDisposable
         public Task<Proposal?> StageAsync(Decision? decision = null, RuleDefinition? definition = null) =>
             Service.StageAsync(
                 decision ?? Decision(),
-                definition ?? SeededRules.All.Single(r => r.Id == "give_up_backup"),
+                definition ?? ShippedRules.Named("give_up_backup"),
                 CancellationToken.None);
 
         private const string Episode = "kgsm-watchdog:s.ndjson:10";

@@ -43,7 +43,7 @@ internal sealed class RuleEngine : BackgroundService
     private readonly IFootprintSource _footprint;
     private readonly IDecisionEmitter _emitter;
     private readonly ReactorOptions _options;
-    private readonly RuleSet _rules;
+    private readonly RuleRegistry _registry;
     private readonly ProposalService _proposals;
     private readonly TimeProvider _clock;
     private readonly ILogger<RuleEngine> _logger;
@@ -60,7 +60,7 @@ internal sealed class RuleEngine : BackgroundService
     private IReadOnlyList<ActiveRule> _active = [];
 
     /// <summary>The rules this host holds, live and retired, and whatever could not be honoured.</summary>
-    public RuleSet Rules => _rules;
+    public RuleSet Rules => _registry.Current;
 
     /// <summary>
     /// One rule as it is actually running: what it was written as, what it evaluates through, and the
@@ -82,7 +82,7 @@ internal sealed class RuleEngine : BackgroundService
         IWorldView world,
         IRuleHistory history,
         IFootprintSource footprint,
-        RuleSet rules,
+        RuleRegistry registry,
         ProposalService proposals,
         IOptions<ReactorOptions> options,
         TimeProvider clock,
@@ -98,8 +98,35 @@ internal sealed class RuleEngine : BackgroundService
         _options = options.Value;
         _clock = clock;
         _logger = logger;
-        _rules = rules;
+        _registry = registry;
         _proposals = proposals;
+
+        // Rebuilt rather than patched: a rule is clamped against what this build honours and compiled
+        // into an evaluable form, and doing that for the whole set is what keeps a reload from leaving
+        // one rule compiled by one version of that logic and its neighbour by another.
+        _registry.Changed += OnRulesChanged;
+    }
+
+    /// <summary>
+    /// Adopt a replaced rule set.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Evaluations still settling are dropped.</b> A pending evaluation holds the rule it was
+    /// woken by, and that rule may no longer exist or may no longer say the same thing — judging with
+    /// it would report a conclusion the running rules cannot account for. The condition has not gone
+    /// anywhere, so the next event or sweep that matches opens it again against what is now running.
+    /// </remarks>
+    private void OnRulesChanged(RuleSet set)
+    {
+        _active = ResolveActiveRules();
+
+        int dropped = _pending.Count;
+        _pending.Clear();
+
+        _logger.LogInformation(
+            "Rules reloaded: {Count} active{Dropped}.",
+            _active.Count,
+            dropped > 0 ? $", {dropped} evaluation(s) still settling were dropped" : string.Empty);
     }
 
     /// <summary>An evaluation that has been woken and is waiting out its settle window.</summary>
@@ -231,7 +258,7 @@ internal sealed class RuleEngine : BackgroundService
     {
         List<ActiveRule> active = [];
 
-        foreach (RuleDefinition definition in _rules.Rules)
+        foreach (RuleDefinition definition in _registry.Current.Rules)
         {
             RuleMode effective = Effective(definition.Mode);
 

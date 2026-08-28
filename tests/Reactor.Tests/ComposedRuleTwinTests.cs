@@ -38,7 +38,7 @@ public class ComposedRuleTwinTests
         IFootprintSource footprint)
     {
         Rule compiled = HandWrittenRules.All.Single(r => r.Id == ruleId);
-        RuleDefinition definition = SeededRules.All.Single(r => r.Id == ruleId);
+        RuleDefinition definition = ShippedRules.All.Single(r => r.Id == ruleId);
         Rule composed = RuleEvaluator.ToRule(definition);
 
         var context = new RuleContext(subject, Now, world, history, footprint);
@@ -467,7 +467,7 @@ public class ComposedRuleTwinTests
         foreach (string id in new[] { "memory_declaration_drift", "threshold_stuck" })
         {
             Rule compiled = HandWrittenRules.All.Single(r => r.Id == id);
-            Rule composed = RuleEvaluator.ToRule(SeededRules.All.Single(r => r.Id == id));
+            Rule composed = RuleEvaluator.ToRule(ShippedRules.All.Single(r => r.Id == id));
 
             Assert.Equal(
                 await compiled.Subjects!(context, CancellationToken.None),
@@ -481,7 +481,7 @@ public class ComposedRuleTwinTests
         var context = new SubjectContext(Now, new StubWorld(), new StubHistory(), new UnreachableMonitor());
 
         Rule composed = RuleEvaluator.ToRule(
-            SeededRules.All.Single(r => r.Id == "memory_declaration_drift"));
+            ShippedRules.All.Single(r => r.Id == "memory_declaration_drift"));
 
         Assert.Empty(await composed.Subjects!(context, CancellationToken.None));
     }
@@ -498,11 +498,11 @@ public class ComposedRuleTwinTests
     [Fact]
     public void Every_compiled_rule_has_a_seed_with_its_id_and_its_windows()
     {
-        Assert.Equal(HandWrittenRules.All.Count, SeededRules.All.Count);
+        Assert.Equal(HandWrittenRules.All.Count, ShippedRules.All.Count);
 
         foreach (Rule compiled in HandWrittenRules.All)
         {
-            RuleDefinition seed = Assert.Single(SeededRules.All, s => s.Id == compiled.Id);
+            RuleDefinition seed = Assert.Single(ShippedRules.All, s => s.Id == compiled.Id);
 
             Assert.Equal(compiled.Shape, seed.Shape);
             Assert.Equal(compiled.Settle, seed.Settle);

@@ -90,7 +90,7 @@ internal sealed class ProposalService(
     ProposalStore proposals,
     IActionPerformer performer,
     IDecisionEmitter emitter,
-    RuleSet rules,
+    RuleRegistry registry,
     IWorldView world,
     IRuleHistory history,
     IFootprintSource footprint,
@@ -416,7 +416,10 @@ internal sealed class ProposalService(
     private async Task<Verdict> ReevaluateAsync(
         Proposal proposal, DateTimeOffset now, CancellationToken token)
     {
-        RuleDefinition? definition = rules.Rules
+        // Read now rather than held: a rule edited while its offer stood is re-derived against what it
+        // says today, which is what the re-derivation is for. A rule retired or deleted since resolves
+        // to nothing here and the offer answers "no longer applicable" instead of acting.
+        RuleDefinition? definition = registry.Current.Rules
             .FirstOrDefault(r => string.Equals(r.Id, proposal.RuleId, StringComparison.Ordinal));
 
         if (definition is null)

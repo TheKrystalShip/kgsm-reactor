@@ -33,7 +33,7 @@ public class MemoryDriftRuleTests
     private static DateTimeOffset At(int bucket) => Now.AddMinutes(5 * bucket);
 
     private static RuleDefinition TheRule =>
-        SeededRules.All.Single(r => r.Id == "memory_declaration_drift");
+        ShippedRules.All.Single(r => r.Id == "memory_declaration_drift");
 
     /// <summary>
     /// The same rule with one comparand moved, as an operator's file would have it.

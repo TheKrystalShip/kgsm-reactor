@@ -92,24 +92,22 @@ public sealed record ReactorStatus
     [JsonPropertyName("retired")]
     public required IReadOnlyList<RuleStatus> Retired { get; init; }
 
-    /// <summary>Where the rules this host runs are read from.</summary>
+    /// <summary>The directory this host's rules are read from, one file per rule.</summary>
     /// <remarks>
-    /// Reported whether or not a file is there, because "no file, so the shipped rules are running"
-    /// and "a file somewhere other than you think is running" are the two questions asked here, and
-    /// only the path separates them.
+    /// Reported whether or not anything is in it, because "this host judges nothing" and "the rules
+    /// are somewhere other than you think" look identical from the outside and only the path
+    /// separates them.
     /// </remarks>
-    [JsonPropertyName("rulesPath")]
-    public required string RulesPath { get; init; }
+    [JsonPropertyName("rulesDirectory")]
+    public required string RulesDirectory { get; init; }
 
-    /// <summary>
-    /// Whether a file was found at all, as opposed to the shipped rules being what runs.
-    /// </summary>
+    /// <summary>How many rules were read from it, retired ones included.</summary>
     /// <remarks>
-    /// The path alone cannot say it: a host with no file and a host whose file is somewhere else both
-    /// report a path, and only one of them is running what somebody wrote.
+    /// Counts what loaded, so it is smaller than the number of files when one of them was refused.
+    /// The difference is exactly what <see cref="Problems"/> lists.
     /// </remarks>
-    [JsonPropertyName("rulesFilePresent")]
-    public required bool RulesFilePresent { get; init; }
+    [JsonPropertyName("ruleFiles")]
+    public required int RuleFiles { get; init; }
 
     /// <summary>
     /// What was written and could not be honoured. Empty on a host where everything was.

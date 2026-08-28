@@ -121,7 +121,7 @@ public class MessageQualityTests
         // A real signal under a reserved name, so the only thing wrong with this rule is the name. A
         // binding of something this build does not measure would be refused anyway, and would let this
         // pass while proving nothing.
-        RuleDefinition shadowing = SeededRules.All.Single(r => r.Id == "give_up_backup") with
+        RuleDefinition shadowing = ShippedRules.All.Single(r => r.Id == "give_up_backup") with
         {
             Signals = [SignalBinding.Of(MessageTemplate.OpenForToken, "world.running")],
         };
@@ -145,7 +145,7 @@ public class MessageQualityTests
     [Fact]
     public async Task A_sentence_that_asks_when_it_began_is_answered_or_refused()
     {
-        RuleDefinition dating = SeededRules.All.Single(r => r.Id == "give_up_backup") with
+        RuleDefinition dating = ShippedRules.All.Single(r => r.Id == "give_up_backup") with
         {
             Rows =
             [
@@ -215,7 +215,7 @@ public class MessageQualityTests
     {
         var rows = new TheoryData<string, string, string>();
 
-        foreach (RuleDefinition rule in SeededRules.All)
+        foreach (RuleDefinition rule in ShippedRules.All)
         {
             foreach (GuardRow row in rule.Rows.Append(rule.Default))
             {

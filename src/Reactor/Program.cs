@@ -263,13 +263,12 @@ internal sealed class Program
             sp.GetRequiredService<ILogger<MonitorFootprintSource>>()));
         builder.Services.AddSingleton<IRuleHistory, LedgerRuleHistory>();
 
-        // Read once, at startup, rather than per evaluation: a sweep that re-read the file every thirty
-        // seconds would let a rule change under a decision half-taken, and every other configuration
-        // change on this leaf applies on restart. Shared rather than loaded twice — the engine judges
-        // through these rules and a redemption re-derives its condition through the same ones, and two
-        // readings of one file is how those come to disagree.
-        builder.Services.AddSingleton(sp => RuleStore.Load(
-            options.RulesPath, sp.GetRequiredService<ILogger<RuleEngine>>()));
+        // One reading, shared: the engine judges through these rules and a redemption re-derives its
+        // condition through the same ones, and two readings of one directory is how those come to
+        // disagree. The registry is what makes that reading replaceable — it reloads on a write or a
+        // change on disk, and every holder sees the new set at once because they all read through it.
+        builder.Services.AddSingleton(sp => new RuleRegistry(
+            options.RulesDirectory, sp.GetRequiredService<ILogger<RuleRegistry>>()));
 
         // What a confirmed proposal actually does. Behind kgsm-lib like every other engine access on
         // this leaf, and attributed to the rule rather than to whoever the daemon runs as.
@@ -577,7 +576,7 @@ internal sealed class Program
             // disagree about which rules exist — which is the whole point of the silent reading.
             ReportKind.Decisions => DecisionReport.Render(
                 ledger, days, now,
-                [.. RuleStore.Load(ResolveOptions().RulesPath).Rules.Select(r => r.Id)]),
+                [.. RuleStore.LoadDirectory(ResolveOptions().RulesDirectory).Rules.Select(r => r.Id)]),
             _ => PopulationReport.Render(ledger, days, now),
         });
 

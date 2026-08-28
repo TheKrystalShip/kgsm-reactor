@@ -1,0 +1,31 @@
+// Capture an instance the supervisor has stopped trying to restart.
+//
+// The supervisor gives up after a fixed number of consecutive failures, and what it leaves behind
+// is the state somebody debugging the crash will want: the world exactly as it was when the last
+// attempt died. A restart would overwrite some of that, so the archive is taken first and pinned,
+// which keeps rotation from ever deleting it.
+{
+  "id": "give_up_backup",
+  "name": "Back up an instance the supervisor gave up on",
+  "wakes": ["server.crash.exhausted"],
+  "subjects": { "source": "from_event" },
+  "signals": [],
+  "rows": [
+    {
+      "when": [{ "signal": "world.gaveUp", "op": "isTrue" }],
+      "then": "holds",
+      "say": "{subject} crashed {world.restarts} times in a row and the supervisor has stopped trying to restart it — it stays down until somebody starts it"
+    }
+  ],
+  "default": {
+    "when": [],
+    "then": "doesNotHold",
+    "say": "the supervisor is looking after {subject} again — it reports the instance {world.phase}"
+  },
+  "action": "create_backup",
+  "severity": "danger",
+  "settleSeconds": 120,
+  "suppressionMinutes": 15,
+  "mode": "observe",
+  "retired": false
+}
