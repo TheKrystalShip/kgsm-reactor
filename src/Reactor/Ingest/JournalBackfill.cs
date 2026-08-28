@@ -19,7 +19,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ingest;
 /// that the population report's readings are supposed to be derived from. This reads them.
 /// </para>
 /// <para>
-/// ⚠ <b>It fills observations and nothing else. No rule is evaluated and no event is written.</b>
+/// <b>It fills observations and nothing else. No rule is evaluated and no event is written.</b>
 /// That is not a limitation to be lifted later. An observation is a restatement of a line that
 /// exists, so reading it late changes nothing about it; a <em>decision</em> is a judgment made at a
 /// moment against a world that answered — and the rules ask the live world, which today would answer
@@ -179,7 +179,7 @@ internal static class JournalBackfill
     /// Each line with the byte offset it starts at.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The offset must be the start of the line</b>, which is what the live reader records and
+    /// <b>The offset must be the start of the line</b>, which is what the live reader records and
     /// therefore what a row's identity is built from. Any other convention would make a backfilled row
     /// a different row from the live one covering the same event, and the ledger would hold both.
     /// Counted in bytes, not characters, because a multi-byte name in a payload would otherwise drift

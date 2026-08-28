@@ -16,7 +16,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Status;
 /// front of a host wondering whether this thing is alive.
 /// </para>
 /// <para>
-/// ⚠ <b>Every counter here is since this process started</b>, not since the beginning. A restart
+/// <b>Every counter here is since this process started</b>, not since the beginning. A restart
 /// resets them, and they are named so that is unmistakable — a total that quietly meant something
 /// else after a deploy would be worse than no total.
 /// </para>
@@ -69,7 +69,7 @@ public sealed record ReactorStatus
     /// The most authority this build will let any rule have.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Reported so a surface does not have to know which phases exist.</b> Propose and act are
+    /// <b>Reported so a surface does not have to know which phases exist.</b> Propose and act are
     /// later phases, and a panel that hard-coded "this build only observes" would go on saying it
     /// after the build that acts is deployed — offering a control that does nothing, or refusing one
     /// that would work. The leaf is the only thing that knows, so the leaf says.
@@ -113,7 +113,7 @@ public sealed record ReactorStatus
     /// What was written and could not be honoured. Empty on a host where everything was.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The single most important field here for anyone who has just written a rule.</b> A
+    /// <b>The single most important field here for anyone who has just written a rule.</b> A
     /// misspelled signal, a step with no sentence, an action this build cannot perform, a duplicate id
     /// — each leaves the daemon running the rules it could honour, and without this every one of them
     /// presents as "I saved it and nothing happened", which is indistinguishable from a rule that
@@ -159,7 +159,7 @@ public sealed record ClauseStatus(
 
 /// <summary>One step of a rule's decision, in the order it is read.</summary>
 /// <remarks>
-/// ⚠ <b>Order is the semantics.</b> The first row whose clauses all hold decides, so a surface that
+/// <b>Order is the semantics.</b> The first row whose clauses all hold decides, so a surface that
 /// re-sorted these — alphabetically, by outcome, by anything — would show a rule that behaves
 /// differently from the one running.
 /// </remarks>
@@ -237,7 +237,7 @@ public sealed record DecisionStatus(
 /// What the configuration asked for, when this build cannot honour it — otherwise <see langword="null"/>.
 /// </param>
 /// <remarks>
-/// ⚠ <b>The pair is the honest answer, and neither half alone is.</b> Reporting only the configured
+/// <b>The pair is the honest answer, and neither half alone is.</b> Reporting only the configured
 /// mode shows an authority the rule does not have; reporting only the effective one hides that
 /// somebody asked for more and did not get it. A surface renders <see cref="Mode"/> as what is in
 /// force and mentions <see cref="ConfiguredMode"/> as what was intended.
@@ -255,7 +255,7 @@ public sealed record DecisionStatus(
 /// Who last shaped it, as <c>provider:name</c>, or null when nobody is known to have.
 /// </param>
 /// <remarks>
-/// ⚠ <b>Null is a real answer and must be rendered as one.</b> A rule this build seeded, or one
+/// <b>Null is a real answer and must be rendered as one.</b> A rule this build seeded, or one
 /// hand-written into the file, is unattributed — and there is no fallback to the OS user. A surface
 /// substituting the host or the person reading would invent a hand that was never on it.
 /// </remarks>

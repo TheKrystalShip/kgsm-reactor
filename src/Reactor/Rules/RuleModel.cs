@@ -34,7 +34,7 @@ internal enum RuleMode
     /// Do not evaluate it at all.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Not the same as retiring one.</b> A rule that is off is live, listed and one field away
+    /// <b>Not the same as retiring one.</b> A rule that is off is live, listed and one field away
     /// from running again — somebody silenced it while they work out whether it is right. A retired
     /// rule is gone from the live list and kept only so the decisions it already made still resolve to
     /// something that can be named. Offering one control for both would make un-deleting and
@@ -153,7 +153,7 @@ internal abstract record ReactorAction
     /// a property of the action on every host that has it.
     /// </para>
     /// <para>
-    /// ⚠ <b>It says what changes, never how likely it is to help.</b> "This will fix it" is a claim
+    /// <b>It says what changes, never how likely it is to help.</b> "This will fix it" is a claim
     /// about a fault nothing here has diagnosed, and an offer that made one would be selling the action
     /// rather than describing it.
     /// </para>
@@ -217,7 +217,7 @@ internal abstract record ReactorAction
     /// failure.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The target is described, not named.</b> It is resolved at dispatch by the manifest's
+    /// <b>The target is described, not named.</b> It is resolved at dispatch by the manifest's
     /// <c>reason</c>, never by recency — once <c>give_up_backup</c> is acting, the newest archive at
     /// this moment is the broken post-update state that rule has just captured. An archive written
     /// before the manifest carried a reason reads back unknown, and an unknown one is not a candidate.
@@ -252,7 +252,7 @@ internal abstract record ReactorAction
 /// <param name="OpenedAt">
 /// When the condition being judged began, or null when this evaluation has no opening to name.
 /// <para>
-/// ⚠ <b>Not the evaluation instant, and never filled in with it.</b> A sentence dating a crash loop
+/// <b>Not the evaluation instant, and never filled in with it.</b> A sentence dating a crash loop
 /// from the moment somebody looked at it would be a fabricated measurement in the one place an
 /// operator most needs a real one.
 /// </para>
@@ -293,7 +293,7 @@ internal sealed record SubjectContext(
 /// <para>
 /// Empty is legal only for a <see cref="RuleShape.State"/> rule, and means the condition is one no
 /// producer announces — a standing fact about accumulated measurement rather than something that
-/// happens. Such a rule is reached by the sweep alone and identifies its own episodes. ⚠ Its decisions
+/// happens. Such a rule is reached by the sweep alone and identifies its own episodes. Its decisions
 /// then cite a measurement rather than a journal line, so its reason string has to carry the figures:
 /// nothing else lets a reader reconstruct what it decided on.
 /// </para>

@@ -68,7 +68,7 @@ log "syncing publish tree → ${PREFIX}"
 rsync -a --delete --exclude='*.pdb' --exclude='*.xml' "$PUBLISH_DIR/" "$PREFIX/"
 
 # ── 3b. The pristine sample rules ─────────────────────────────────────────────
-# ⚠ Into the INSTALL PREFIX, never the state directory. These are code: refreshed on every deploy so
+# Into the INSTALL PREFIX, never the state directory. These are code: refreshed on every deploy so
 # they always match the binary, and read by nothing at runtime. The rules the host actually runs live
 # in the state directory, are owned by whoever edited them, and no deploy may touch them — setup.sh
 # seeds those once and only for a file that is not already there.

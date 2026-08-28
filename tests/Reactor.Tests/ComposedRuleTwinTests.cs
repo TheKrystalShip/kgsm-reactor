@@ -19,7 +19,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// possible place to find that out.
 /// </para>
 /// <para>
-/// ⚠ <b>The sentence is asserted, not just the verdict.</b> A decision reads <em>"Ketchup holds 5433MB
+/// <b>The sentence is asserted, not just the verdict.</b> A decision reads <em>"Ketchup holds 5433MB
 /// against 8192MB declared, -34% below it"</em> because the rule that measured it wrote that sentence.
 /// A composition that reached the same conclusion while losing the figures would pass a verdict-only
 /// test and destroy the thing the record exists for.
@@ -108,7 +108,7 @@ public class ComposedRuleTwinTests
     }
 
     /// <summary>
-    /// ⚠ The two gates in one row, which is the case a flat list of conditions could not express.
+    /// The two gates in one row, which is the case a flat list of conditions could not express.
     /// </summary>
     /// <remarks>
     /// The compiled rule refuses when runs are few <em>and</em> the unbroken stretch is short, and its
@@ -171,7 +171,7 @@ public class ComposedRuleTwinTests
     }
 
     /// <summary>
-    /// ⚠ The lazy read, which is a property of the evaluator rather than of the rule.
+    /// The lazy read, which is a property of the evaluator rather than of the rule.
     /// </summary>
     /// <remarks>
     /// An instance already over its declaration is reported without the trend ever being asked for —
@@ -241,7 +241,7 @@ public class ComposedRuleTwinTests
     }
 
     /// <summary>
-    /// ⚠ The row that writes its own sentence for a signal it could not read.
+    /// The row that writes its own sentence for a signal it could not read.
     /// </summary>
     /// <remarks>
     /// The trend reader's own words are "only 4 working-set points", which is true and useless beside
@@ -418,7 +418,7 @@ public class ComposedRuleTwinTests
     }
 
     /// <summary>
-    /// ⚠ One measurement compared against another, which no threshold could express.
+    /// One measurement compared against another, which no threshold could express.
     /// </summary>
     /// <remarks>
     /// How long this episode has been open against how long episodes of its kind usually last here.
@@ -489,7 +489,7 @@ public class ComposedRuleTwinTests
     // ---- the seeds restate the compiled catalog, field for field ----
 
     /// <summary>
-    /// ⚠ The seeds keep the ids and the measured windows of the rules they restate.
+    /// The seeds keep the ids and the measured windows of the rules they restate.
     /// </summary>
     /// <remarks>
     /// A composed rule that quietly lost the 45-minute threshold window would be a new rule wearing an

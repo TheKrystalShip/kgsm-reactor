@@ -6,7 +6,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Classification;
 
 /// <summary>What kind of thing an event is about. A bucketing aid, not a judgment.</summary>
 /// <remarks>
-/// ⚠ <b>This is not severity and it is not a rule.</b> It exists so the population report can group
+/// <b>This is not severity and it is not a rule.</b> It exists so the population report can group
 /// ninety event types into something a person can read while deciding which conditions are worth a
 /// rule. Nothing gates on it, and nothing should start to: what matters about an event is decided
 /// per rule, against the seven questions, not inherited from a bucket assigned here.

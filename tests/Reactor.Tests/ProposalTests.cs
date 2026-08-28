@@ -72,7 +72,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ One episode is offered once, however often the rule re-decides it.
+    /// One episode is offered once, however often the rule re-decides it.
     /// </summary>
     /// <remarks>
     /// A state rule re-reads its condition every sweep and its reason ages with it. Without this, a
@@ -106,7 +106,7 @@ public sealed class ProposalTests : IDisposable
 
         Assert.Equal(RedemptionOutcome.Performed, redeemed.Outcome);
 
-        // ⚠ Attributed to the person, not to the rule. The rule offered; this happened because
+        // Attributed to the person, not to the rule. The rule offered; this happened because
         // somebody said yes, and an audit row naming the rule would make an authorised action
         // indistinguishable from one the host took on its own.
         Assert.Equal((ActionCatalog.CreateBackup, Confirmer),
@@ -120,7 +120,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ <b>The property the whole design rests on.</b> A server that came back up on its own turns a
+    /// <b>The property the whole design rests on.</b> A server that came back up on its own turns a
     /// confirmation into an explanation instead of an action.
     /// </summary>
     /// <remarks>
@@ -152,7 +152,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A world that will not answer leaves the offer standing, and performs nothing.
+    /// A world that will not answer leaves the offer standing, and performs nothing.
     /// </summary>
     /// <remarks>
     /// Unreadable is not a no and it is not a yes. Ending the proposal here would record a conclusion
@@ -177,7 +177,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ Two people confirming at once perform the action once.
+    /// Two people confirming at once perform the action once.
     /// </summary>
     /// <remarks>
     /// Both find a redeemable proposal — the read cannot separate them. What separates them is that
@@ -202,7 +202,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A confirmation that names nobody is refused, and nothing is performed.
+    /// A confirmation that names nobody is refused, and nothing is performed.
     /// </summary>
     /// <remarks>
     /// This is the one path in the leaf where a person authorises something, so the audit row it
@@ -260,7 +260,7 @@ public sealed class ProposalTests : IDisposable
     /// An offer nobody answered lapses, and the lapse is written down.
     /// </summary>
     /// <remarks>
-    /// ⚠ The single most useful thing a week's review can count. A rule whose offers all lapse is one
+    /// The single most useful thing a week's review can count. A rule whose offers all lapse is one
     /// nobody wants, and that fact exists nowhere unless the expiry is recorded as an event rather than
     /// as a row quietly ageing out.
     /// </remarks>
@@ -320,7 +320,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ An offer from a rule this host no longer runs cannot be confirmed.
+    /// An offer from a rule this host no longer runs cannot be confirmed.
     /// </summary>
     /// <remarks>
     /// Retiring a rule, switching it off, or deleting it are all statements that this host has stopped
@@ -343,7 +343,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A confirmed offer whose action failed is recorded as confirmed, and as not ok.
+    /// A confirmed offer whose action failed is recorded as confirmed, and as not ok.
     /// </summary>
     /// <remarks>
     /// The resolution says what the person did; <c>Ok</c> says what the action did. Collapsing them
@@ -370,7 +370,7 @@ public sealed class ProposalTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ Acting writes <c>reactor.acted</c> and never a resolution.
+    /// Acting writes <c>reactor.acted</c> and never a resolution.
     /// </summary>
     /// <remarks>
     /// An autonomous action has no person behind it and no offer to point at. Writing it as a
@@ -447,7 +447,7 @@ public sealed class ProposalTests : IDisposable
     /// editor like any other row, and writes its own sentence when it declines.
     /// </para>
     /// <para>
-    /// ⚠ An "applies to" field beside the rows would be a second place a rule can decline from —
+    /// An "applies to" field beside the rows would be a second place a rule can decline from —
     /// invisible to the preview that exists to explain exactly that.
     /// </para>
     /// </remarks>

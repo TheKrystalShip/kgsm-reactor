@@ -29,7 +29,7 @@ internal sealed record FootprintResponseDto(IReadOnlyList<FootprintDto> Footprin
 /// <summary>One point of a metrics-history series.</summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b><c>ts</c> is an ISO-8601 instant, not a number.</b> The monitor serves
+/// <b><c>ts</c> is an ISO-8601 instant, not a number.</b> The monitor serves
 /// <c>"2026-07-28T14:55:00+00:00"</c>, and a numeric field here fails the whole response — which
 /// reaches a rule as an unreadable trend, so the one verdict that needs it can never be given.
 /// </para>

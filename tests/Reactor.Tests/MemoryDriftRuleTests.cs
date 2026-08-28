@@ -39,7 +39,7 @@ public class MemoryDriftRuleTests
     /// The same rule with one comparand moved, as an operator's file would have it.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Located by the figure it currently holds, not by position.</b> Two steps compare the same
+    /// <b>Located by the figure it currently holds, not by position.</b> Two steps compare the same
     /// signal — the hours gate against five and the unbroken-run stand-in against twenty-four — so a
     /// helper that took the first match would silently move the wrong one, and a test built on it would
     /// pass while proving nothing. Naming the figure being replaced also fails loudly if the shipped
@@ -111,7 +111,7 @@ public class MemoryDriftRuleTests
     // ---- the figures an operator moved ----
 
     /// <summary>
-    /// ⚠ The gates are what decide whether this rule can speak at all, so a moved one has to reach it.
+    /// The gates are what decide whether this rule can speak at all, so a moved one has to reach it.
     /// </summary>
     [Fact]
     public async Task A_narrowed_span_gate_admits_a_footprint_the_shipped_one_refuses()
@@ -133,7 +133,7 @@ public class MemoryDriftRuleTests
     }
 
     /// <summary>
-    /// ⚠ A moved figure has to reach the rule's <em>prose</em> as well as its arithmetic.
+    /// A moved figure has to reach the rule's <em>prose</em> as well as its arithmetic.
     /// </summary>
     /// <remarks>
     /// The sentence names the width the gap was held to, and a step that compared against the new
@@ -173,7 +173,7 @@ public class MemoryDriftRuleTests
     }
 
     /// <summary>
-    /// ⚠ The unbroken-run stand-in is a second comparison of a signal another step already compares.
+    /// The unbroken-run stand-in is a second comparison of a signal another step already compares.
     /// </summary>
     /// <remarks>
     /// Moving the hours gate must not move it, and moving it must not move the hours gate. They are
@@ -197,7 +197,7 @@ public class MemoryDriftRuleTests
     // ---- the monitor's wire shape ----
 
     /// <summary>
-    /// ⚠ The history body parses as the monitor actually serves it, timestamps included.
+    /// The history body parses as the monitor actually serves it, timestamps included.
     /// </summary>
     /// <remarks>
     /// <b>The failure this guards is silent and total.</b> A field typed against a shape the monitor
@@ -284,7 +284,7 @@ public class MemoryDriftRuleTests
     [InlineData(null)]
     public void A_launch_line_without_one_reports_none_found(string? args)
     {
-        // ⚠ Which is not the same as there being none. Project Zomboid sets -Xmx8g inside its own
+        // Which is not the same as there being none. Project Zomboid sets -Xmx8g inside its own
         // install/ProjectZomboid64.json, where nothing on this path can see it.
         Assert.Null(WatchdogWorldView.FindHeapFlag(args));
     }

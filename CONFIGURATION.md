@@ -61,7 +61,7 @@ startup lines).
 | `/var/lib/kgsm-reactor/events/` | This leaf's event journal — `leaf.ready`, `leaf.degraded`, `leaf.stopping`. |
 | `/var/lib/kgsm/leaves/reactor.json` | The leaf config descriptor kgsm-api scans. |
 
-⚠ **The state directory is `0750` with group `kgsm`, and that is not incidental.** A producer's journal
+**The state directory is `0750` with group `kgsm`, and that is not incidental.** A producer's journal
 is read by other components on the host, and a directory cannot be entered without execute on every
 directory above it. Closed to the group, the journal inside is hidden **silently** — a reader that
 cannot traverse in sees no journal rather than a permission error, which is indistinguishable from a

@@ -38,7 +38,7 @@ public class ShippedRuleTests
     /// The id inside a sample is the name of its file.
     /// </summary>
     /// <remarks>
-    /// ⚠ The loader refuses a mismatch, so this is not what protects the daemon — it is what stops a
+    /// The loader refuses a mismatch, so this is not what protects the daemon — it is what stops a
     /// sample from being shipped that the loader would then refuse on every host that installs it.
     /// </remarks>
     [Fact]
@@ -65,7 +65,7 @@ public class ShippedRuleTests
     }
 
     /// <summary>
-    /// ⚠ The loop guard, which is now enforced by construction rather than by this test.
+    /// The loop guard, which is now enforced by construction rather than by this test.
     /// </summary>
     /// <remarks>
     /// The reactor tails every producer's journal including its own, so a decision it writes comes
@@ -103,7 +103,7 @@ public class ShippedRuleTests
     }
 
     /// <summary>
-    /// ⚠ Everything a rule may do is a case of a closed union, and the catalog renders it rather than
+    /// Everything a rule may do is a case of a closed union, and the catalog renders it rather than
     /// widening it.
     /// </summary>
     /// <remarks>
@@ -127,7 +127,7 @@ public class ShippedRuleTests
     /// Every rule's settle window is a positive span.
     /// </summary>
     /// <remarks>
-    /// ⚠ A settle of zero means the rule is judged the instant its event lands, which for a condition
+    /// A settle of zero means the rule is judged the instant its event lands, which for a condition
     /// that ever resolves itself is a guarantee of noise — measured here as twelve of twelve threshold
     /// breaches clearing on their own. The floor is not a style rule, and it is refused at load rather
     /// than only failing a build.
@@ -188,7 +188,7 @@ public class ShippedRuleTests
     }
 
     /// <summary>
-    /// ⚠ An edge rule that names no event would be permanently silent while looking configured.
+    /// An edge rule that names no event would be permanently silent while looking configured.
     /// </summary>
     [Fact]
     public void An_edge_rule_must_name_something_that_wakes_it()
@@ -216,7 +216,7 @@ public class ShippedRuleTests
     /// A rule gets exactly the authority it asks for, up to the ceiling this build holds.
     /// </summary>
     /// <remarks>
-    /// ⚠ The failure this guards is a status page contradicting the daemon. Being set to act and
+    /// The failure this guards is a status page contradicting the daemon. Being set to act and
     /// silently observed is exactly what the engine refuses to allow quietly — a surface echoing the
     /// mode the rule asked for would make the refusal invisible, since the warning it logs lives in a
     /// journal nobody reads.

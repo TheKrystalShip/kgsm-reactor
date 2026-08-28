@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — no emoji in prose or output
+
+Docs, comments and command output carry no emoji. The information lives in the words, and a status
+that has to be read by a machine or a reader with a plain terminal reads the same either way. Marks
+that are typography rather than pictures — `✓`, `✗`, arrows, `§` — stay, and a glyph a chat surface
+sends to a person is that surface's output rather than prose, so it is untouched.
+
 ### Changed — the leaf installs its own sample rules on first start (0.26.0)
 
 The rules a fresh host runs are copied out of `/opt/kgsm-reactor/rules.d` into the state directory
@@ -139,7 +146,7 @@ unanswered — ending the sentence as *cannot tell* — where nothing observed t
 rule may not bind a measurement under either name, or under `{subject}`, `{settleSeconds}` or
 `{reason}`; the file is refused at load rather than resolved by precedence.
 
-⚠ **A host with a stored `rules.json` keeps the wording it has.** The file is authoritative and is read
+**A host with a stored `rules.json` keeps the wording it has.** The file is authoritative and is read
 verbatim, so the seeds' improved sentences reach only a host running them from the build. Re-seed by
 removing the file, which discards any rule composed in the panel.
 
@@ -154,7 +161,7 @@ is a shift rather than the seconds an assistant confirmation gets — a proposal
 notices next, not to whoever was watching. `Reactor__ProposalLifetimeHours` sets the host-wide default;
 a rule may carry its own `proposalLifetimeHours`.
 
-⚠ **The lifetime is not what makes it safe, and must not be tuned as though it were.** Confirming
+**The lifetime is not what makes it safe, and must not be tuned as though it were.** Confirming
 re-evaluates the rule against the world as it is *now*: a server that came back up on its own answers
 `no_longer_applicable` and nothing runs. Shortening the window buys nothing and loses the offers nobody
 was awake to see.
@@ -185,7 +192,7 @@ second place a rule can decline from, invisible to the preview that exists to ex
 `GET /proposals` answers what this host is offering and what it recently offered, in one call so the
 two cannot be read a moment apart. `GET /catalog` gains `resolutions` and `proposalLifetimeHours`.
 
-⚠ **The status socket takes two writes now, and only these two.** Confirming has to live in the leaf
+**The status socket takes two writes now, and only these two.** Confirming has to live in the leaf
 because it re-derives the condition, which means re-evaluating the rule. The leaf checks that a caller
 *named* itself as `provider:name` and never that it was *allowed* to — it holds no identity system and
 no tiers, so authority stays with the surface that authenticated the person, exactly as for every other
@@ -203,7 +210,7 @@ This is what makes composing a rule safe. A rule assembled from a catalog reads 
 still fire on nothing — a gate set where no instance clears it, a step ordered after one that always
 matches first — and none of that is visible while writing it.
 
-⚠ **A read, expressed as a POST because the rule is the question.** Nothing is stored, nothing is
+**A read, expressed as a POST because the rule is the question.** Nothing is stored, nothing is
 dispatched, no decision reaches the ledger or the journal, and the gate is not run — there is no
 episode to suppress and no ceiling a hypothetical belongs under. The socket stays a place that answers
 questions rather than one that takes instructions.
@@ -248,7 +255,7 @@ later, so editing a rule cannot rewrite the attribution of everything it ever de
 signed produces a decision nobody signed: there is no fallback to the OS user, and a row written
 before authorship existed reads back unknown rather than being backfilled.
 
-⚠ The silent-rules reading now covers the rules that are live. A retired or muted rule is not failing
+The silent-rules reading now covers the rules that are live. A retired or muted rule is not failing
 to speak — it was stopped on purpose — and listing it would put a rule somebody deleted on a report of
 things that need looking at.
 
@@ -338,7 +345,7 @@ leaf's own two are `reactor.decided` and `reactor.acted`, and the prefix no rule
 `reactor.`. The classifier buckets on the name's namespace, so a new `backup.*` lands in Maintenance
 the day it is emitted.
 
-⚠ The journals hold what was written and the ledger is never rebuilt, so both spellings of a renamed
+The journals hold what was written and the ledger is never rebuilt, so both spellings of a renamed
 event are on disk at once for one retention period. Every reading resolves a stored name to the
 current one before comparing it: `--verify` reports a position as intact when the row and the segment
 name the same event under either spelling, a rule's history query reaches rows written under either,
@@ -356,7 +363,7 @@ The line also carries what was decided in words — the outcome, the subject and
 where `settled`, `suppressed`, `ceilinged` and `superseded` keep meanings the envelope's three-valued
 outcome has no room for.
 
-⚠ The ledger holds severities written by earlier builds and is never rebuilt, so a row is read
+The ledger holds severities written by earlier builds and is never rebuilt, so a row is read
 whichever spelling wrote it. A value that resolves to nothing reads as `info`: a row whose weight
 cannot be established is not evidence that it was severe.
 
@@ -387,7 +394,7 @@ accumulated measurement, not a thing that happens — so the sweep rediscovers i
 miss. `Wakes` is therefore empty, which is a first: the catalog's reachability test now asks an edge
 rule for events and a state rule for subjects, rather than asking every rule for events.
 
-⚠ **It proposes nothing and acts on nothing.** Rewriting instance config is on this leaf's never-list,
+**It proposes nothing and acts on nothing.** Rewriting instance config is on this leaf's never-list,
 so the decision record *is* the output — what was declared, what was measured, how much measurement is
 behind it, which way it has been moving. A surface renders that beside the live footprint rather than
 storing a copy of a measurement that would go stale.
@@ -404,8 +411,8 @@ session's. But a run boundary is only counted when this host was watching, so an
 continuously since before the monitor existed reports zero — a week of unbroken operation satisfies it
 instead.
 
-⚠ **A launch line that fixes the heap fixes the measurement with it.** An instance carrying `-Xmx` is
-reported as such and never as a divergence: what was measured is the value of a flag. ⚠ The scan reads
+**A launch line that fixes the heap fixes the measurement with it.** An instance carrying `-Xmx` is
+reported as such and never as a divergence: what was measured is the value of a flag. The scan reads
 the arguments KGSM launches with, so a game whose own start script sets the heap — Project Zomboid's
 `install/ProjectZomboid64.json` carries `-Xmx8g` — is invisible to it and will be judged as a measured
 instance. Left to say so in the ledger rather than covered by a heuristic guessed at now.
@@ -459,7 +466,7 @@ question it can answer.
 the Control Panel read one measurement rather than two implementations of it. The text output is
 unchanged.
 
-⚠ **`?limit=` caps the log and never the readings.** Every figure is computed over every row in the
+**`?limit=` caps the log and never the readings.** Every figure is computed over every row in the
 window; only the list at the end is trimmed. A busiest hour measured over a truncated sample would
 under-report exactly the peak a ceiling has to clear, and it would do so silently.
 
@@ -478,8 +485,8 @@ code, and `RuleCatalogTests` pins them so a later edit is a decision rather than
 | `threshold_stuck` suppression | 30m (host) | **4h** | breaches repeat every 4.1h at p50 |
 | `MaxActionsPerHour` | 4 | **12** | busiest hour: 4 distinct subjects; fleet is 8 |
 
-⚠ **`give_up_backup`'s settle was below the fastest recovery ever observed**, so it fired on every
-give-up that was about to fix itself. ⚠ **`threshold_stuck` had no settle at all**, and every threshold
+**`give_up_backup`'s settle was below the fastest recovery ever observed**, so it fired on every
+give-up that was about to fix itself. **`threshold_stuck` had no settle at all**, and every threshold
 episode in the window cleared on its own — it would have announced twelve conditions that all ended
 without help. At 45m it now decides nothing here, which is the measurement rather than a fault.
 
@@ -520,7 +527,7 @@ end; the id proves it is the right one.
 
 ### Changed — `--verify` compares ids, and reports `IdMismatch` apart from `WrongEvent`
 
-⚠ **The check it could not make before.** Comparing event types catches a shift onto a different kind
+**The check it could not make before.** Comparing event types catches a shift onto a different kind
 of event and misses one onto the same kind — and that is the likely case, not the unlikely one: a
 journal is mostly repetitions of a handful of types, so a deleted line usually shifts the next
 position onto another `instance_started`. The id is unique per line, so it catches the shift whatever
@@ -561,7 +568,7 @@ rewrite **detectable** — a reference carrying both finds the line by position 
 right one by id, where before a shifted offset resolved to a real, parseable event of the wrong kind
 with nothing to notice.
 
-⚠ Optional and optional forever: lines written before this are on disk for as long as retention holds
+Optional and optional forever: lines written before this are on disk for as long as retention holds
 them, and **absent means unknown, never a mismatch**. Authority: `journal-entry-id-plan.md`.
 
 ## [0.7.0] - 2026-08-18
@@ -596,7 +603,7 @@ is.
 
 - **`kgsm-reactor --backfill [--days N]`** — reads every producer's journal history into the
   observation ledger. Six weeks of this host, instead of the hours since the last deploy.
-  - ⚠ **Observations only. No rule is evaluated and no event is written**, and that is not a
+  - **Observations only. No rule is evaluated and no event is written**, and that is not a
     limitation to be lifted. An observation restates a line that exists, so reading it late changes
     nothing about it; a decision is a judgment made against a world that answered at the time, and the
     rules ask the *live* world. Re-deriving old decisions would record judgments that were never made,
@@ -720,13 +727,13 @@ right to act rather than a stage on the way to it.
 
 ### Notes
 
-- ⚠ **Every window and ceiling is a placeholder** until the population report has a week behind it.
+- **Every window and ceiling is a placeholder** until the population report has a week behind it.
   They are wired now so the gate's outcomes are recorded from the start, which turns "is 30 minutes
   the right window" from an opinion into a query.
-- ⚠ **Propose and act are unbuilt.** A rule configured into either is clamped to observe and said out
+- **Propose and act are unbuilt.** A rule configured into either is clamped to observe and said out
   loud, because an operator who believes the host is acting when it is not is worse off than one who
   was refused.
-- ⚠ `give_up_backup` cannot leave observe until a backup manifest records why an archive was taken
+- `give_up_backup` cannot leave observe until a backup manifest records why an archive was taken
   and whether it may be pruned, and `update_regression` cannot name its target for the same reason.
 
 
@@ -744,7 +751,7 @@ plus one `manage-units` call on this project's own service — `start` when the 
 is not running). Both are dispatched as the same `manage-units` action, so a host without the grant is
 refused either way and the probe measures the grant rather than the unit.
 
-⚠ Measured in the positive direction only. The deploying user on the development host is in
+Measured in the positive direction only. The deploying user on the development host is in
 `wheel`, and two pre-existing polkit rules there grant that group every
 `org.freedesktop.systemd1.*` action outright, so no systemctl call by that user can be refused
 and the negative path cannot be exercised on it. That `try-restart` consults polkit before it

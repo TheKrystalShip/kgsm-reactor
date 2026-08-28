@@ -27,7 +27,7 @@ internal static partial class RuleValidation
     /// The shape of an id.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Immutable once minted, and unique across retired rules too.</b> It is the actor string on
+    /// <b>Immutable once minted, and unique across retired rules too.</b> It is the actor string on
     /// every journal line and ledger row the rule produced. Reusing a retired id would make one name
     /// resolve to two different rules depending on when you asked, which is worse than having no name.
     /// </remarks>
@@ -98,7 +98,7 @@ internal static partial class RuleValidation
 
         foreach (SignalBinding binding in definition.Signals)
         {
-            // ⚠ Refused rather than resolved by precedence. The evaluator answers its own tokens
+            // Refused rather than resolved by precedence. The evaluator answers its own tokens
             // before it looks at a binding, so a rule naming one would read as saved-and-working
             // while every sentence mentioning it silently said something else.
             if (MessageTemplate.IsIntrinsic(binding.Alias))

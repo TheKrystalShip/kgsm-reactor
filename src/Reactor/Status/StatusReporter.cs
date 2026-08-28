@@ -75,7 +75,7 @@ internal sealed class StatusReporter(
     /// One rule, as it is actually running.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The whole definition, because a rule is now something a person wrote.</b> Reporting only
+    /// <b>The whole definition, because a rule is now something a person wrote.</b> Reporting only
     /// its id, its windows and what it would do described a rule when the predicate was compiled and
     /// the same on every host; now the predicate is the part that differs, and a surface that could
     /// not show it could not explain a decision either.

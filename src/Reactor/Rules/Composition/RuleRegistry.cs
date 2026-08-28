@@ -68,7 +68,7 @@ internal sealed class RuleRegistry : IDisposable
 
         if (_directory.Length > 0)
         {
-            // ⚠ Whether the directory EXISTED is the first-run signal, and the only one there is.
+            // Whether the directory EXISTED is the first-run signal, and the only one there is.
             // After this the directory is there whatever it holds, so an empty one means somebody
             // deleted every rule — which has to stick. Seeding on "empty" instead would put the
             // samples back on the next start and quietly undo them.
@@ -148,7 +148,7 @@ internal sealed class RuleRegistry : IDisposable
     /// what it shipped as without an upgrade ever reaching a rule somebody is running.
     /// </para>
     /// <para>
-    /// ⚠ A sample that cannot be copied is reported and skipped. A host that ends up with three of
+    /// A sample that cannot be copied is reported and skipped. A host that ends up with three of
     /// four is a host running three rules, which is a state it is allowed to be in — refusing to start
     /// over it would take the whole leaf down for something a person can fix at their leisure.
     /// </para>
@@ -201,7 +201,7 @@ internal sealed class RuleRegistry : IDisposable
     /// Write one rule and adopt the result, or refuse it and leave the running set alone.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Validated against the set it would join, before anything is written.</b> A rule that
+    /// <b>Validated against the set it would join, before anything is written.</b> A rule that
     /// cannot be honoured is refused rather than stored, so the directory never holds a rule this
     /// daemon then declines to run — which is the state that reads as "I saved it and nothing
     /// happened".
@@ -251,7 +251,7 @@ internal sealed class RuleRegistry : IDisposable
     /// Remove a rule's file outright.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Deleting is not retiring.</b> A retired rule keeps its file so that the decisions it
+    /// <b>Deleting is not retiring.</b> A retired rule keeps its file so that the decisions it
     /// already made still resolve to something nameable; deleting one leaves those decisions naming an
     /// id nothing can describe. The panel retires; this exists for a rule that was never meant to be.
     /// </remarks>

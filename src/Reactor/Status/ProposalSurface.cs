@@ -15,7 +15,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Status;
 /// to change with the code, where this is read by other programs.
 /// </para>
 /// <para>
-/// ⚠ <b>The handle is here, and it is the capability.</b> Anything that can present it can ask for the
+/// <b>The handle is here, and it is the capability.</b> Anything that can present it can ask for the
 /// action — subject to the same authority performing that action directly requires, which is the
 /// caller's to enforce and not this leaf's. A surface that put this list in front of a room of players
 /// would be handing them the offer, not showing it to them.
@@ -35,7 +35,7 @@ public sealed record ProposalView
     /// Who had shaped that rule, as <c>provider:name</c>, or null.
     /// </summary>
     /// <remarks>
-    /// ⚠ Provenance about the rule, never about the offer. Nobody proposed this; a rule did, and a
+    /// Provenance about the rule, never about the offer. Nobody proposed this; a rule did, and a
     /// person wrote the rule.
     /// </remarks>
     [JsonPropertyName("ruleAuthor")]
@@ -75,7 +75,7 @@ public sealed record ProposalView
     /// somebody to authorise an action on the strength of the problem it names.
     /// </para>
     /// <para>
-    /// ⚠ <b>This build's sentence, resolved from the catalog rather than stored with the offer.</b> An
+    /// <b>This build's sentence, resolved from the catalog rather than stored with the offer.</b> An
     /// offer staged before an action's consequence was understood better must be answered against what
     /// performing it does <em>now</em> — and an action this build no longer has says so, which is the
     /// same answer redeeming it would give.
@@ -133,7 +133,7 @@ public sealed record ProposalView
 
     /// <summary>Whether the action succeeded, or null when none was attempted.</summary>
     /// <remarks>
-    /// ⚠ Null is not false. Three of the four resolutions attempt nothing, and rendering a missing
+    /// Null is not false. Three of the four resolutions attempt nothing, and rendering a missing
     /// answer as a failure reports a person working as intended as a broken action.
     /// </remarks>
     [JsonPropertyName("ok")]
@@ -221,7 +221,7 @@ public sealed record ProposalBoard
 /// What came of redeeming a handle.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Every field here is needed and none of them can be derived from another.</b> The outcome says
+/// <b>Every field here is needed and none of them can be derived from another.</b> The outcome says
 /// what happened to the offer; <c>ok</c> says what happened to the action; the detail says why, in the
 /// words a person is shown. A caller that renders only the status code turns "the server came back up
 /// on its own, so nothing was done" into a bare failure.
@@ -247,7 +247,7 @@ public sealed record RedemptionResult
 
 /// <summary>Who is answering.</summary>
 /// <remarks>
-/// ⚠ <b>Required, and the leaf refuses a confirmation without it.</b> This is the one path where a
+/// <b>Required, and the leaf refuses a confirmation without it.</b> This is the one path where a
 /// person authorises something, so the record it produces has to name them — and there is no fallback
 /// to the OS user the daemon runs as. <b>Whether they are <em>allowed</em> to is the caller's
 /// question:</b> the leaf holds no identity system and no tiers, so it checks the shape and trusts the

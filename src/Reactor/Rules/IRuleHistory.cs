@@ -42,7 +42,7 @@ internal static class EpisodeShape
     /// </summary>
     /// <remarks>
     /// The open episode first, because that is the condition itself; the last opening event otherwise,
-    /// for a rule whose condition is the event rather than a span. ⚠ Null is unknown and stays unknown:
+    /// for a rule whose condition is the event rather than a span. Null is unknown and stays unknown:
     /// a caller that filled it with the current instant would be dating the condition from the moment
     /// it was asked about.
     /// </remarks>
@@ -74,7 +74,7 @@ internal static class EpisodeShape
 /// neither is answerable from memory or from the event that woke it.
 /// </para>
 /// <para>
-/// ⚠ Everything here is bounded by the retention window and by how long this leaf has been running.
+/// Everything here is bounded by the retention window and by how long this leaf has been running.
 /// A query that finds nothing is reporting exactly that, and a rule reading it must not treat an
 /// empty answer as evidence of absence.
 /// </para>

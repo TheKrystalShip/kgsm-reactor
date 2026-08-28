@@ -9,7 +9,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// Writing a rule, and what the daemon is running afterwards.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>The property everything here exists for: what is on disk and what is running never disagree.</b>
+/// <b>The property everything here exists for: what is on disk and what is running never disagree.</b>
 /// A rule the daemon declines to run must not be stored, and a rule that was stored must be in force
 /// before the caller is told so. Both halves are asserted on every write below, because a write that
 /// half-happened reads to a person as "I saved it and nothing changed".
@@ -56,7 +56,7 @@ public sealed class RuleRegistryTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule that cannot be honoured is refused, and nothing is written.
+    /// A rule that cannot be honoured is refused, and nothing is written.
     /// </summary>
     /// <remarks>
     /// Storing it and reporting the problem afterwards would leave the directory holding a rule the
@@ -76,7 +76,7 @@ public sealed class RuleRegistryTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ Judged against the set it would join, not on its own.
+    /// Judged against the set it would join, not on its own.
     /// </summary>
     /// <remarks>
     /// Whether an id collides is a fact about the other rules, so it is the one refusal that cannot be
@@ -148,7 +148,7 @@ public sealed class RuleRegistryTests : IDisposable
     /// A file written by hand is picked up without anything restarting.
     /// </summary>
     /// <remarks>
-    /// ⚠ Timing-dependent by nature — the watch is debounced, and the assertion polls rather than
+    /// Timing-dependent by nature — the watch is debounced, and the assertion polls rather than
     /// sleeping a fixed span so a slow machine waits longer instead of failing.
     /// </remarks>
     [Fact]
@@ -185,7 +185,7 @@ public sealed class RuleRegistryTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ <b>Deleting every rule sticks.</b>
+    /// <b>Deleting every rule sticks.</b>
     /// </summary>
     /// <remarks>
     /// The first-run signal is whether the directory EXISTED, never whether it holds anything. Seeding

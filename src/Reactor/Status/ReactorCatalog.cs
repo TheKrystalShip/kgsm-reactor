@@ -17,13 +17,13 @@ namespace TheKrystalShip.Kgsm.Reactor.Status;
 /// that knows what it can measure, so the leaf says.
 /// </para>
 /// <para>
-/// ⚠ <b>Read-only, and this is where the write boundary sits.</b> Publishing what a rule may be made of
+/// <b>Read-only, and this is where the write boundary sits.</b> Publishing what a rule may be made of
 /// is not the same as accepting one over a socket: composing and storing is the panel's half, which
 /// writes the file and restarts the unit through the grant it already holds. Nothing off this host
 /// acquires the ability to tell a leaf what to think.
 /// </para>
 /// <para>
-/// ⚠ <b>The trigger list is deliberately absent.</b> What a rule may wake on is what the ledger has
+/// <b>The trigger list is deliberately absent.</b> What a rule may wake on is what the ledger has
 /// actually observed — with each type's producer and how often it fires — and that is a query against
 /// this host's own history rather than a constant. A hand-written list would drift from it the first
 /// time any producer emitted something new. It is served beside the decision review, where the ledger
@@ -59,7 +59,7 @@ public sealed record ReactorCatalog
     /// The outcomes a step may conclude, in their wire spellings.
     /// </summary>
     /// <remarks>
-    /// ⚠ There are three, and the third is the point. "Cannot tell" must not be able to masquerade as
+    /// There are three, and the third is the point. "Cannot tell" must not be able to masquerade as
     /// "no", which would be silence, or as "yes", which would be acting blind.
     /// </remarks>
     [JsonPropertyName("outcomes")]
@@ -83,7 +83,7 @@ public sealed record ReactorCatalog
     /// The ways a staged offer ends, in their wire spellings.
     /// </summary>
     /// <remarks>
-    /// ⚠ Four, and keeping them apart is the point. A surface folding lapse, dismissal and no-longer-
+    /// Four, and keeping them apart is the point. A surface folding lapse, dismissal and no-longer-
     /// applicable into "not confirmed" loses the only signal that separates a rule nobody wants from
     /// one whose condition is wrong from one that speaks too early — which is what somebody reviewing
     /// a week of a proposing rule is trying to read.
@@ -95,7 +95,7 @@ public sealed record ReactorCatalog
     /// How long an unanswered offer stays redeemable when a rule names no window of its own.
     /// </summary>
     /// <remarks>
-    /// Published so an editor can show what a blank field means. ⚠ It is not a safety control: the
+    /// Published so an editor can show what a blank field means. It is not a safety control: the
     /// condition is re-derived at redemption, so a stale offer answers "no longer applicable" instead
     /// of executing.
     /// </remarks>
@@ -179,7 +179,7 @@ public sealed record ReactorCatalog
         new(RuleStore.Wire(ClauseOperator.Contains), "contains", ["text"], true),
         new(RuleStore.Wire(ClauseOperator.IsTrue), "is true", ["flag"], false),
         new(RuleStore.Wire(ClauseOperator.IsFalse), "is false", ["flag"], false),
-        // ⚠ These two ask about a measurement that came back empty, which is not the same question as
+        // These two ask about a measurement that came back empty, which is not the same question as
         // whether it could be read at all. A signal that cannot be read ends the rule as "cannot tell"
         // and never reaches a comparison.
         new(RuleStore.Wire(ClauseOperator.Present), "has a value",

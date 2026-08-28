@@ -168,7 +168,7 @@ internal sealed class MonitorFootprintSource : IFootprintSource, IDisposable
         }
         catch (JsonException ex)
         {
-            // ⚠ Not folded into the catch below. A daemon that is not answering and one whose answer
+            // Not folded into the catch below. A daemon that is not answering and one whose answer
             // this build cannot parse call for opposite responses — start the monitor, or fix the
             // reader — and a single message for both sends every reader to the wrong one first.
             _logger.LogWarning(

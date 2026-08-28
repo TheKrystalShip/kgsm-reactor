@@ -130,7 +130,7 @@ internal sealed class RuleDocument
     /// setting.
     /// </summary>
     /// <remarks>
-    /// ⚠ Not a safety control. The condition is re-derived at redemption, so a stale offer answers "no
+    /// Not a safety control. The condition is re-derived at redemption, so a stale offer answers "no
     /// longer applicable" instead of executing. What this is for is the difference between offers.
     /// </remarks>
     [JsonPropertyName("proposalLifetimeHours")]
@@ -170,7 +170,7 @@ internal sealed partial class RulesJsonContext : JsonSerializerContext;
 /// Rules kept only so their decisions still resolve. Never evaluated, never in the live list.
 /// </param>
 /// <param name="Problems">
-/// ⚠ <b>The most important field here for anyone who has just written a rule.</b> A misspelled signal,
+/// <b>The most important field here for anyone who has just written a rule.</b> A misspelled signal,
 /// a step with no sentence, an action this build cannot do — each leaves the daemon running on the
 /// rules it could honour, and without this all of them present as "I saved it and nothing happened".
 /// </param>
@@ -245,7 +245,7 @@ internal static class RuleStore
     /// One rule file, or null with the reason recorded.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The filename is not the id.</b> The id inside the file is what everything keys on, and it
+    /// <b>The filename is not the id.</b> The id inside the file is what everything keys on, and it
     /// is checked against the filename rather than derived from it — a file somebody copied and
     /// renamed without editing would otherwise install a second rule under the first one's identity,
     /// silently folding two rules' decisions together.
@@ -293,7 +293,7 @@ internal static class RuleStore
 
     /// <summary>Validate a set, separate the retired, and refuse what cannot be honoured.</summary>
     /// <remarks>
-    /// ⚠ <b>A duplicate id is refused rather than resolved.</b> The id is the actor on every line a
+    /// <b>A duplicate id is refused rather than resolved.</b> The id is the actor on every line a
     /// rule produced and the key its decisions are folded on, so two rules sharing one would silently
     /// merge their records — and picking a winner would make which of them ran depend on file order.
     /// </remarks>
@@ -595,7 +595,7 @@ internal static class RuleStore
     /// Authorship as written, or none.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>No fallback to the OS user.</b> A definition hand-written into the file over SSH carries no
+    /// <b>No fallback to the OS user.</b> A definition hand-written into the file over SSH carries no
     /// identity and must not be given one — the same enforcement made everywhere else in this ecosystem
     /// that an actor is stamped. An unattributed rule says so.
     /// </remarks>

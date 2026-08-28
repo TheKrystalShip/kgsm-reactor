@@ -219,7 +219,7 @@ public class JournalVerifyTests : IDisposable
     [Fact]
     public void A_shift_onto_the_same_event_type_is_caught_only_by_the_id()
     {
-        // ⚠ The case that justifies carrying an id at all, and the one a type comparison cannot see.
+        // The case that justifies carrying an id at all, and the one a type comparison cannot see.
         // A journal is mostly repetitions of a handful of types, so a deleted line usually shifts the
         // next position onto ANOTHER event of the same kind — which the type check passes, happily,
         // while the row now describes a different moment entirely.

@@ -9,7 +9,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// What a rule would decide about this host right now, without becoming one of its rules.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>The failure a preview exists to catch is a rule that reads plausibly and fires on nothing.</b>
+/// <b>The failure a preview exists to catch is a rule that reads plausibly and fires on nothing.</b>
 /// A gate set where no instance clears it, a step ordered after one that always matches first — neither
 /// is visible in an editor, and both are visible in the sentence a preview returns.
 /// </remarks>
@@ -39,7 +39,7 @@ public class RulePreviewTests
         Runs: 12, ObservedHours: 57, SpanDays: 25, Samples: 4000);
 
     /// <summary>
-    /// ⚠ The sentence is the answer, not the verdict.
+    /// The sentence is the answer, not the verdict.
     /// </summary>
     /// <remarks>
     /// "Yes" tells somebody their rule fires; the figures tell them whether it fires for the reason they
@@ -59,7 +59,7 @@ public class RulePreviewTests
     }
 
     /// <summary>
-    /// ⚠ A verdict is spelled the way the catalog spells it.
+    /// A verdict is spelled the way the catalog spells it.
     /// </summary>
     /// <remarks>
     /// A panel classifies an outcome against what <c>/catalog</c> offered it. An enum name lowercased is
@@ -93,7 +93,7 @@ public class RulePreviewTests
     }
 
     /// <summary>
-    /// ⚠ An edge rule has no event here, so a preview of one is a preview against a chosen subject.
+    /// An edge rule has no event here, so a preview of one is a preview against a chosen subject.
     /// </summary>
     /// <remarks>
     /// The answer says which it was, rather than letting a reader assume the rule found the subject on
@@ -120,7 +120,7 @@ public class RulePreviewTests
     }
 
     /// <summary>
-    /// ⚠ A rule that cannot run is reported as such, and nothing is evaluated.
+    /// A rule that cannot run is reported as such, and nothing is evaluated.
     /// </summary>
     /// <remarks>
     /// The same validator the daemon runs at load, so a rule that previews clean is a rule that will
@@ -144,7 +144,7 @@ public class RulePreviewTests
     }
 
     /// <summary>
-    /// ⚠ A truncated preview says it was truncated.
+    /// A truncated preview says it was truncated.
     /// </summary>
     /// <remarks>
     /// One that looked complete would tell somebody their rule is quiet on a fleet it was never asked

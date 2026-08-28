@@ -163,7 +163,7 @@ internal sealed class ReactorSettings
     /// Permission bits set on the socket once it exists, as an octal string.
     /// </summary>
     /// <remarks>
-    /// ⚠ Written as text (<c>660</c>) rather than a number, because a leading zero in JSON is not
+    /// Written as text (<c>660</c>) rather than a number, because a leading zero in JSON is not
     /// legal and an unquoted <c>660</c> read as decimal would be a different mode entirely.
     /// </remarks>
     /// <panel>Who may read the status socket, as octal permission bits. The default lets a service in
@@ -201,7 +201,7 @@ internal sealed class ReactorSettings
 
     /// <summary>How long an unanswered proposal stays redeemable, for rules that name no window.</summary>
     /// <remarks>
-    /// ⚠ Not a safety control. The condition is re-derived when a handle is redeemed, so a stale offer
+    /// Not a safety control. The condition is re-derived when a handle is redeemed, so a stale offer
     /// answers "no longer applicable" rather than executing — shortening this only loses the offers
     /// nobody was awake to see.
     /// </remarks>

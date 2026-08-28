@@ -23,7 +23,7 @@ internal static class ReactorEvents
     /// <c>reactor.decided</c> — a rule reached a verdict about a subject.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Written on a transition, not on an evaluation.</b> A state rule re-evaluates one episode
+    /// <b>Written on a transition, not on an evaluation.</b> A state rule re-evaluates one episode
     /// every sweep and the ledger folds those into a single row that gets better informed; a journal
     /// appends. Emitting per evaluation would write a line every thirty seconds about a condition that
     /// has not changed, and the history would read as how often the reactor looked rather than what it
@@ -42,7 +42,7 @@ internal static class ReactorEvents
     /// <c>reactor.proposed</c> — a rule staged an action for a person to confirm.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>An offer, and nothing has been done.</b> The action is held under a handle until somebody
+    /// <b>An offer, and nothing has been done.</b> The action is held under a handle until somebody
     /// redeems it or its lifetime runs out, and the commonest ending is that the condition resolves
     /// itself and nobody ever answers. A line here is not a line about work.
     /// </remarks>
@@ -55,7 +55,7 @@ internal static class ReactorEvents
     /// <c>reactor.resolved</c> — a staged proposal reached its end, whichever end that was.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Exactly one per proposal, including the ones nobody answered.</b> A lapse is a fact and is
+    /// <b>Exactly one per proposal, including the ones nobody answered.</b> A lapse is a fact and is
     /// written like the rest — an offer that expired unread is the single most useful thing a week's
     /// review can count, and it exists nowhere unless it is said.
     /// </remarks>
@@ -68,7 +68,7 @@ internal static class ReactorEvents
     /// <c>reactor.acted</c> — this leaf carried an action out itself, however it ended.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
+    /// <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
     /// <see cref="Resolved"/> carrying their name. This is the one where the rule is the whole
     /// authority, and keeping the two apart is what lets a surface answer "what did this host do on its
     /// own" without subtracting one set from another.
@@ -89,7 +89,7 @@ internal static class ReactorEvents
 
 /// <summary>The payload field names, spelled once.</summary>
 /// <remarks>
-/// ⚠ <b>A field name is a contract the moment something reads it.</b> These are free to change while
+/// <b>A field name is a contract the moment something reads it.</b> These are free to change while
 /// the reactor is the only thing that has ever written or read them; once kgsm-lib carries the typed
 /// classes and a consumer deserializes one, renaming a field silently empties it for every reader
 /// built against the old spelling.
@@ -104,12 +104,12 @@ internal static class ReactorEventFields
     /// known to have.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Beside the actor, never instead of it.</b> The rule performed the act; a person wrote the
+    /// <b>Beside the actor, never instead of it.</b> The rule performed the act; a person wrote the
     /// rule. A consumer renders <em>"stopped by rule <c>disk_pressure_stop</c>, written by
     /// <c>discord:tanya</c>"</em> — which names the act and its origin without confusing the two.
     /// </remarks>
     /// <remarks>
-    /// ⚠ <b>Absent means unattributed, and unattributed is a real state.</b> A rule this build seeded,
+    /// <b>Absent means unattributed, and unattributed is a real state.</b> A rule this build seeded,
     /// or one hand-written into the file over SSH, carries no identity — and there is no fallback to
     /// the OS user anywhere in this ecosystem. A consumer must render its absence rather than
     /// substituting the host, the daemon, or the person who happens to be reading.
@@ -189,7 +189,7 @@ internal static class ReactorEventFields
     /// The token a staged proposal is redeemed with.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Spelled in full because a bare <c>Handle</c> already means a person.</b> An account event
+    /// <b>Spelled in full because a bare <c>Handle</c> already means a person.</b> An account event
     /// carries one and it is somebody's name; this is a capability that names nobody, and one field
     /// name standing for both would leave every consumer classifying whichever it met first.
     /// </remarks>
@@ -238,7 +238,7 @@ internal static class ReactorResolutions
     /// Somebody tried to confirm it and the condition had gone by then.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The safety property observed working.</b> The rule is re-evaluated at redemption rather
+    /// <b>The safety property observed working.</b> The rule is re-evaluated at redemption rather
     /// than trusted from staging, so a server that came back up on its own resolves the proposal
     /// instead of having a restore run over it.
     /// </remarks>

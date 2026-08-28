@@ -25,7 +25,7 @@ internal enum SignalKind
 
 /// <summary>One value a signal read produced.</summary>
 /// <remarks>
-/// ⚠ <b><see cref="Present"/> is a value, not a failure.</b> "This instance's blueprint declares no
+/// <b><see cref="Present"/> is a value, not a failure.</b> "This instance's blueprint declares no
 /// minimum" and "the blueprint could not be read" are different answers, and only the second is
 /// <see cref="SignalReading.Readable"/> being false. Collapsing them would make a rule unable to say
 /// <em>"there is none"</em> without also saying it could not tell — which is how a coverage gate
@@ -220,7 +220,7 @@ internal sealed record Signal(
 /// One evaluation's reads, made once each.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Memoised because the alternative is a rule that costs eight round trips.</b>
+/// <b>Memoised because the alternative is a rule that costs eight round trips.</b>
 /// <c>memory_declaration_drift</c> asks nine things of a footprint that arrives in one response, and a
 /// composed rule reading each signal independently would go to the monitor's socket for every one of
 /// them. Worse than slow: two reads of a moving measurement inside one decision would let a rule
@@ -250,7 +250,7 @@ internal sealed class EvaluationScope(
     /// When the condition being judged began, or null when this evaluation has no opening to name.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Null is unknown, and a sentence that asks for it says so rather than dating the condition
+    /// <b>Null is unknown, and a sentence that asks for it says so rather than dating the condition
     /// from now.</b> An engine evaluation carries the journal line the episode opened on; a preview
     /// carries whatever the ledger can find; a rule judging a standing fact carries neither, because
     /// a footprint drifting from a declaration did not start at a moment anybody observed.

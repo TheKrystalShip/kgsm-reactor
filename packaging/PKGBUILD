@@ -69,7 +69,7 @@ package() {
     # directory. Keeping the pristine set here is what lets a rule be put back to what it shipped as
     # without an upgrade ever reaching a rule somebody is running.
     #
-    # ⚠ Not installed into /var/lib and not listed in backup=(). Deleting a rule is a supported
+    # Not installed into /var/lib and not listed in backup=(). Deleting a rule is a supported
     # action and has to stick; pacman's backup handling would reinstate a deleted sample on the next
     # upgrade, which is the one behaviour this must not have.
     install -dm755 "${prefix}/rules.d"

@@ -19,7 +19,7 @@ internal sealed class RuleWriteRequest
     /// Who is doing this, as <c>provider:name</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠ Required, and checked for having been NAMED rather than for being allowed. This leaf holds no
+    /// Required, and checked for having been NAMED rather than for being allowed. This leaf holds no
     /// identity system and no tiers; the surface that authenticated the person is what knows whether
     /// editing a rule is theirs to do. What it refuses is an anonymous write, because the actor is
     /// stamped onto the rule and travels from there onto every decision the rule goes on to make.
@@ -39,7 +39,7 @@ internal sealed class RuleWriteResult
     /// What could not be honoured, empty when it was stored.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The whole point of answering the request rather than a later status read.</b> A refusal
+    /// <b>The whole point of answering the request rather than a later status read.</b> A refusal
     /// arrives while the person is still looking at what they wrote, and nothing was written — so a
     /// rule can never sit on disk in a state the daemon then declines to run.
     /// </remarks>

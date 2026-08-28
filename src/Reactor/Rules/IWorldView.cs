@@ -36,12 +36,12 @@ internal readonly record struct InstanceRunState(string Phase, bool DesiredRunni
 /// <param name="HeapFlag">
 /// The maximum-heap argument this instance launches with, when it carries one.
 /// <para>
-/// ⚠ <b>Its presence makes the footprint unusable as a requirement.</b> A JVM with <c>-Xmx4096M</c>
+/// <b>Its presence makes the footprint unusable as a requirement.</b> A JVM with <c>-Xmx4096M</c>
 /// will hold four gigabytes whether or not the world needs them, so what was measured is the value of
 /// a flag rather than a property of the server.
 /// </para>
 /// <para>
-/// ⚠ <b>Null does not mean there is none.</b> This reads the arguments KGSM launches with, and a game
+/// <b>Null does not mean there is none.</b> This reads the arguments KGSM launches with, and a game
 /// whose own start script sets the heap — Project Zomboid's <c>ProjectZomboid64.json</c> carries
 /// <c>-Xmx8g</c> — is invisible here. Absence is "none found", never "none exists".
 /// </para>
@@ -60,7 +60,7 @@ internal readonly record struct MemoryDeclaration(int? MinRamMb, int? Recommende
 /// How many times in a row the supervisor will restart it before giving up, or null when the instance
 /// declares no figure of its own.
 /// <para>
-/// ⚠ <b>Null is "this instance names none", never "there is no limit".</b> The watchdog falls back to
+/// <b>Null is "this instance names none", never "there is no limit".</b> The watchdog falls back to
 /// its own setting, which is not readable from here — so a rule that wants the denominator asks
 /// whether there is one and says what it found, and nothing anywhere substitutes a plausible number
 /// for the one that actually applies.

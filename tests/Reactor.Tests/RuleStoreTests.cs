@@ -7,7 +7,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// The rules directory: what a host runs, and what it does with a rule it cannot honour.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Nothing here may throw and nothing here may be silent.</b> A daemon that refused to start over
+/// <b>Nothing here may throw and nothing here may be silent.</b> A daemon that refused to start over
 /// one bad rule would take every other rule down with it; one that quietly dropped it would leave
 /// somebody watching for a decision that was never going to come. Every case below asserts both halves
 /// — what still runs, and what was said about what does not.
@@ -58,7 +58,7 @@ public class RuleStoreTests
     }
 
     /// <summary>
-    /// ⚠ A rule survives being written out and read back unchanged.
+    /// A rule survives being written out and read back unchanged.
     /// </summary>
     /// <remarks>
     /// Every edit is a write followed by a read, so a round trip that lost a field would change a rule
@@ -89,7 +89,7 @@ public class RuleStoreTests
     }
 
     /// <summary>
-    /// ⚠ A file that cannot be parsed costs one rule, not the directory.
+    /// A file that cannot be parsed costs one rule, not the directory.
     /// </summary>
     /// <remarks>
     /// This is the whole reason a rule is a file. One document meant a typo anywhere took every rule
@@ -111,7 +111,7 @@ public class RuleStoreTests
     }
 
     /// <summary>
-    /// ⚠ The filename is checked against the id, never used as one.
+    /// The filename is checked against the id, never used as one.
     /// </summary>
     /// <remarks>
     /// A file somebody copied and renamed without editing would otherwise install a second rule under
@@ -161,7 +161,7 @@ public class RuleStoreTests
     }
 
     /// <summary>
-    /// ⚠ The loop guard, enforced by the catalog rather than by a test over it.
+    /// The loop guard, enforced by the catalog rather than by a test over it.
     /// </summary>
     /// <remarks>
     /// The reactor tails every producer's journal including its own, so a rule woken by a decision it
@@ -241,7 +241,7 @@ public class RuleStoreTests
     }
 
     /// <summary>
-    /// ⚠ An id names one rule forever, retired ones included.
+    /// An id names one rule forever, retired ones included.
     /// </summary>
     /// <remarks>
     /// It is the actor on every journal line and ledger row the rule produced. An id that resolved to
@@ -269,7 +269,7 @@ public class RuleStoreTests
     // ---- authorship ----
 
     /// <summary>
-    /// ⚠ A rule written by hand over SSH carries no identity and is not given one.
+    /// A rule written by hand over SSH carries no identity and is not given one.
     /// </summary>
     /// <remarks>
     /// The same enforcement made everywhere else in this ecosystem that an actor is stamped: there is

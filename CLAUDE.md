@@ -38,7 +38,7 @@ curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/proposals \
   | jq '{honours, open: [.open[] | {handle, rule, subject, action, expiresAt}],
          endings: (.recent | group_by(.state) | map({(.[0].state): length}) | add)}'
 
-# Redeem one. ⚠ `by` is required and must be provider:name — the leaf refuses a confirmation that
+# Redeem one. `by` is required and must be provider:name — the leaf refuses a confirmation that
 # names nobody. Confirming re-derives the condition first, so a server that came back up on its own
 # answers no_longer_applicable and nothing runs.
 curl -s -X POST --unix-socket /run/kgsm-reactor/status.sock \
@@ -101,7 +101,7 @@ where the journal line is written after the ledger is open and the rules are res
   or not, and the subject is pulled out of the payload `JsonElement` by property name. A typed path
   would silently skip exactly the events a later rule might be about, and the skip would look like an
   event that never happened.
-- **⚠ A backfill fills OBSERVATIONS and never decisions.** Reading a line late changes nothing about
+- **A backfill fills OBSERVATIONS and never decisions.** Reading a line late changes nothing about
   the line; a decision is a judgment made against a world that answered at the time, and the rules ask
   the *live* world. Re-deriving old decisions would record judgments that were never made, on evidence
   that no longer exists, and nothing afterwards could tell them from the real ones.
@@ -109,7 +109,7 @@ where the journal line is written after the ledger is open and the rules are res
   replayed action is performed again for real). What it costs is events arriving while the process is
   down. The fix for that is *not* a cursor: it is expressing the rules that matter as **state** a rule
   re-derives from the world rather than **edges** it has to catch. See the plan's decision #3.
-- **⚠ A rewritten segment silently invalidates the ledger.** A position is right only while segments
+- **A rewritten segment silently invalidates the ledger.** A position is right only while segments
   are appended to and deleted whole. Deleting one line shifts every byte after it, and a stored
   position then resolves to a real, parseable event of the *wrong kind* — no error, nothing to notice.
   `--verify` is the detector. Do not clean test entries out of a journal: that is the record, not a
@@ -120,14 +120,14 @@ where the journal line is written after the ledger is open and the rules are res
   exactly the bursts a ceiling has to be set above.
 - **The line's own id is carried beside the position, and is not the key.** `observations.event_id`,
   `decisions.src_event_id` and `reactor.decided`'s `SourceEventId` all hold the UUIDv7 the line's
-  producer minted. The position *finds* the line; the id *proves* it is the right one. ⚠ **This is
+  producer minted. The position *finds* the line; the id *proves* it is the right one. **This is
   what makes `--verify` real:** comparing event types misses a shift that lands on the same kind of
   event, which is the likely case — a journal is mostly repetitions of a handful of types. Where
   either side has no id the check falls back to the type, because absence is unknown and never a
   mismatch.
 - **The ledger migrates in place.** `ObservationLedger.AddColumnIfMissing` covers the additive half,
   for both tables: every column added here is nullable, because a row restates a journal line and a
-  new reading is something older rows simply do not carry. ⚠ `CREATE TABLE IF NOT EXISTS` leaves an
+  new reading is something older rows simply do not carry. `CREATE TABLE IF NOT EXISTS` leaves an
   existing table alone, so a new column without a migration means a host stamped with the new schema
   version and no column — throwing on the next insert. Rebuilding instead is safe (every row is
   derived) and throws away `observed_at`, the one reading that cannot be recovered. A migration that
@@ -137,25 +137,25 @@ where the journal line is written after the ledger is open and the rules are res
   the current name reaches every row about that event, and the population report counts one condition
   once instead of splitting it across two spellings. `LegacyEventNames` in the journal package is the
   only thing that knows what a name was called before, and it is asked in the one direction it
-  answers. ⚠ A **segment** keeps whatever its producer wrote, so a stored name and the line it points
+  answers. A **segment** keeps whatever its producer wrote, so a stored name and the line it points
   at are equal as events long after they stop being equal as strings — which is why `--verify`
   compares them through the same table.
 - **`EventClass` is a reporting bucket, not a judgment, and nothing may start gating on it.** What
   matters about an event is decided per rule against the plan's seven questions, never inherited from
   a bucket assigned at ingest.
-- **⚠ The reactor tails its own journal**, so every `reactor.decided` it writes comes straight back to
+- **The reactor tails its own journal**, so every `reactor.decided` it writes comes straight back to
   it. That is fine and the events are recorded like any other; the loop is stopped by the rule that
   **no rule may wake on a `reactor.*` event**, refused at load by `RuleValidation` rather than left to
   a test over a compiled list.
 - **The ledger upserts, the journal appends.** A state rule re-reads its episode every sweep and the
   ledger folds those into one row, so `DecisionStore.Record` returns a `DecisionChange` and only a
   transition is announced. Emitting per evaluation would make the journal a record of how often the
-  reactor looked rather than what it concluded. ⚠ `Record` compares the **outcome** and nothing else —
+  reactor looked rather than what it concluded. `Record` compares the **outcome** and nothing else —
   a reason whose figures age as the condition does is the same judgment better informed.
 - **Everything is recorded; `RuleEngine.Announceable` decides what is announced.** The ledger holds
   every evaluation with its reason and `--decisions` reads it; the journal is a different audience —
   an audit log somebody skims, where a line costs attention whether or not it was worth having.
-- **⚠ A withheld verdict is recorded and never announced.** Both halves of `Unreadable` are "cannot
+- **A withheld verdict is recorded and never announced.** Both halves of `Unreadable` are "cannot
   tell" and they are not the same news: `Verdict.Unreadable` is *something would not answer* (an
   operational fact — announced), `Verdict.Withhold` is *the rule declined to judge on evidence it
   read* (every coverage gate — recorded only). A gate reports what this leaf cannot yet say about an
@@ -168,7 +168,7 @@ where the journal line is written after the ledger is open and the rules are res
   `JsonElement`, so emission is local and costs no package release. **Typed consumption is the part
   that does** — kgsm-bot reads through `RegisterHandler<T>() where T : KgsmEventDataBase`, which needs
   the class in the library and in `KgsmJsonContext`.
-- **⚠ `BackgroundService.StartAsync` returning does not mean `ExecuteAsync` has begun.** A test that
+- **`BackgroundService.StartAsync` returning does not mean `ExecuteAsync` has begun.** A test that
   acts immediately after `StartAsync` can reach a service that has not registered its handler yet —
   which passes alone and fails under a parallel run. `EventIngestServiceTests.StartAndStopAsync` takes
   an explicit readiness condition for this reason. The daemon is unaffected: registration and
@@ -178,7 +178,7 @@ where the journal line is written after the ledger is open and the rules are res
   ordered list of guard rows over signals, and one action. `Rules/Composition/` holds the rest:
   `SignalCatalog`, `SubjectSourceCatalog` and `ActionCatalog` are compiled, so a person composes from
   what this build can do and cannot reach past it.
-- **⚠ No rule exists in code.** The four this build ships are files in `deploy/rules.d/`, installed
+- **No rule exists in code.** The four this build ships are files in `deploy/rules.d/`, installed
   into the state directory by `setup.sh` and ordinary rules from that moment. A rule defined in code
   would never travel through the parser, the validator or the watcher, leaving the path every
   hand-written rule depends on exercised only by hand-written rules — so the samples are what proves
@@ -193,19 +193,19 @@ where the journal line is written after the ledger is open and the rules are res
   rules and a redemption re-derives its condition through the same ones; a holder keeping its own copy
   would leave the two judging by different rules for as long as the daemon ran. A reload replaces the
   whole set in one assignment, so a sweep that started before a write finishes on the rules it began
-  with. ⚠ **Evaluations still settling are dropped on a reload** — the rule that scheduled one may no
+  with. **Evaluations still settling are dropped on a reload** — the rule that scheduled one may no
   longer say the same thing, and the condition reopens on the next match anyway.
 - **The directory is watched, so a hand edit applies without a restart.** Debounced, because one save
   arrives as several filesystem events and an editor writing through a temporary file produces a
   burst. A write through the panel goes via `RuleRegistry.Replace`, which validates against the set the
   rule would join, writes beside and renames, and adopts the result — so a rule is never stored that
   the daemon then declines to run.
-- **⚠ Signals are compiled because some are derived.** `drift.pctVsDeclared` is a footprint and a
+- **Signals are compiled because some are derived.** `drift.pctVsDeclared` is a footprint and a
   blueprint compared; expressing that as data needs an expression language, which would arrive one
   convenience at a time and end in predicates that parse while meaning something other than they read.
   A clause therefore holds no functions — `drift.absPctVsDeclared` exists as its own signal because it
   is what `abs(drift)` would have been.
-- **⚠ Absent is a value; unreadable is not.** A blueprint declaring no minimum has been read, and the
+- **Absent is a value; unreadable is not.** A blueprint declaring no minimum has been read, and the
   answer is "there is none". One that could not be read is a failure that ends the whole rule as
   `Unreadable` with the reader's own words. The four shipped rules turn on that distinction in five
   places.
@@ -216,12 +216,12 @@ where the journal line is written after the ledger is open and the rules are res
 - **A row owns its prose.** `{alias}` fills from the same reads the clauses used, `{alias#}` from what
   the row compares that signal against, `{alias@key}` from an argument it was bound with, plus
   `{subject}`, `{settleSeconds}`, `{openedAt}` and `{openFor}`. A row may carry a second sentence for
-  when a signal it needs cannot be read. ⚠ **A comparand lookup is per row**, because the hours gate
+  when a signal it needs cannot be read. **A comparand lookup is per row**, because the hours gate
   compares `footprint.observedHours` against 5 in one step and the unbroken-run stand-in compares it
-  against 24 in another. ⚠ **Those five names are the evaluator's** and a rule that binds a measurement
+  against 24 in another. **Those five names are the evaluator's** and a rule that binds a measurement
   under one is refused at load — they resolve before bindings are consulted, so honouring it would let
   a rule save cleanly and then say something else in every sentence that mentioned it.
-- **⚠ A sentence dates its condition or admits it cannot.** `{openedAt}` and `{openFor}` come from the
+- **A sentence dates its condition or admits it cannot.** `{openedAt}` and `{openFor}` come from the
   journal line the episode opened on, are carried onto an offer so confirming reads the same instant
   staging did, and are **unanswered** for a rule that wakes on nothing — a footprint drifting from a
   declaration did not begin at a moment anybody observed, and the synthetic episode's stamp records
@@ -236,7 +236,7 @@ where the journal line is written after the ledger is open and the rules are res
   settle window) reaches a person, because the wire outcome in the payload is where a program reads it.
 - **What an action costs is the action's, and it is a separate sentence from the fault.** `Consequence`
   says what changes and whether it can be taken back — never how likely it is to help, which would be a
-  claim about a fault nothing here has diagnosed. ⚠ **It must not name the instance**: `/catalog` serves
+  claim about a fault nothing here has diagnosed. **It must not name the instance**: `/catalog` serves
   it to an editor that has no instance to build an action for, and `ActionEntry.Consequence` builds
   against an empty name on exactly that understanding.
 - **What an action *would* do is written in the infinitive; what it *did* is the performer's to say.**
@@ -248,16 +248,16 @@ where the journal line is written after the ledger is open and the rules are res
   mentions of "the last update" come to mean different windows. A signal that takes no arguments needs
   no binding: its own id is the alias.
 - **Mode is a field on the rule** — `off`, `observe`, `propose`, `act` — clamped by
-  `RuleEngine.Effective` and reported beside what the rule asked for. ⚠ **Off and retired are
+  `RuleEngine.Effective` and reported beside what the rule asked for. **Off and retired are
   different.** Off is live, listed and one field from running again; retired is gone from the live list
   and kept only so its decisions still resolve to a rule that can be named.
 - **A proposal is safe because the condition is re-derived at redemption, not because the window is
   short.** `ProposalService.ConfirmAsync` re-evaluates the rule against the world as it is now before
   it performs anything, so an offer answered in the morning about a server that came back up overnight
   ends as `no_longer_applicable`. That is what lets the lifetime be a shift where the assistant's
-  confirmations are seconds. ⚠ **Do not tune the lifetime as a safety control** — shortening it buys
+  confirmations are seconds. **Do not tune the lifetime as a safety control** — shortening it buys
   nothing and loses the offers nobody was awake to see.
-- **⚠ Unreadable at redemption is not a no.** A world that would not answer leaves the offer open and
+- **Unreadable at redemption is not a no.** A world that would not answer leaves the offer open and
   tells the person why. Ending it would record a conclusion nobody reached; performing anyway would act
   on a reading taken hours ago.
 - **Redemption re-derives the condition and deliberately does not re-run the gate.** Suppression and
@@ -270,8 +270,8 @@ where the journal line is written after the ledger is open and the rules are res
   insert has a window between the two; the index does not.
 - **Two people confirming at once perform the action once.** The row is claimed by an `UPDATE ... WHERE
   state = 'open'` *before* the action runs, and only the call that changed a row goes on to do
-  anything. ⚠ Reading the state first and writing afterwards would let both through.
-- **⚠ The status socket takes exactly two writes: confirm and dismiss.** Everything else answers a
+  anything. Reading the state first and writing afterwards would let both through.
+- **The status socket takes exactly two writes: confirm and dismiss.** Everything else answers a
   question. These have to live here because confirming re-evaluates a rule, which only this leaf can
   do. **The leaf checks that a caller *named* itself as `provider:name`, never that it was *allowed*
   to** — it holds no identity system and no tiers, so authority stays with the surface that
@@ -292,24 +292,24 @@ where the journal line is written after the ledger is open and the rules are res
   half, which writes the file and restarts the unit through the grant it already holds — the socket
   never edits a rule, and the only instructions it takes are the two redemptions. Validation happens
   twice — the panel against the catalog it was served, the leaf at
-  load, which is the authority. ⚠ **An outcome is spelled the way `/catalog` spells it**
+  load, which is the authority. **An outcome is spelled the way `/catalog` spells it**
   (`doesNotHold`, not an enum name lowercased), or a panel classifies against ids that match nothing.
 - **The rules stay the leaf's even when the panel edits them.** The directory is inside this daemon's
   own state directory, so a host with no kgsm-api reads and writes it directly; a panel edits a rule by
   asking the leaf to, never by writing into the directory itself. The leaf is told a path and never
   learns whose it is — which is what keeps it from becoming the first leaf to depend on the API.
-- **⚠ Nothing but the leaf writes into the state directory.** The samples live beside the binary in
+- **Nothing but the leaf writes into the state directory.** The samples live beside the binary in
   `<prefix>/rules.d` — code, refreshed whole by a deploy (where `--delete` is correct) and by a package
   upgrade. `RuleRegistry` copies them into the state directory **the first time it creates one**, which
   is the only first-run signal there is: seeding an empty directory instead would put a deleted rule
   back on the next start. Keeping both copies is what lets the panel offer "reset to the sample"
   without an upgrade reaching a rule somebody is running.
-- **⚠ The samples are not packaged into `/var/lib` and not in `backup=()`.** Pacman would reinstate a
+- **The samples are not packaged into `/var/lib` and not in `backup=()`.** Pacman would reinstate a
   deleted sample on the next upgrade, and deleting a rule has to stick.
 - **A decision carries who shaped the rule, beside the rule that made it.** `rule:<id>` stays the
   actor; `RuleAuthor` is provenance, a stable `provider:name` username, on the ledger and on
-  `reactor.decided`. ⚠ **Copied onto the decision, never joined at read time** — otherwise editing a
-  rule rewrites the attribution of everything it ever decided, and retiring one erases the trace. ⚠
+  `reactor.decided`. **Copied onto the decision, never joined at read time** — otherwise editing a
+  rule rewrites the attribution of everything it ever decided, and retiring one erases the trace.
   **No fallback to the OS user**: a shipped sample, or a rule hand-written over SSH, is unattributed and says
   so.
 - **Settle and suppression are measured, and they stay measured.** The two windows are properties of

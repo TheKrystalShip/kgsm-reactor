@@ -280,7 +280,7 @@ public class RuleEngineTests : IDisposable
 
     private static async Task WaitForAsync(Func<bool> condition)
     {
-        // ⚠ BackgroundService.StartAsync returning does not mean ExecuteAsync has begun — a test that
+        // BackgroundService.StartAsync returning does not mean ExecuteAsync has begun — a test that
         // emits immediately can reach an engine that has not registered yet.
         DateTime deadline = DateTime.UtcNow.AddSeconds(10);
         while (DateTime.UtcNow < deadline)
@@ -317,7 +317,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A decision names the person who shaped the rule, beside the rule that made it.
+    /// A decision names the person who shaped the rule, beside the rule that made it.
     /// </summary>
     /// <remarks>
     /// A rule anybody can create is a rule anybody can get wrong, so a rogue one has to be traceable.
@@ -349,7 +349,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule nobody signed produces a decision nobody signed.
+    /// A rule nobody signed produces a decision nobody signed.
     /// </summary>
     /// <remarks>
     /// There is no fallback to the OS user anywhere in this ecosystem, and a rule this build seeded is
@@ -373,7 +373,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A decision records the authority that was actually in force, never the one asked for.
+    /// A decision records the authority that was actually in force, never the one asked for.
     /// </summary>
     /// <remarks>
     /// Being silently observed after asking to act is the failure the whole mode ladder exists to make
@@ -403,7 +403,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ An observing rule hands nothing to a performer, however loudly it fires.
+    /// An observing rule hands nothing to a performer, however loudly it fires.
     /// </summary>
     /// <remarks>
     /// The default every rule starts at, and the one this whole leaf's caution rests on. Asserted with
@@ -429,7 +429,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule that is off is never evaluated, which is a different state from being retired.
+    /// A rule that is off is never evaluated, which is a different state from being retired.
     /// </summary>
     /// <remarks>
     /// It stays in the store, listed and one field from running again — somebody silenced it while
@@ -763,7 +763,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule that declines to judge on thin evidence records that and announces nothing.
+    /// A rule that declines to judge on thin evidence records that and announces nothing.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -800,7 +800,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A source that would not answer is announced, where a rule declining is not.
+    /// A source that would not answer is announced, where a rule declining is not.
     /// </summary>
     /// <remarks>
     /// The distinction the quieting turns on. A supervisor that cannot be reached is an operational
@@ -832,7 +832,7 @@ public class RuleEngineTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule that stops firing says so, even when what replaced it is a verdict it withheld.
+    /// A rule that stops firing says so, even when what replaced it is a verdict it withheld.
     /// </summary>
     /// <remarks>
     /// The one exception, and it is the one that keeps the quieting honest. A condition being judged

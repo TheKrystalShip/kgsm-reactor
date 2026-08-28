@@ -102,7 +102,7 @@ internal readonly record struct EventSource(
     /// What makes two evaluations of one episode the same decision.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The id is deliberately not in here.</b> A decision's own id is derived from this key, so
+    /// <b>The id is deliberately not in here.</b> A decision's own id is derived from this key, so
     /// changing the format renumbers every decision already on disk and in every published
     /// <c>reactor.decided</c> line. The id is the same string for the same line anyway, so including
     /// it would buy nothing and cost a migration.
@@ -133,12 +133,12 @@ internal readonly record struct EventSource(
 /// Who had shaped the rule when it decided, as <c>provider:name</c>, or null when nobody is known to
 /// have.
 /// <para>
-/// ⚠ <b>Provenance about the rule, never the actor.</b> The rule decided; a person wrote the rule.
+/// <b>Provenance about the rule, never the actor.</b> The rule decided; a person wrote the rule.
 /// Writing them into the actor would claim they performed an act they did not — and a rule anybody can
 /// create is a rule anybody can get wrong, so a decision has to be traceable to whoever shaped it.
 /// </para>
 /// <para>
-/// ⚠ <b>Copied here rather than joined at read time</b>, and nullable rather than guessed. A decision
+/// <b>Copied here rather than joined at read time</b>, and nullable rather than guessed. A decision
 /// six months old must still name who had shaped the rule when it fired: resolving it through the
 /// store later means editing a rule silently rewrites the attribution of everything it ever decided,
 /// and retiring one — or closing an account — erases the trace entirely. A row written by a rule
@@ -148,7 +148,7 @@ internal readonly record struct EventSource(
 /// <param name="Withheld">
 /// Whether the rule declined to judge on evidence it read, rather than something refusing to answer.
 /// <para>
-/// ⚠ <b>Recorded, and deliberately not announced.</b> A coverage gate reports what the reactor cannot
+/// <b>Recorded, and deliberately not announced.</b> A coverage gate reports what the reactor cannot
 /// yet say about an instance, which is a fact about this leaf's evidence and not about the host —
 /// unactionable by construction, and the steady state for anything recently installed. It stays on the
 /// ledger, where a review reads it, and off the journal every other component shares.

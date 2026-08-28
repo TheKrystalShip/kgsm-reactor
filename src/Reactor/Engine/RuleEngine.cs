@@ -67,7 +67,7 @@ internal sealed class RuleEngine : BackgroundService
     /// authority it has after clamping.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The definition travels beside the evaluable rule rather than being looked up from it.</b>
+    /// <b>The definition travels beside the evaluable rule rather than being looked up from it.</b>
     /// A decision is stamped with the attribution the rule carried when it decided, and resolving that
     /// through the store at write time would mean an edit halfway through a sweep changed who a
     /// decision already in flight appears to name.
@@ -111,7 +111,7 @@ internal sealed class RuleEngine : BackgroundService
     /// Adopt a replaced rule set.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Evaluations still settling are dropped.</b> A pending evaluation holds the rule it was
+    /// <b>Evaluations still settling are dropped.</b> A pending evaluation holds the rule it was
     /// woken by, and that rule may no longer exist or may no longer say the same thing — judging with
     /// it would report a conclusion the running rules cannot account for. The condition has not gone
     /// anywhere, so the next event or sweep that matches opens it again against what is now running.
@@ -168,7 +168,7 @@ internal sealed class RuleEngine : BackgroundService
     /// mode against it.
     /// </para>
     /// <para>
-    /// ⚠ <b>This is a ceiling, not a setting.</b> Every rule still starts at
+    /// <b>This is a ceiling, not a setting.</b> Every rule still starts at
     /// <see cref="RuleMode.Observe"/> and a host acts only where somebody has said so on a named rule.
     /// Raising this authorises nothing on its own.
     /// </para>
@@ -179,7 +179,7 @@ internal sealed class RuleEngine : BackgroundService
     /// What a rule may actually do, as opposed to what it was configured to do.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>This is the mode a surface must report.</b> Reporting the configured one shows an
+    /// <b>This is the mode a surface must report.</b> Reporting the configured one shows an
     /// authority the rule does not have: an operator who set a rule to act, saw "act" on a status
     /// page and was silently observed would believe the host is acting when it is not — which is the
     /// failure <see cref="ResolveActiveRules"/> refuses to allow quietly, and a page contradicting a
@@ -250,7 +250,7 @@ internal sealed class RuleEngine : BackgroundService
     /// Which rules are enabled, and in what mode.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A mode this build cannot honour is clamped and said out loud.</b> Propose and act are
+    /// <b>A mode this build cannot honour is clamped and said out loud.</b> Propose and act are
     /// later phases; an operator who configures one and is silently observed would believe the host is
     /// acting when it is not, which is a worse failure than refusing.
     /// </remarks>
@@ -392,7 +392,7 @@ internal sealed class RuleEngine : BackgroundService
     /// first seen because the upsert deliberately does not overwrite it.
     /// </para>
     /// <para>
-    /// ⚠ <b>The source it carries names a measurement rather than a journal line, and that is a real
+    /// <b>The source it carries names a measurement rather than a journal line, and that is a real
     /// weakening of invariant 1.</b> A reader can go to the endpoint named and see what is true now,
     /// which is not the same as reading the line the decision was made from. The reason string is
     /// therefore load-bearing here in a way it is not for the other rules: it carries the figures, so
@@ -438,7 +438,7 @@ internal sealed class RuleEngine : BackgroundService
     /// one every thirty seconds.
     /// </para>
     /// <para>
-    /// ⚠ <b>And never a verdict the rule withheld</b> — a coverage gate reports what this leaf cannot
+    /// <b>And never a verdict the rule withheld</b> — a coverage gate reports what this leaf cannot
     /// yet say about an instance, which is unactionable by construction and the permanent steady state
     /// for anything recently installed. <b>Except when it replaces a rule that was firing:</b> a
     /// condition that stops being judged is news exactly when something was being judged, and
@@ -459,7 +459,7 @@ internal sealed class RuleEngine : BackgroundService
     /// it beginning.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A rule that wakes on nothing has no opening, and its synthetic episode's stamp is not
+    /// <b>A rule that wakes on nothing has no opening, and its synthetic episode's stamp is not
     /// one.</b> That stamp records when this daemon first looked, which is a fact about the reactor;
     /// handing it to a sentence would date a fortnight-old drift from the moment somebody deployed.
     /// </remarks>
@@ -588,7 +588,7 @@ internal sealed class RuleEngine : BackgroundService
     /// at all — which is what makes the review before anything acts a review of real gate outcomes.
     /// </para>
     /// <para>
-    /// ⚠ <b>An action of <c>none</c> is not a mode failure and is not reported as one.</b> Most rules
+    /// <b>An action of <c>none</c> is not a mode failure and is not reported as one.</b> Most rules
     /// report and propose nothing; the decision record is their whole output, and staging an offer to
     /// do nothing would fill somebody's inbox with questions that have no answer.
     /// </para>
@@ -661,7 +661,7 @@ internal sealed class RuleEngine : BackgroundService
                 + $"which is all it allows ({_options.MaxActionsPerHour})");
         }
 
-        // ⚠ The carve-out: an additive action competes with nothing. A regression wants the broken
+        // The carve-out: an additive action competes with nothing. A regression wants the broken
         // state preserved AND the rollback offered, and making those supersede one another would
         // silently lose whichever rule declared the lower severity.
         if (action.ChangesServerState)

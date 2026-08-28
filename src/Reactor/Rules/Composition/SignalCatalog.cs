@@ -14,7 +14,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 /// rather than a condition quietly failing to hold.
 /// </para>
 /// <para>
-/// ⚠ <b>Absent is a value here, and unreadable is not.</b> A blueprint that declares no minimum is a
+/// <b>Absent is a value here, and unreadable is not.</b> A blueprint that declares no minimum is a
 /// measurement — the answer is "there is none". A blueprint that could not be read is a failure. The
 /// four rules turn on that distinction in five separate places, and a catalog that collapsed it would
 /// make every one of them refuse instances it was built to judge.
@@ -281,7 +281,7 @@ internal static class SignalCatalog
                 : SignalValue.None(SignalKind.Text)),
             Description: "The maximum-heap argument this instance launches with. Its presence makes "
                 + "the footprint unusable as a requirement — a JVM told to hold four gigabytes will. "
-                + "⚠ Absent means none was found on the launch line, never that none exists: a game "
+                + "Absent means none was found on the launch line, never that none exists: a game "
                 + "whose own start script sets it is invisible here."),
 
         // ---- the two compared ----
@@ -317,7 +317,7 @@ internal static class SignalCatalog
                     ? SignalValue.OfInstant(found.OccurredAt)
                     : SignalValue.None(SignalKind.Instant))),
             Arguments: Lookback,
-            Description: "When an event last happened for this subject inside the window. ⚠ Absent is "
+            Description: "When an event last happened for this subject inside the window. Absent is "
                 + "\"not in the ledger\", which is not the same as \"did not happen\" — the ledger only "
                 + "knows what this daemon has seen."),
 
@@ -356,7 +356,7 @@ internal static class SignalCatalog
             (r, _) => ValueTask.FromResult(SignalReading.Of(
                 SignalValue.OfNumber(EpisodeStats(r).Samples))),
             Arguments: EpisodeArguments,
-            Description: "How many closed episodes the figure above was computed from. ⚠ A percentile "
+            Description: "How many closed episodes the figure above was computed from. A percentile "
                 + "over three samples is not a distribution, so a rule comparing against one has to be "
                 + "able to refuse rather than pretend."),
     ];

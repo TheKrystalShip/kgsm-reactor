@@ -28,7 +28,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 /// measurement rather than two implementations of it.
 /// </para>
 /// <para>
-/// ⚠ <b>It reports, it does not recommend</b> — the same rule the population report holds to. The
+/// <b>It reports, it does not recommend</b> — the same rule the population report holds to. The
 /// suppression window and the ceiling are decision #8 and they are read off these numbers by a
 /// person; a report that proposed values would be answering the question with arithmetic and the
 /// authority of a printed figure.
@@ -144,7 +144,7 @@ internal static class DecisionReport
         if (review.Repeats.Count == 0)
         {
             report.AppendLine("   no rule fired twice about the same subject in the window.");
-            report.AppendLine("   ⚠ A suppression window derived from this would be derived from nothing;");
+            report.AppendLine("   A suppression window derived from this would be derived from nothing;");
             report.AppendLine("     it stays a placeholder until a repeat has actually been measured.");
         }
 

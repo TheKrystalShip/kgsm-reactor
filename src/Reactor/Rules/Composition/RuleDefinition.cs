@@ -115,7 +115,7 @@ internal sealed record Clause(string Alias, ClauseOperator Operator, Comparand? 
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>A flat list of conditions could not express any of the four rules this build ships.</b> None
+/// <b>A flat list of conditions could not express any of the four rules this build ships.</b> None
 /// of them is a conjunction — each is an ordered decision with a different outcome <em>and a
 /// different sentence</em> at each step. Rows are read top to bottom and the first whose clauses all
 /// hold decides; a conjunction is the special case of one row and a default.
@@ -135,7 +135,7 @@ internal sealed record Clause(string Alias, ClauseOperator Operator, Comparand? 
 /// <param name="UnreadableMessage">
 /// What to say when a signal this row needs cannot be read, or null to report the reader's own words.
 /// <para>
-/// ⚠ <b>Worth writing wherever the row already knows something.</b> "Whether that has settled cannot
+/// <b>Worth writing wherever the row already knows something.</b> "Whether that has settled cannot
 /// be told" beside the figures a decrement would have moved is a materially better record than the
 /// trend reader's own "no working-set series" — same verdict, and only one of them lets somebody see
 /// what was at stake. <c>{reason}</c> carries the reader's words inside it.
@@ -149,7 +149,7 @@ internal sealed record GuardRow(
 
 /// <summary>Who shaped a rule, in the ecosystem's actor shape.</summary>
 /// <remarks>
-/// ⚠ <b>Provenance about the rule, never the actor on a decision.</b> Nobody decided anything at three
+/// <b>Provenance about the rule, never the actor on a decision.</b> Nobody decided anything at three
 /// in the morning; the rule did, and writing a person into the actor would claim they performed an act
 /// they did not. An audit row reads <em>"stopped by rule <c>disk_pressure_stop</c>, written by
 /// <c>discord:tanya</c>"</em> — the act and its origin named without being confused.
@@ -197,7 +197,7 @@ internal sealed record RuleAuthorship(string Actor, DateTimeOffset At);
 /// <param name="ProposalLifetime">
 /// How long an unanswered offer from this rule stays redeemable, or null to follow the host-wide one.
 /// <para>
-/// ⚠ <b>Not what makes a proposal safe.</b> The condition is re-derived at redemption, so a stale
+/// <b>Not what makes a proposal safe.</b> The condition is re-derived at redemption, so a stale
 /// offer answers <em>no longer applicable</em> rather than executing — which is why this can be
 /// measured in hours at all. What it is for is the difference between offers: capturing a broken
 /// state is worth answering all day, where rolling a server back stops being the right move once
@@ -206,7 +206,7 @@ internal sealed record RuleAuthorship(string Actor, DateTimeOffset At);
 /// </param>
 /// <param name="Mode">The authority it asks for. Clamped by what the build honours.</param>
 /// <param name="Retired">
-/// Stopped evaluating and out of the live list, definition kept. ⚠ Never erased: <c>rule:{Id}</c> is
+/// Stopped evaluating and out of the live list, definition kept. Never erased: <c>rule:{Id}</c> is
 /// the actor on every line it produced, and a decision that cannot resolve to a rule that can be named
 /// is a record with a hole in it.
 /// </param>
@@ -245,7 +245,7 @@ internal sealed record RuleDefinition(
     /// The attribution a decision this rule makes carries, or null when nobody is known to have shaped it.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The last hand on it, and copied onto the decision rather than joined at read time.</b> A
+    /// <b>The last hand on it, and copied onto the decision rather than joined at read time.</b> A
     /// rogue rule is as often an edit as a creation. Resolving this through the store when a decision
     /// is read would mean editing a rule silently rewrites the attribution of everything it ever
     /// decided, and retiring one — or closing an account — erases the trace entirely.

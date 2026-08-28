@@ -111,7 +111,7 @@ public class EventIngestServiceTests : IDisposable
     /// Runs the hosted service, waits until it is genuinely up, runs the body, then stops it.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b><see cref="BackgroundService.StartAsync"/> returning does not mean
+    /// <b><see cref="BackgroundService.StartAsync"/> returning does not mean
     /// <c>ExecuteAsync</c> has begun.</b> The host starts it without waiting, so a test that emits
     /// immediately after <c>StartAsync</c> can hand an envelope to a service that has not registered
     /// its handler yet — which passes on an idle machine and fails under a parallel run, the worst

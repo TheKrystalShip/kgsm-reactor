@@ -32,7 +32,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Ingest;
 /// back to the type, because absence is unknown and never a mismatch.
 /// </para>
 /// <para>
-/// ⚠ <b>Read-only. It repairs nothing.</b> The remedy for drift is to rebuild the ledger from the
+/// <b>Read-only. It repairs nothing.</b> The remedy for drift is to rebuild the ledger from the
 /// journals, which is safe precisely because the ledger is derived — but rebuilding is a decision
 /// about data somebody may be reading a report from, and this tool's job is to make the problem
 /// visible rather than to act on it.
@@ -126,7 +126,7 @@ internal static class JournalVerify
         // Observations and decisions together: the decision's pointer is the one published outside this
         // leaf, so it is the one whose drift reaches other people's screens.
         //
-        // ⚠ The decisions table may not exist. A ledger filled by --backfill on a host where the daemon
+        // The decisions table may not exist. A ledger filled by --backfill on a host where the daemon
         // has never run has observations and nothing else, which is exactly the host this check is most
         // worth running on. Asked for rather than assumed, because creating it here would make a
         // read-only check write to the database it is inspecting.

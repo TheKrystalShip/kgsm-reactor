@@ -67,7 +67,7 @@ public class ObservationLedgerTests : IDisposable
     [Fact]
     public void A_ledger_written_before_the_id_column_gains_it_and_keeps_its_rows()
     {
-        // ⚠ CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so without a
+        // CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so without a
         // migration this host would be stamped schema 2 with no column — and the next insert would
         // throw. The rows are what makes rebuilding the wrong answer: every one is derived and could
         // be re-read, except observed_at, which is when the reactor SAW the line and cannot be

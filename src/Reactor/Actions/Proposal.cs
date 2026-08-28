@@ -38,7 +38,7 @@ internal enum ProposalState
     /// Somebody tried to confirm it and the condition had gone by then.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>This is the safety property working, not a fault.</b> The rule is re-evaluated at
+    /// <b>This is the safety property working, not a fault.</b> The rule is re-evaluated at
     /// redemption rather than trusted from staging time, so a server that came back up on its own turns
     /// a confirmed restore into this instead of overwriting a running world. It is what lets the
     /// lifetime be hours.
@@ -57,7 +57,7 @@ internal enum ProposalState
 /// redeemable, because the API is a surface onto this rather than the place it lives.
 /// </para>
 /// <para>
-/// ⚠ <b>It carries the sentence, not a reference to it.</b> <see cref="Reason"/> is copied from the
+/// <b>It carries the sentence, not a reference to it.</b> <see cref="Reason"/> is copied from the
 /// decision that staged it for the same reason the decision copies its rule's author: a proposal a
 /// person reads at seven in the morning has to say what was true when it was staged, and resolving
 /// that through a rule somebody has since edited would show them a sentence no rule ever produced.
@@ -121,7 +121,7 @@ internal sealed record Proposal(
     /// A fresh handle.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Cryptographic randomness, because the handle is the capability.</b> Anything holding one
+    /// <b>Cryptographic randomness, because the handle is the capability.</b> Anything holding one
     /// can ask for the action it names — subject to the same authority performing it directly requires
     /// — so a guessable handle would be a way around the authority rather than a way to it. Sixteen
     /// bytes, spelled as thirty-two lower-case hex characters, matching the shape the assistant's own

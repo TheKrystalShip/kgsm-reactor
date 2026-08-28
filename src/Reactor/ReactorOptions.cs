@@ -73,7 +73,7 @@ internal sealed record ReactorOptions
     /// somebody who just asked, would expire every offer this leaf ever made.
     /// </para>
     /// <para>
-    /// ⚠ <b>This is not what makes a proposal safe, and it must not be tuned as though it were.</b>
+    /// <b>This is not what makes a proposal safe, and it must not be tuned as though it were.</b>
     /// The condition is re-derived when the handle is redeemed: a server that came back up on its own
     /// resolves the offer instead of having a restore run over it, however long ago it was made.
     /// Shortening this buys nothing and loses the offers nobody saw overnight.

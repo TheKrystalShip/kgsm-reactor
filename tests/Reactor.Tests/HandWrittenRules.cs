@@ -73,7 +73,7 @@ internal static class HandWrittenRules
     /// over 30 days, p50 6.2m, the slowest 39.7m. This sits above that slowest one.
     /// </para>
     /// <para>
-    /// ⚠ The consequence is that this rule decides nothing here, and that is the measurement rather
+    /// The consequence is that this rule decides nothing here, and that is the measurement rather
     /// than a fault. A window shorter than the slowest observed self-clear would announce a breach
     /// that was going to end anyway, and the reading says every one of them was.
     /// </para>
@@ -100,7 +100,7 @@ internal static class HandWrittenRules
     /// How soon after an update a failure is still that update's fault.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Not measured, because this host has nothing to measure it from.</b> Thirty days hold two
+    /// <b>Not measured, because this host has nothing to measure it from.</b> Thirty days hold two
     /// updates followed by a fault on the same server at all, at 112 and 168 minutes, and neither is
     /// plausibly the update's doing — one is a launcher that reported success while dying, the other
     /// a live server hours later. A window fitted to those two would be a causal claim built from
@@ -188,7 +188,7 @@ internal static class HandWrittenRules
     /// wake to miss.
     /// </para>
     /// <para>
-    /// ⚠ <b>Its known blind spot, measured rather than assumed.</b> The heap flag is read from the
+    /// <b>Its known blind spot, measured rather than assumed.</b> The heap flag is read from the
     /// arguments KGSM launches with, and a game whose own start script sets it is invisible: Project
     /// Zomboid carries <c>-Xmx8g</c> inside <c>install/ProjectZomboid64.json</c> and will therefore be
     /// judged as a measured instance when its figure is a setting. It is left to say so in the ledger
@@ -348,7 +348,7 @@ internal static class HandWrittenRules
     /// is a persisted latch and nothing on a timer leaves it.
     /// </para>
     /// <para>
-    /// ⚠ <b>Q6, blast radius, and the number is real.</b> The largest backup on this host is 4.5 GB.
+    /// <b>Q6, blast radius, and the number is real.</b> The largest backup on this host is 4.5 GB.
     /// A host OOM takes every instance down at once, so pinned-forever archives across a fleet fill
     /// the disk — and a full disk takes the fleet down, which is worse than the problem being solved.
     /// The cap and the free-space precondition belong with the dispatch at P5; in observe mode there
@@ -394,7 +394,7 @@ internal static class HandWrittenRules
     /// morning.
     /// </para>
     /// <para>
-    /// ⚠ <b>Proposes, never acts.</b> A restore overwrites live state, which puts it permanently on
+    /// <b>Proposes, never acts.</b> A restore overwrites live state, which puts it permanently on
     /// the wrong side of "reversible".
     /// </para>
     /// </remarks>
@@ -445,7 +445,7 @@ internal static class HandWrittenRules
     /// every sweep instead of depending on having seen the breach go by.
     /// </para>
     /// <para>
-    /// ⚠ <b>The reading that would retire it:</b> if episode durations here turn out to vary wildly,
+    /// <b>The reading that would retire it:</b> if episode durations here turn out to vary wildly,
     /// there is no "unusually long" to detect and this is noise. It stays in observe until the
     /// population report says otherwise.
     /// </para>

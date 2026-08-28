@@ -11,7 +11,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// What <c>/catalog</c> publishes, and whether a panel built on it can write a file this leaf reads.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>The failure this guards is a panel that composes a rule the leaf refuses.</b> The editor is
+/// <b>The failure this guards is a panel that composes a rule the leaf refuses.</b> The editor is
 /// rendered entirely from this payload, so an operator spelling it does not read back, or a signal it
 /// names that the catalog does not carry, produces a rule that saves cleanly and is then dropped at
 /// load — which presents as "I saved it and nothing happened", the one outcome this whole surface
@@ -45,7 +45,7 @@ public class ReactorCatalogTests
     }
 
     /// <summary>
-    /// ⚠ Everything the shipped rules use is offered, which is what makes the seeds a worked example.
+    /// Everything the shipped rules use is offered, which is what makes the seeds a worked example.
     /// </summary>
     /// <remarks>
     /// A person's first rule is usually a copy of one already there. A signal a seed reads that the
@@ -80,7 +80,7 @@ public class ReactorCatalogTests
     }
 
     /// <summary>
-    /// ⚠ A signal that takes arguments says so, and every argument says whether it must be supplied.
+    /// A signal that takes arguments says so, and every argument says whether it must be supplied.
     /// </summary>
     /// <remarks>
     /// A panel that rendered a required argument as optional produces a rule the leaf refuses at load
@@ -103,7 +103,7 @@ public class ReactorCatalogTests
     }
 
     /// <summary>
-    /// ⚠ The shape a rule has follows from its subject source, and the catalog says which.
+    /// The shape a rule has follows from its subject source, and the catalog says which.
     /// </summary>
     [Fact]
     public void Each_subject_source_declares_the_shape_it_produces()
@@ -128,7 +128,7 @@ public class ReactorCatalogTests
     }
 
     /// <summary>
-    /// ⚠ Every signal carries prose, because a list of ids is not something a person can compose from.
+    /// Every signal carries prose, because a list of ids is not something a person can compose from.
     /// </summary>
     [Fact]
     public void Every_signal_names_itself_in_words()

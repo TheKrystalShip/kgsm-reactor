@@ -23,7 +23,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 public class MessageQualityTests
 {
     /// <summary>
-    /// ⚠ A reason has to stand alone, because it is read where nothing else is.
+    /// A reason has to stand alone, because it is read where nothing else is.
     /// </summary>
     /// <remarks>
     /// A push notification, a Discord line and an audit row each carry the sentence and not the row
@@ -41,7 +41,7 @@ public class MessageQualityTests
     }
 
     /// <summary>
-    /// ⚠ Words that mean something only inside this daemon do not reach a person.
+    /// Words that mean something only inside this daemon do not reach a person.
     /// </summary>
     /// <remarks>
     /// The gate outcomes are the trap: <em>ceilinged</em> and <em>superseded</em> are precise names for
@@ -67,7 +67,7 @@ public class MessageQualityTests
         ["ceilinged", "superseded", "settle window", "guard row", "unreadable signal", "episode key"];
 
     /// <summary>
-    /// ⚠ Every action says what it costs, and says it about the action rather than the server.
+    /// Every action says what it costs, and says it about the action rather than the server.
     /// </summary>
     /// <remarks>
     /// The catalog serves this to an editor, which has no instance to build an action for — so a
@@ -89,7 +89,7 @@ public class MessageQualityTests
     }
 
     /// <summary>
-    /// ⚠ What an action would do reads as an offer; what it did is the performer's to say.
+    /// What an action would do reads as an offer; what it did is the performer's to say.
     /// </summary>
     /// <remarks>
     /// <see cref="ReactorAction.Describe"/> is written in the infinitive because every sentence that
@@ -108,7 +108,7 @@ public class MessageQualityTests
     }
 
     /// <summary>
-    /// ⚠ A name the evaluator answers itself cannot also be a measurement.
+    /// A name the evaluator answers itself cannot also be a measurement.
     /// </summary>
     /// <remarks>
     /// Tokens are resolved before bindings are consulted, so a rule binding one would save cleanly and
@@ -134,7 +134,7 @@ public class MessageQualityTests
     }
 
     /// <summary>
-    /// ⚠ A sentence that cannot date its condition says so rather than dating it from now.
+    /// A sentence that cannot date its condition says so rather than dating it from now.
     /// </summary>
     /// <remarks>
     /// The tempting failure is filling the gap with the evaluation instant, which reads as a fault that

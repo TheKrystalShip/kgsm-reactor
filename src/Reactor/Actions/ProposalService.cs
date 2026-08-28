@@ -23,7 +23,7 @@ internal enum RedemptionOutcome
     /// Confirmed, and the condition had gone by then.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>An ordinary answer, not an error.</b> It is the reason the lifetime can be hours: a server
+    /// <b>An ordinary answer, not an error.</b> It is the reason the lifetime can be hours: a server
     /// that came back up on its own ends the offer instead of having a restore run over it.
     /// </remarks>
     NoLongerApplicable,
@@ -44,7 +44,7 @@ internal enum RedemptionOutcome
     /// The condition could not be re-read, so nothing is known and nothing was done.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The proposal is left open rather than ended.</b> A world that would not answer has said
+    /// <b>The proposal is left open rather than ended.</b> A world that would not answer has said
     /// nothing about whether the offer still stands, and closing it as inapplicable would record a
     /// conclusion nobody reached. The person can try again once whatever went quiet is back.
     /// </remarks>
@@ -75,7 +75,7 @@ internal readonly record struct Redemption(
 /// <see cref="RedemptionOutcome.NoLongerApplicable"/> and an explanation, not an overwritten world.
 /// </para>
 /// <para>
-/// ⚠ <b>Redemption re-derives the condition and deliberately does not re-run the gate.</b> Suppression
+/// <b>Redemption re-derives the condition and deliberately does not re-run the gate.</b> Suppression
 /// and the hourly ceiling govern how often the <em>reactor</em> speaks; at redemption the person is
 /// speaking, and refusing what somebody just authorised because the rule had been noisy an hour ago
 /// would be the leaf overruling them on a question that was never about them.
@@ -130,7 +130,7 @@ internal sealed class ProposalService(
             Action: decision.Action,
             ActionInstance: decision.ActionInstance,
             Reason: decision.Reason,
-            // ⚠ The decision's own opening, not the staging instant. They differ by the settle window
+            // The decision's own opening, not the staging instant. They differ by the settle window
             // at least, and by however long the condition had been true before anything woke.
             OpenedAt: definition.Wakes.Count == 0 ? null : decision.OpenedAt,
             StagedAt: now,
@@ -160,7 +160,7 @@ internal sealed class ProposalService(
 
     /// <summary>Carries out an action a rule decided on, with nobody behind it.</summary>
     /// <remarks>
-    /// ⚠ <b>The one path with no person in it.</b> The actor is the rule and there is no confirmation
+    /// <b>The one path with no person in it.</b> The actor is the rule and there is no confirmation
     /// to point at, which is why it is written as <c>reactor.acted</c> rather than as a resolution: a
     /// surface answering "what did this host do on its own" must not have to subtract the confirmed
     /// ones out of a combined list.
@@ -207,7 +207,7 @@ internal sealed class ProposalService(
     /// </summary>
     /// <param name="handle">The token the proposal was offered under.</param>
     /// <param name="by">
-    /// Who is confirming, as <c>provider:name</c>. ⚠ Required, and refused when it is not in that
+    /// Who is confirming, as <c>provider:name</c>. Required, and refused when it is not in that
     /// shape — an action a person authorised that cannot name the person is exactly the audit row this
     /// ecosystem does not write.
     /// </param>
@@ -233,7 +233,7 @@ internal sealed class ProposalService(
         // failure they have to interpret.
         Verdict verdict = await ReevaluateAsync(proposal, now, token).ConfigureAwait(false);
 
-        // ⚠ Unreadable is not a no. Nothing could be established, so the offer stays open and the
+        // Unreadable is not a no. Nothing could be established, so the offer stays open and the
         // person is told why — ending it here would record a conclusion nobody reached, and doing it
         // the other way and performing anyway would act on a reading taken hours ago.
         if (verdict.Kind == VerdictKind.Unreadable)
@@ -264,7 +264,7 @@ internal sealed class ProposalService(
         ActionResult result;
         try
         {
-            // ⚠ Attributed to the PERSON, not to the rule. The rule found the condition and offered;
+            // Attributed to the PERSON, not to the rule. The rule found the condition and offered;
             // this backup exists because somebody said yes, and an audit row naming the rule would make
             // an authorised action indistinguishable from one the host took on its own — which is the
             // entire distinction propose and act exist to draw. The rule is still recoverable: the
@@ -409,7 +409,7 @@ internal sealed class ProposalService(
     /// Asks the rule that staged a proposal whether its condition still holds.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A rule that is no longer live answers no.</b> Retiring a rule, switching it off, or
+    /// <b>A rule that is no longer live answers no.</b> Retiring a rule, switching it off, or
     /// deleting it are all statements that this host has stopped wanting what it offered — and honouring
     /// an offer from a rule that no longer exists would let a deleted rule act.
     /// </remarks>
@@ -433,7 +433,7 @@ internal sealed class ProposalService(
         {
             Rule rule = RuleEvaluator.ToRule(definition);
 
-            // ⚠ The opening carried on the offer, not one looked up now. The condition is re-derived
+            // The opening carried on the offer, not one looked up now. The condition is re-derived
             // against the live world — that is the safety property — but WHEN it began is a fact about
             // the episode this offer was staged for, and a fresh lookup could land on a later one.
             var context = new RuleContext(
@@ -487,7 +487,7 @@ internal sealed class ProposalService(
     /// Whether a caller named itself the way an actor has to be named.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>No fallback to the OS user, here least of all.</b> This is the one path where a person
+    /// <b>No fallback to the OS user, here least of all.</b> This is the one path where a person
     /// authorises something, and an unattributable confirmation would put an action on the host that
     /// nobody can be shown to have asked for.
     /// </remarks>

@@ -181,7 +181,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     /// How far this decision's action already got, or null when the decision is new.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Read before the upsert, and what makes dispatch happen once.</b> A state rule re-decides
+    /// <b>Read before the upsert, and what makes dispatch happen once.</b> A state rule re-decides
     /// its episode every sweep and the reason changes as the condition ages — "open for four minutes"
     /// becomes "open for forty" — so a decision that changed is not a decision that should act again.
     /// The row is the record of whether anything was dispatched for it, which is also what survives a
@@ -256,7 +256,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     /// The most severe rule that has already fired on this episode, other than the one asking.
     /// </summary>
     /// <remarks>
-    /// ⚠ Read together with <see cref="Rules.ReactorAction.ChangesServerState"/>, which is what
+    /// Read together with <see cref="Rules.ReactorAction.ChangesServerState"/>, which is what
     /// exempts an additive action: a regression wants the broken state preserved <em>and</em> the
     /// rollback offered, so a backup must never be superseded by the proposal beside it.
     /// </remarks>
@@ -277,7 +277,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     /// What this decision last concluded, or null when it has never been recorded.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Read before the upsert overwrites it.</b> Whether a change is worth announcing depends on
+    /// <b>Read before the upsert overwrites it.</b> Whether a change is worth announcing depends on
     /// what it changed <em>from</em>: a rule that stops firing is news even when the verdict replacing
     /// it is one this leaf would never announce on its own.
     /// </remarks>
@@ -336,7 +336,7 @@ internal sealed class DecisionStore(ObservationLedger ledger)
     /// Reads a severity a row holds, whichever spelling wrote it.
     /// </summary>
     /// <remarks>
-    /// ⚠ Rows outlive the code that wrote them. The ledger is not rebuilt on an upgrade, so a spelling
+    /// Rows outlive the code that wrote them. The ledger is not rebuilt on an upgrade, so a spelling
     /// this build would not produce is still sitting in it — and a strict parse would throw on the
     /// first read of a row nobody has touched in weeks, taking down a report rather than reporting.
     /// An unreadable value falls back to <see cref="EventSeverity.Info"/>, because a row whose weight

@@ -17,13 +17,13 @@ namespace TheKrystalShip.Kgsm.Reactor.Status;
 /// verdict and the exact sentence it would record.
 /// </para>
 /// <para>
-/// ⚠ <b>A read, expressed as a POST because the rule is the question.</b> Nothing is stored, nothing is
+/// <b>A read, expressed as a POST because the rule is the question.</b> Nothing is stored, nothing is
 /// dispatched, and no decision reaches the ledger or the journal — the gate is not run, because there
 /// is no episode to suppress and no ceiling a hypothetical belongs under. The socket stays a place
 /// that answers questions rather than one that takes instructions.
 /// </para>
 /// <para>
-/// ⚠ <b>It reports what the rule says, not what it would be allowed to do.</b> A previewed rule asking
+/// <b>It reports what the rule says, not what it would be allowed to do.</b> A previewed rule asking
 /// for an authority this build does not honour still previews; what it would actually be permitted is
 /// <c>honours</c> on the catalog, and the panel says so where the mode is chosen.
 /// </para>
@@ -64,7 +64,7 @@ public sealed record RulePreview
     /// Subjects that were not evaluated because the answer was already long enough.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Reported rather than silently dropped.</b> A truncated preview that looked complete would
+    /// <b>Reported rather than silently dropped.</b> A truncated preview that looked complete would
     /// tell somebody their rule is quiet on a fleet it was never asked about.
     /// </remarks>
     [JsonPropertyName("notEvaluated")]
@@ -158,7 +158,7 @@ public sealed record RulePreview
                 verdict = Verdict.Unreadable($"the rule failed while judging: {ex.Message}");
             }
 
-            // ⚠ The catalog's spelling, not the enum's. A panel matches an outcome against what
+            // The catalog's spelling, not the enum's. A panel matches an outcome against what
             // /catalog offered it, and `doesnothold` would match none of them — a preview whose
             // verdicts no surface can classify.
             verdicts.Add(new PreviewVerdict(one, RuleStore.Wire(verdict.Kind), verdict.Reason));

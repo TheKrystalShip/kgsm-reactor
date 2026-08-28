@@ -58,7 +58,7 @@ public class DecisionEmissionTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ Who shaped the rule survives the ledger, and its absence survives it too.
+    /// Who shaped the rule survives the ledger, and its absence survives it too.
     /// </summary>
     /// <remarks>
     /// A row written before rules carried an author reads back null rather than being backfilled with
@@ -81,7 +81,7 @@ public class DecisionEmissionTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ A rule edited between two sweeps of one open episode is re-stamped on the next verdict.
+    /// A rule edited between two sweeps of one open episode is re-stamped on the next verdict.
     /// </summary>
     /// <remarks>
     /// The decision names the hand that was on the rule when <em>this</em> verdict was reached, not the

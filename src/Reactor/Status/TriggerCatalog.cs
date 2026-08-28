@@ -16,19 +16,19 @@ namespace TheKrystalShip.Kgsm.Reactor.Status;
 /// that joins this host becomes available to build rules on the day it starts writing.
 /// </para>
 /// <para>
-/// ⚠ <b>Read from the ledger, never from the journals.</b> The ledger holds one event vocabulary and
+/// <b>Read from the ledger, never from the journals.</b> The ledger holds one event vocabulary and
 /// folds a renamed event onto its current name; a segment keeps whatever its producer wrote. A catalog
 /// built from raw journals would offer two spellings of the same trigger and a person would pick one
 /// of them by chance.
 /// </para>
 /// <para>
-/// ⚠ <b>Each entry names its producer, and the rate is the point.</b> Scope is otherwise invisible: an
+/// <b>Each entry names its producer, and the rate is the point.</b> Scope is otherwise invisible: an
 /// engine event is about the fleet, and a leaf's is often about that leaf's own business. And a rule
 /// built on something that fires two hundred times a week is a different proposition from one built on
 /// something that fires twice — a person should be able to see that before they build it, not after.
 /// </para>
 /// <para>
-/// ⚠ <b><c>reactor.*</c> is absent, which is how the feedback loop stays impossible.</b> This leaf
+/// <b><c>reactor.*</c> is absent, which is how the feedback loop stays impossible.</b> This leaf
 /// tails its own journal, so a rule woken by a decision it wrote would decide about its own decision,
 /// write that, and be woken by it — at the sweep interval, forever, with a plausible-looking ledger.
 /// </para>
@@ -105,7 +105,7 @@ public sealed record TriggerCatalog
 /// for, which is a different thing from one that never happens.
 /// </param>
 /// <param name="PerWeek">
-/// The count as a weekly rate, so a window of any length reads the same way. ⚠ An average over the
+/// The count as a weekly rate, so a window of any length reads the same way. An average over the
 /// window, not a prediction: a hundred events in one afternoon and a hundred spread over a month
 /// report the same figure, and the two are very different rules to build.
 /// </param>

@@ -6,7 +6,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// What the binary does with its arguments before it becomes a daemon.
 /// </summary>
 /// <remarks>
-/// ⚠ The failure this exists for was real and quiet: an unrecognised flag fell through to the daemon
+/// The failure this exists for was real and quiet: an unrecognised flag fell through to the daemon
 /// path and started a <b>second</b> reactor against the same SQLite ledger — two writers, one of them
 /// nobody knew about. Exercised through the built binary rather than a parser, because the defect was
 /// in what <c>Main</c> did with the arguments, and a unit test of a parser would have passed

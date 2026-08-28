@@ -43,7 +43,7 @@ internal static class MessageTemplate
 
     /// <summary>When the condition began.</summary>
     /// <remarks>
-    /// ⚠ <b>Not every evaluation has one, and the two that do not are different.</b> A rule that wakes
+    /// <b>Not every evaluation has one, and the two that do not are different.</b> A rule that wakes
     /// on nothing judges a standing fact with no opening to name; a preview is asked about a rule that
     /// has never run. Both leave this unresolved, which ends the sentence as unreadable rather than
     /// dating a condition from whenever it happened to be asked about.

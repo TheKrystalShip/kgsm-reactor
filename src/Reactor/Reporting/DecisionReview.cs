@@ -17,7 +17,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 /// disagree about the busiest hour, which is precisely the figure a ceiling is set from.
 /// </para>
 /// <para>
-/// ⚠ <b>It reports, it does not recommend.</b> No window, threshold or ceiling is suggested here. The
+/// <b>It reports, it does not recommend.</b> No window, threshold or ceiling is suggested here. The
 /// numbers are what a person reads the gate's tuning off; a payload that proposed values would be
 /// answering the question with arithmetic and the authority of a printed figure.
 /// </para>
@@ -32,7 +32,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 /// <param name="Until">When it was read.</param>
 /// <param name="LedgerPath">Where the rows came from.</param>
 /// <param name="Total">
-/// Decisions in the window. ⚠ Compare against the length of <see cref="Decisions"/> — that list is
+/// Decisions in the window. Compare against the length of <see cref="Decisions"/> — that list is
 /// capped and this number is not, so the two differing means the log is showing the newest of more.
 /// </param>
 /// <param name="Rules">Reading 1 — what each rule concluded, and how often.</param>
@@ -70,7 +70,7 @@ internal sealed record DecisionReview(
     /// belong here.
     /// </param>
     /// <remarks>
-    /// ⚠ <b>The limit caps the log and never the arithmetic.</b> Every reading is computed over every
+    /// <b>The limit caps the log and never the arithmetic.</b> Every reading is computed over every
     /// row in the window; only the list at the end is trimmed. Measuring the busiest hour over a
     /// truncated sample would under-report exactly the peak a ceiling has to be set above — which is
     /// the one number this whole payload exists to establish.
@@ -220,7 +220,7 @@ internal sealed record DecisionReview(
     /// fabrication the leaf refuses everywhere else.
     /// </para>
     /// <para>
-    /// ⚠ <b>Read from the rules that are live, which is why they are passed in.</b> A retired rule is
+    /// <b>Read from the rules that are live, which is why they are passed in.</b> A retired rule is
     /// not silent — it was deliberately stopped — and listing it would put a rule somebody deleted on
     /// a report of things that need looking at. A rule that is off is the same: it is not failing to
     /// speak, it was told not to.

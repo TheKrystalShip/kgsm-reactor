@@ -19,7 +19,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Events;
 /// read it.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Every method here returns whether the line landed, and none of them throws.</b> A journal that
+/// <b>Every method here returns whether the line landed, and none of them throws.</b> A journal that
 /// will not take a line costs downstream its notice; it is never a reason to stop judging, and it is
 /// never a reason to undo something already performed. The ledger is the record either way.
 /// </remarks>
@@ -50,7 +50,7 @@ internal interface IDecisionEmitter
     /// Write an autonomous action as a <c>reactor.acted</c> line.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Only for act mode.</b> An action a person confirmed is a resolution carrying their name;
+    /// <b>Only for act mode.</b> An action a person confirmed is a resolution carrying their name;
     /// writing one here too would double-count what this host did on its own.
     /// </remarks>
     ValueTask<bool> EmitActedAsync(Decision decision, ActionResult result, CancellationToken token = default);
@@ -172,7 +172,7 @@ internal sealed record ProposedPayload
 /// The <c>reactor.resolved</c> payload, as it is written.
 /// </summary>
 /// <remarks>
-/// ⚠ <b><see cref="Ok"/> is nullable and stays nullable.</b> Three of the four resolutions attempt
+/// <b><see cref="Ok"/> is nullable and stays nullable.</b> Three of the four resolutions attempt
 /// nothing, and a <c>false</c> written for them would report a person working as intended as a broken
 /// action.
 /// </remarks>
@@ -434,7 +434,7 @@ internal sealed class DecisionEmitter(
 
         ProposalState.Dismissed => $"{proposal.AnsweredBy} declined the offer to {proposal.Action}",
 
-        // ⚠ It says the condition was never re-checked, because that is the part a reader gets wrong.
+        // It says the condition was never re-checked, because that is the part a reader gets wrong.
         // An offer expiring is this leaf giving up on being answered, and says nothing whatever about
         // whether the server is still broken.
         ProposalState.Lapsed =>

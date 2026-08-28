@@ -111,7 +111,7 @@ internal static class RuleEvaluator
 
     /// <summary>Whether one comparison holds.</summary>
     /// <remarks>
-    /// ⚠ <b>An absent value fails every comparison except the two that ask about absence.</b> There is
+    /// <b>An absent value fails every comparison except the two that ask about absence.</b> There is
     /// nothing to compare, and answering "not equal" for a figure that does not exist would let a rule
     /// draw a conclusion from a measurement nobody made.
     /// </remarks>
@@ -205,7 +205,7 @@ internal static class RuleEvaluator
         if (unreadable is not null)
             return await UnreadableAsync(definition, row, scope, unreadable, token).ConfigureAwait(false);
 
-        // ⚠ A row that concludes `unreadable` is the rule declining on evidence it successfully read,
+        // A row that concludes `unreadable` is the rule declining on evidence it successfully read,
         // which is a different fact from a source refusing to answer — every coverage gate in every
         // rule is written this way. Marked here because this is the only place that can tell them
         // apart: one step further out they are both just "cannot tell".

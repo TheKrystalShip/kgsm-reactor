@@ -27,7 +27,7 @@ internal sealed class Program
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠ <b>Three different things are 200, and that is correct.</b> Performed, dismissed and no longer
+    /// <b>Three different things are 200, and that is correct.</b> Performed, dismissed and no longer
     /// applicable are all the offer reaching a proper end — the third most of all, because it is the
     /// safety property working rather than anything going wrong. A caller reading only the status code
     /// still has to read the body to know which, which is why every one of them carries the outcome and
@@ -97,7 +97,7 @@ internal sealed class Program
     /// A refusal carrying its reason, as text.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Text, not <c>Results.BadRequest(string)</c>.</b> This binary is Native AOT with no
+    /// <b>Text, not <c>Results.BadRequest(string)</c>.</b> This binary is Native AOT with no
     /// reflection fallback, and that helper serialises its argument as JSON — for a bare string there
     /// is no registered <c>JsonTypeInfo</c>, so it throws inside the response pipeline and the caller
     /// gets an empty 500 instead of the sentence explaining what was wrong with their request. Every
@@ -231,7 +231,7 @@ internal sealed class Program
 
         // Every producer's journal behind one IEventSource, read from the TAIL with NO cursor.
         //
-        // ⚠ Both halves of that are deliberate and neither is a default worth changing casually.
+        // Both halves of that are deliberate and neither is a default worth changing casually.
         // Federated, because the events this leaf exists for are not the engine's: the supervisor
         // records the crash and the give-up, the monitor records a threshold episode, the firewall
         // records the port edges. Reading only the engine's journal would be a reactor that cannot
@@ -359,7 +359,7 @@ internal sealed class Program
             // holding a copy of the catalogs, which is what stops it offering a signal a later build
             // dropped or refusing one a later build added.
             //
-            // ⚠ Read-only, like everything else here. Publishing what a rule may be made of is not
+            // Read-only, like everything else here. Publishing what a rule may be made of is not
             // accepting one: composing and storing is the panel's half, which writes the file and
             // restarts the unit through the grant it already holds.
             host.MapGet("/catalog", () =>
@@ -368,7 +368,7 @@ internal sealed class Program
             // What a rule may WAKE on — read off what this host has actually observed, with each
             // type's producer and how often it fires.
             //
-            // ⚠ Beside the ledger rather than on /catalog, because it is a query over this host's own
+            // Beside the ledger rather than on /catalog, because it is a query over this host's own
             // history rather than a property of the build. A hand-written list would drift from the
             // ledger the first time any producer emitted something new.
             host.MapGet("/triggers", (
@@ -420,7 +420,7 @@ internal sealed class Program
             // because confirming re-derives the condition — which means re-evaluating the rule, which
             // only the reactor can do.
             //
-            // ⚠ The leaf checks that the caller NAMED itself and never that it was ALLOWED to. It holds
+            // The leaf checks that the caller NAMED itself and never that it was ALLOWED to. It holds
             // no identity system and no tiers; the surface that authenticated the person is what knows
             // whether a restore is theirs to authorise, exactly as it is for every other write on this
             // host. What guards the socket itself is its mode and the handle being unguessable.
@@ -436,7 +436,7 @@ internal sealed class Program
 
             // Storing a rule, and removing one.
             //
-            // ⚠ <b>The leaf writes its own files; nothing else may.</b> A panel that wrote into the
+            // <b>The leaf writes its own files; nothing else may.</b> A panel that wrote into the
             // state directory would be validating with a copy of the catalog against a build it cannot
             // see, and would need write access to a directory that is not its own. Here the only thing
             // that knows what this build can honour is the thing that decides whether to store it — and
@@ -509,7 +509,7 @@ internal sealed class Program
                         : StatusCodes.Status422UnprocessableEntity);
             });
 
-            // ⚠ Deleting is not retiring. A retired rule keeps its file so the decisions it already made
+            // Deleting is not retiring. A retired rule keeps its file so the decisions it already made
             // still resolve to something nameable; deleting one leaves those naming an id nothing can
             // describe. The panel retires — this is for a rule that was never meant to exist.
             host.MapDelete("/rules/{id}", (string id, RuleRegistry registry) =>
@@ -528,7 +528,7 @@ internal sealed class Program
             // The thing that makes composing one safe: a rule that reads plausibly can still fire on
             // nothing, and none of that is visible in an editor.
             //
-            // ⚠ A read expressed as a POST, because the rule is the question. Nothing is stored, nothing
+            // A read expressed as a POST, because the rule is the question. Nothing is stored, nothing
             // is dispatched, and no decision reaches the ledger or the journal — the gate is not run,
             // since there is no episode to suppress and no ceiling a hypothetical belongs under.
             host.MapPost("/preview", async (
@@ -577,7 +577,7 @@ internal sealed class Program
             // against. The same four readings `--decisions` prints, off the same arithmetic, so a
             // browser and a terminal cannot disagree about the busiest hour a ceiling is set from.
             //
-            // ⚠ The window is clamped rather than refused. A caller asking for a year is asking for
+            // The window is clamped rather than refused. A caller asking for a year is asking for
             // everything, and the ledger's retention already bounds what everything is — answering
             // the retention span is the true reading, where a 400 would be a smaller surface saying
             // no to a question it can in fact answer.
@@ -768,7 +768,7 @@ internal sealed class Program
         {
             Console.WriteLine();
             Console.WriteLine(
-                $"⚠  {result.BeyondRetention} of these are older than the {options.RetentionDays}-day "
+                $"{result.BeyondRetention} of these are older than the {options.RetentionDays}-day "
                 + "retention window and");
             Console.WriteLine(
                 "   the next prune will remove them. Raise Reactor__RetentionDays before reading a");
@@ -787,7 +787,7 @@ internal sealed class Program
     /// </summary>
     /// <remarks>
     /// Exits non-zero when it finds drift, so a host can run this on a timer and be told rather than
-    /// have to read it. ⚠ A rewritten segment is the cause it exists for, and the readings taken from
+    /// have to read it. A rewritten segment is the cause it exists for, and the readings taken from
     /// a drifted ledger are wrong in a way nothing else on the host reports.
     /// </remarks>
     private static int Verify(string[] args)
@@ -858,7 +858,7 @@ internal sealed class Program
             // actually there. The others describe themselves, and repeating the description as a
             // suffix reads as though the tool found two separate problems.
             Console.WriteLine(drift.State == Ingest.JournalVerify.PositionState.WrongEvent
-                ? $"      stored as {drift.Expected} — now {drift.Found}  ⚠ a valid line, and the wrong one"
+                ? $"      stored as {drift.Expected} — now {drift.Found} — a valid line, and the wrong one"
                 : $"      stored as {drift.Expected} — {Describe(drift.State)}");
         }
 
@@ -866,7 +866,7 @@ internal sealed class Program
             Console.WriteLine($"   … and {result.Drifted.Count - 50} more");
 
         Console.WriteLine();
-        Console.WriteLine("⚠  Readings taken from this ledger are wrong, and a re-run of --backfill");
+        Console.WriteLine("Readings taken from this ledger are wrong, and a re-run of --backfill");
         Console.WriteLine("   would ADD the shifted lines rather than recognise them — the same event");
         Console.WriteLine("   at a new offset is a new row. The ledger is derived, so the remedy is to");
         Console.WriteLine("   delete it and run --backfill once against the journals as they now are.");

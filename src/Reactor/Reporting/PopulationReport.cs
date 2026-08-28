@@ -24,7 +24,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Reporting;
 /// re-derives rather than an edge it has to catch.</description></item>
 /// </list>
 /// <para>
-/// ⚠ <b>It reports, it does not recommend.</b> No threshold, window or ceiling is suggested here. The
+/// <b>It reports, it does not recommend.</b> No threshold, window or ceiling is suggested here. The
 /// numbers are the input to the seven questions each candidate rule has to answer, and a report that
 /// proposed values would be answering them on the strength of arithmetic alone.
 /// </para>
@@ -39,7 +39,7 @@ internal static class PopulationReport
     /// The condition pairs whose duration is worth knowing, as an opening event and what closes it.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Candidates, not a rule table.</b> Each is a question — "how long does this take to fix
+    /// <b>Candidates, not a rule table.</b> Each is a question — "how long does this take to fix
     /// itself here" — and the answers are what a settle window would be derived from IF the condition
     /// survives the seven questions. Nothing gates on this list.
     /// </remarks>
@@ -205,7 +205,7 @@ internal static class PopulationReport
         report.AppendLine("that resolves faster than a rule could act on it is one a rule should");
         report.AppendLine("re-derive from the world, not one it should catch the announcement of.");
         report.AppendLine();
-        report.AppendLine("⚠ 'never closed' includes conditions still open at the end of the window,");
+        report.AppendLine("'never closed' includes conditions still open at the end of the window,");
         report.AppendLine("  and conditions whose closing event the reactor was not running to see.");
         report.AppendLine();
 

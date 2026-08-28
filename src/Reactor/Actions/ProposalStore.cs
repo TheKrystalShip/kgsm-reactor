@@ -35,7 +35,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
     {
         Create();
 
-        // ⚠ CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so a column added
+        // CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so a column added
         // here reaches a host that already has the table only through this. Nullable, like every
         // additive column in this ledger: an offer staged before the condition was dated does not
         // carry one, and unknown is the honest answer for it.
@@ -142,7 +142,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
     /// Every open proposal, soonest to expire first.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Includes ones whose lifetime has already passed.</b> Filtering by the clock here would hide
+    /// <b>Includes ones whose lifetime has already passed.</b> Filtering by the clock here would hide
     /// a proposal that is about to be lapsed but has not been, and a surface reading this a second
     /// before the sweep would show a different list from the one the sweep is about to close — a
     /// disagreement between two readings of the same instant. Lapsing is a write, and it happens in one
@@ -174,7 +174,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
     /// Ends an open proposal.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The <c>WHERE</c> requires it to still be open, and the row count is the answer.</b> Two
+    /// <b>The <c>WHERE</c> requires it to still be open, and the row count is the answer.</b> Two
     /// people pressing confirm at the same moment both find a redeemable proposal and both come here;
     /// only one changes a row, and the other must not perform the action. Reading the state first and
     /// writing afterwards would let both through.
@@ -205,7 +205,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
     /// Records how the action on an already-ended proposal went.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Separate from <see cref="End"/> on purpose, and it is the ordering that matters.</b> A
+    /// <b>Separate from <see cref="End"/> on purpose, and it is the ordering that matters.</b> A
     /// confirmation claims the row first and performs afterwards, so two people pressing confirm
     /// together cannot both restore the same server. That leaves a moment where the row says confirmed
     /// and nothing yet says how it went, and this is what closes it — written whatever happened,
@@ -259,7 +259,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
     /// How a state is spelled on disk.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The four ends are <see cref="ReactorResolutions"/>' own spellings</b>, so a row and the
+    /// <b>The four ends are <see cref="ReactorResolutions"/>' own spellings</b>, so a row and the
     /// journal line written about it cannot disagree — and neither is derived from a C# enum name,
     /// which would put <c>NoLongerApplicable</c> where every consumer expects
     /// <c>no_longer_applicable</c>.

@@ -33,7 +33,7 @@ internal interface IActionPerformer
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>The origin is always <c>reactor</c>; who the actor is depends on who decided.</b> That pair is
+/// <b>The origin is always <c>reactor</c>; who the actor is depends on who decided.</b> That pair is
 /// what the engine echoes into its own journal, which is what kgsm-api turns into an audit row. A rule
 /// acting on its own passes <c>rule:&lt;id&gt;</c>; a proposal somebody confirmed passes <em>them</em>,
 /// because the action exists on their say-so and an audit row naming the rule would make an authorised
@@ -112,7 +112,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// Rolls an instance back to the archive taken before the update that preceded its failure.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Resolved by the manifest's reason, never by recency.</b> Once a rule that captures broken
+    /// <b>Resolved by the manifest's reason, never by recency.</b> Once a rule that captures broken
     /// states is running, the newest archive at this moment is the broken post-update state that rule
     /// has just taken — restoring it would put back exactly what somebody is trying to escape. An
     /// archive written before the manifest carried a reason reads back unknown, and an unknown one is
@@ -140,7 +140,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// One archive as a person needs to see it named: which one, from when, and of what.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Each part appears only when the manifest carries it.</b> An archive written before the
+    /// <b>Each part appears only when the manifest carries it.</b> An archive written before the
     /// manifest recorded a version says nothing about one, and a date invented for it would be the
     /// most convincing fabrication on the page — this is the sentence somebody checks before deciding
     /// a week of a world is worth overwriting.
@@ -151,7 +151,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
 
         string said = backup.Id;
 
-        // ⚠ Converted, not just formatted. A manifest may carry any offset, and printing its local
+        // Converted, not just formatted. A manifest may carry any offset, and printing its local
         // wall clock under the word UTC would misdate the archive by hours in the one sentence
         // somebody reads before overwriting a world.
         if (backup.CreatedAt is { } at)
@@ -180,7 +180,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// The most recent archive of an instance taken for <paramref name="reason"/>, or null.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A null reason is not a match.</b> The manifest recording none means nobody knows why that
+    /// <b>A null reason is not a match.</b> The manifest recording none means nobody knows why that
     /// archive exists, and treating unknown as the reason being looked for is the fabrication this leaf
     /// refuses everywhere else — with a restore on the other end of it.
     /// </remarks>

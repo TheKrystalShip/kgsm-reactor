@@ -95,7 +95,7 @@ internal static class SubjectSourceCatalog
 
 /// <summary>One thing a rule may declare it would do.</summary>
 /// <remarks>
-/// ⚠ <b>The catalog is a rendering of <see cref="ReactorAction"/>, never a widening of it.</b> What a
+/// <b>The catalog is a rendering of <see cref="ReactorAction"/>, never a widening of it.</b> What a
 /// composed rule may do stays a compiler question: the union's constructor is private, so nothing
 /// outside its own declaration can add a case, and a rule naming an action this list does not hold is
 /// refused at load. That is the never-list — never uninstall, never delete a backup, never rewrite
@@ -116,7 +116,7 @@ internal sealed record ActionEntry(
     /// What performing it costs, and whether it can be taken back.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Read off the action itself rather than restated here, and it must not name the
+    /// <b>Read off the action itself rather than restated here, and it must not name the
     /// instance.</b> What an action does to a server is a property of the action on every host that
     /// has it — a second copy in this catalog would be the one somebody forgets to change, and it is
     /// read by an editor that has no instance to build one for. <c>ActionCatalogTests</c> holds the
@@ -158,7 +158,7 @@ internal static class ActionCatalog
     /// The action <paramref name="id"/> names, for <paramref name="instance"/>.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A name this build does not hold builds <see cref="ReactorAction.Nothing"/>.</b> An offer
+    /// <b>A name this build does not hold builds <see cref="ReactorAction.Nothing"/>.</b> An offer
     /// staged months ago names its action as a string, and the catalog is what this build can actually
     /// perform — reconstructing a missing one by hand would let a redemption carry out something the
     /// never-list has since been narrowed to exclude.
