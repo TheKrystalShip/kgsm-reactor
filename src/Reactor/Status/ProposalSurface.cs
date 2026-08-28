@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using TheKrystalShip.Kgsm.Reactor.Actions;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Status;
 
@@ -121,7 +122,10 @@ public sealed record ProposalView
         RuleAuthor = proposal.RuleAuthor,
         Subject = proposal.Subject,
         SubjectKind = proposal.SubjectKind.ToString().ToLowerInvariant(),
-        Severity = proposal.Severity.ToString().ToLowerInvariant(),
+        // The same spelling the journal carries, written out rather than lowercased from a name: a
+        // surface classifies on this, and a rename would silently move every offer to the fallback
+        // tone rather than failing.
+        Severity = proposal.Severity.ToWire(),
         ActionName = proposal.ActionName,
         Action = proposal.Action,
         ActionInstance = proposal.ActionInstance,
