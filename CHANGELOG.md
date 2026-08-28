@@ -7,6 +7,40 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — messages written for somebody who was not watching (0.22.0)
+
+Every sentence this leaf produces is read somewhere the rest of the record is not: an audit row, a push
+notification, a Discord line. They are now written for that reader.
+
+**A reason names its own subject and says what is wrong in an operator's terms.** `give_up_backup`
+reads *"factorio crashed 2 times in a row and the supervisor has stopped trying to restart it — it
+stays down until somebody starts it"*. `MessageQualityTests` holds the rule for every seeded row,
+including the unreadable ones, and refuses vocabulary that means nothing outside this process.
+
+**Every action says what it costs.** `ReactorAction.Consequence` states what changes and whether it can
+be taken back — that a pinned archive touches nothing about the server, that a rollback is irreversible.
+It is served on `/catalog` beside each action and on every open offer, because whether a fault is real
+and whether its fix is bearable are two questions and an offer that answers only the first is asking
+for authorisation on the strength of the problem it names.
+
+**A performed action names what it produced.** An archive is reported by id, size and — for a restore —
+the date and version of the archive it came from. The id was already in the payload and in no sentence,
+so an audit row could not lead anybody to the backup it was about.
+
+**`world.restartLimit` reads the restart budget**, so a rule can say "twice out of two" rather than
+"twice". Absent when the instance names no figure of its own: the supervisor's own default is not
+readable from here and nothing substitutes a plausible number for it.
+
+**`{openedAt}` and `{openFor}` date a condition from when it began.** Answered from the journal line the
+episode opened on, carried onto an offer so confirming reads the same instant staging did, and left
+unanswered — ending the sentence as *cannot tell* — where nothing observed the condition beginning. A
+rule may not bind a measurement under either name, or under `{subject}`, `{settleSeconds}` or
+`{reason}`; the file is refused at load rather than resolved by precedence.
+
+⚠ **A host with a stored `rules.json` keeps the wording it has.** The file is authoritative and is read
+verbatim, so the seeds' improved sentences reach only a host running them from the build. Re-seed by
+removing the file, which discards any rule composed in the panel.
+
 ### Added — an offer a person answers (0.21.0)
 
 `RuleEngine.Honours` is `act`. A rule still starts at `observe` and still has to be moved by hand on a

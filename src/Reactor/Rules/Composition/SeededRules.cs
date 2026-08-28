@@ -130,11 +130,13 @@ internal static class SeededRules
         [
             new([Clause.True("world.gaveUp")],
                 VerdictKind.Holds,
-                "still given up on after {settleSeconds}s ({world.restarts} consecutive failures)"),
+                "{subject} crashed {world.restarts} times in a row and the supervisor has stopped "
+                + "trying to restart it — it stays down until somebody starts it"),
         ],
         Default: new([],
             VerdictKind.DoesNotHold,
-            "no longer given up on — the supervisor reports {world.phase}"),
+            "the supervisor is looking after {subject} again — it reports the instance "
+            + "{world.phase}"),
         ActionId: ActionCatalog.CreateBackup,
         Severity: EventSeverity.Danger,
         Settle: GiveUpSettle,
@@ -166,15 +168,17 @@ internal static class SeededRules
         [
             new([Clause.Absent("lastUpdate")],
                 VerdictKind.DoesNotHold,
-                "no update finished on {subject} in the last {lastUpdate@withinMinutes} minutes"),
+                "nothing updated {subject} in the last {lastUpdate@withinMinutes} minutes, so "
+                + "whatever is wrong with it did not arrive with an update"),
 
             new([Clause.True("world.running")],
                 VerdictKind.DoesNotHold,
-                "it is running again"),
+                "{subject} is running again"),
         ],
         Default: new([],
             VerdictKind.Holds,
-            "failed {sinceUpdate}m after an update finished, and is not running"),
+            "{subject} failed {sinceUpdate}m after an update finished and is not running now — near "
+            + "enough in time that the update is worth ruling out before anything else"),
         ActionId: ActionCatalog.ProposeRestore,
         Severity: EventSeverity.Danger,
         // No suppression: a crash repeats every 25s at p50, which the host-wide window already covers.
@@ -199,7 +203,7 @@ internal static class SeededRules
         Signals:
         [
             Episode("episodeOpen", "episode.isOpen"),
-            Episode("openFor", "episode.openAge"),
+            Episode("breachAge", "episode.openAge"),
             Episode("p95", "episode.durationP95"),
             Episode("closed", "episode.closedSamples"),
         ],
@@ -207,19 +211,22 @@ internal static class SeededRules
         [
             new([Clause.False("episodeOpen")],
                 VerdictKind.DoesNotHold,
-                "no episode is open"),
+                "no threshold on {subject} is currently breached"),
 
             new([Clause.Below("closed", MinimumEpisodeSamples)],
                 VerdictKind.Unreadable,
-                "only {closed} closed episode(s) on record for {subject} — too few to say what unusual is"),
+                "{subject} has only {closed} breach(es) on record that cleared — too few to say what "
+                + "unusually long means on this host"),
 
-            new([Clause.AboveSignal("openFor", "p95")],
+            new([Clause.AboveSignal("breachAge", "p95")],
                 VerdictKind.Holds,
-                "open for {openFor}, past the p95 of {p95} over {closed} closed episodes"),
+                "{subject} has been over its threshold for {breachAge} — 95% of the {closed} breaches "
+                + "on record here cleared within {p95}, so this one is not clearing the way they do"),
         ],
         Default: new([],
             VerdictKind.DoesNotHold,
-            "open for {openFor}, within the p95 of {p95}"),
+            "{subject} has been over its threshold for {breachAge}, inside the {p95} that 95% of its "
+            + "breaches clear within"),
         ActionId: ActionCatalog.None,
         Severity: EventSeverity.Warn,
         Settle: ThresholdSettle,
@@ -260,13 +267,13 @@ internal static class SeededRules
         [
             new([Clause.Below("footprint.spanDays", MinSpanDays)],
                 VerdictKind.Unreadable,
-                "observations of {subject} span {footprint.spanDays:F1} days, short of the "
-                + "{footprint.spanDays#:0.###} a world's growth shows up over"),
+                "{subject} has only been observed across {footprint.spanDays:F1} days, short of the "
+                + "{footprint.spanDays#:0.###} days a world's growth shows up over"),
 
             new([Clause.Below("footprint.observedHours", MinObservedHours)],
                 VerdictKind.Unreadable,
                 "{subject} has been measured for {footprint.observedHours:F1} hours, short of the "
-                + "{footprint.observedHours#:0.###} a peak means anything over"),
+                + "{footprint.observedHours#:0.###} hours a peak means anything over"),
 
             new([Clause.Below("footprint.runs", MinRuns),
                  Clause.Below("footprint.observedHours", ContinuousRunHours)],
@@ -289,7 +296,7 @@ internal static class SeededRules
 
             new([Clause.Below("drift.absPctVsDeclared", DriftMarginPct)],
                 VerdictKind.DoesNotHold,
-                Holds + "within {drift.absPctVsDeclared#:0.###}% (" + Evidence + ")"),
+                Holds + "within {drift.absPctVsDeclared#:0.###}% of it (" + Evidence + ")"),
 
             new([Clause.Above("drift.pctVsDeclared", 0), Clause.Above("footprint.oomKills", 0)],
                 VerdictKind.Holds,
@@ -305,31 +312,39 @@ internal static class SeededRules
 
             new([Clause.Above("trend.growthPct", SettledGrowthPct)],
                 VerdictKind.DoesNotHold,
-                Holds + "but its working set has grown {trend.growthPct:F0}% across the window and has "
-                + "not found its ceiling",
+                Holds + "but its working set is still climbing — up {trend.growthPct:F0}% across the "
+                + "window — so it has not found its ceiling and the gap may close on its own",
                 // ⚠ Worth writing: the trend reader's own "no working-set series" is true and useless
                 // beside the figures a decrement would have moved.
-                UnreadableMessage: Holds + "but whether that has settled cannot be told: {reason}"),
+                UnreadableMessage: Holds + "but whether it has stopped growing cannot be told: {reason}"),
         ],
         Default: new([],
             VerdictKind.Holds,
-            Holds + "{drift.pctVsDeclared:+0;-0}% below it (" + Evidence + "), settled at "
-            + "{trend.growthPct:+0;-0}% growth over {trend.points} points"),
+            Holds + "{drift.absPctVsDeclared:F0}% below it (" + Evidence + "), and settled — its "
+            + "working set moved {trend.growthPct:+0;-0}% over {trend.points} measurements"),
         ActionId: ActionCatalog.None,
         Severity: EventSeverity.Info,
         Settle: DriftSettle,
         Suppression: DriftSuppression,
         Shipped: true);
 
-    /// <summary>The opening every sentence about a drift shares: what is held against what is declared.</summary>
+    /// <summary>The opening every sentence about a drift shares: what is measured against what is declared.</summary>
     private const string Holds =
-        "{subject} holds {footprint.workingSetPeakMb}MB against {declaration.minRamMb}MB declared, ";
+        "{subject} peaks at {footprint.workingSetPeakMb}MB where its blueprint declares "
+        + "{declaration.minRamMb}MB, ";
 
     /// <summary>How much measurement the figure rests on, which is what lets a reader see how thin it is.</summary>
     private const string Evidence =
         "measured over {footprint.observedHours:F0}h spanning {footprint.spanDays:F0} days";
 
-    private const string Above = Holds + "{drift.pctVsDeclared:+0;-0}% above it (" + Evidence + ")";
+    /// <summary>
+    /// The magnitude, from the absolute drift.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The signed figure carries its direction in its sign, and the direction is already in the word
+    /// beside it — <em>"-34% below it"</em> says the opposite of what the row concluded.
+    /// </remarks>
+    private const string Above = Holds + "{drift.absPctVsDeclared:F0}% above it (" + Evidence + ")";
 
     private static SignalBinding Episode(string alias, string signalId) =>
         SignalBinding.Of(alias, signalId,

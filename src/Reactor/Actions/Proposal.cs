@@ -75,6 +75,14 @@ internal enum ProposalState
 /// <param name="Action">The action in words, as it is offered.</param>
 /// <param name="ActionInstance">The server it operates on, or null.</param>
 /// <param name="Reason">Why the rule concluded it, carrying the figures.</param>
+/// <param name="OpenedAt">
+/// When the condition began, or null when nothing observed it beginning.
+/// <para>
+/// Carried so the sentence a person is shown when they confirm dates the condition from the same
+/// instant the offer did. Re-deriving it then would date a crash loop from the second look rather than
+/// the first, and an offer answered in the morning would read as a fault that had just started.
+/// </para>
+/// </param>
 /// <param name="StagedAt">When it was offered.</param>
 /// <param name="ExpiresAt">When an unanswered offer stops being redeemable.</param>
 /// <param name="State">Where it has got to.</param>
@@ -96,6 +104,7 @@ internal sealed record Proposal(
     string Action,
     string? ActionInstance,
     string Reason,
+    DateTimeOffset? OpenedAt,
     DateTimeOffset StagedAt,
     DateTimeOffset ExpiresAt,
     ProposalState State = ProposalState.Open,

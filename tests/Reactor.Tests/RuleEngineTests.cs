@@ -78,6 +78,13 @@ public class RuleEngineTests : IDisposable
 
         public ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(
             string instance, CancellationToken token) => ValueTask.FromResult(Declaration);
+
+        /// <summary>Measured, and the instance names no restart budget of its own.</summary>
+        public Reading<InstanceSupervision> Supervision { get; set; } =
+            Reading<InstanceSupervision>.Measured(new InstanceSupervision(null));
+
+        public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+            string instance, CancellationToken token) => ValueTask.FromResult(Supervision);
     }
 
     /// <summary>A monitor that has measured nothing, which is the ordinary case for these tests.</summary>
@@ -297,7 +304,7 @@ public class RuleEngineTests : IDisposable
         // Nothing is dispatched in this build, and the record says so rather than leaving it inferred.
         Assert.Equal(ActionState.None, decision.ActionState);
         Assert.Equal(RuleMode.Observe, decision.Mode);
-        Assert.Contains("pinned backup", decision.Action);
+        Assert.Contains("archive Ketchup as it stands, pinned", decision.Action);
     }
 
     /// <summary>
@@ -480,7 +487,7 @@ public class RuleEngineTests : IDisposable
 
         Decision decision = Assert.Single(Decisions(ledger));
         Assert.Equal(DecisionOutcome.Settled, decision.Outcome);
-        Assert.Contains("no longer given up on", decision.Reason);
+        Assert.Contains("the supervisor is looking after Ketchup again", decision.Reason);
     }
 
     [Fact]
@@ -537,7 +544,7 @@ public class RuleEngineTests : IDisposable
 
         // give_up_backup carries its own 15m window, measured from how often a give-up repeats on one
         // subject, so the host-wide 30m configured above is not what stopped this one.
-        Assert.Contains("inside the 15m window", suppressed.Reason);
+        Assert.Contains("stays quiet for 15 after it does", suppressed.Reason);
     }
 
     /// <summary>
@@ -634,7 +641,7 @@ public class RuleEngineTests : IDisposable
         Assert.Equal(2, decisions.Count);
         Assert.Equal(1, decisions.Count(d => d.Outcome == DecisionOutcome.Fired));
         Decision ceilinged = Assert.Single(decisions, d => d.Outcome == DecisionOutcome.Ceilinged);
-        Assert.Contains("ceiling of 1", ceilinged.Reason);
+        Assert.Contains("which is all it allows (1)", ceilinged.Reason);
     }
 
     [Fact]

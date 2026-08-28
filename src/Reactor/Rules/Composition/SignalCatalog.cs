@@ -194,6 +194,24 @@ internal static class SignalCatalog
             (r, t) => Supervisor(r, t, s => SignalValue.OfNumber(s.Restarts)),
             Description: "How many times in a row the supervisor has restarted it and seen it fail."),
 
+        new("world.restartLimit", "Restart budget", SignalKind.Number,
+            async (r, t) =>
+            {
+                Reading<InstanceSupervision> reading = await r.Scope.SupervisionAsync(t).ConfigureAwait(false);
+
+                return reading.State == ReadingState.Measured
+                    ? SignalReading.Of(reading.Value.MaxRestarts is { } limit
+                        ? SignalValue.OfNumber(limit)
+                        : SignalValue.None(SignalKind.Number))
+                    : SignalReading.Unreadable(
+                        $"how {r.Subject} is supervised could not be read: {reading.Reason}");
+            },
+            Description: "How many failures in a row the supervisor absorbs before it gives up. The "
+                + "denominator behind the failure count — \"twice\" and \"twice out of two\" are "
+                + "different statements. Absent when the instance names no figure of its own: the "
+                + "supervisor's own default applies and is not readable from here, so a rule that "
+                + "wants to say \"out of\" checks that there is one first."),
+
         // ---- what the monitor has measured ----
 
         new("footprint.spanDays", "Observed across", SignalKind.Number,

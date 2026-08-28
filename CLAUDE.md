@@ -181,10 +181,35 @@ where the journal line is written after the ledger is open and the rules are res
   holding more than it was declared to need is reported without the trend ever being asked for.
 - **A row owns its prose.** `{alias}` fills from the same reads the clauses used, `{alias#}` from what
   the row compares that signal against, `{alias@key}` from an argument it was bound with, plus
-  `{subject}` and `{settleSeconds}`. A row may carry a second sentence for when a signal it needs
-  cannot be read. ⚠ **A comparand lookup is per row**, because the hours gate compares
-  `footprint.observedHours` against 5 in one step and the unbroken-run stand-in compares it against 24
-  in another.
+  `{subject}`, `{settleSeconds}`, `{openedAt}` and `{openFor}`. A row may carry a second sentence for
+  when a signal it needs cannot be read. ⚠ **A comparand lookup is per row**, because the hours gate
+  compares `footprint.observedHours` against 5 in one step and the unbroken-run stand-in compares it
+  against 24 in another. ⚠ **Those five names are the evaluator's** and a rule that binds a measurement
+  under one is refused at load — they resolve before bindings are consulted, so honouring it would let
+  a rule save cleanly and then say something else in every sentence that mentioned it.
+- **⚠ A sentence dates its condition or admits it cannot.** `{openedAt}` and `{openFor}` come from the
+  journal line the episode opened on, are carried onto an offer so confirming reads the same instant
+  staging did, and are **unanswered** for a rule that wakes on nothing — a footprint drifting from a
+  declaration did not begin at a moment anybody observed, and the synthetic episode's stamp records
+  when this daemon first looked. An unanswered one ends the sentence as `Unreadable`. Filling it from
+  the evaluation instant would date a crash loop from the moment somebody glanced at it.
+- **Every message is written for somebody who was not watching, and `MessageQualityTests` enforces the
+  half of that a test can reach.** A sentence answers, in order: **what is true** (subject, symptom,
+  since when), **on what evidence** (figures with units and denominators), **what is offered** (the
+  verb, the target, and the artifact it names), and **what it costs**. Two hard rules — a reason names
+  its own subject, because a push notification and an audit row carry the sentence and nothing around
+  it; and no vocabulary that means something only inside this process (`ceilinged`, `superseded`, the
+  settle window) reaches a person, because the wire outcome in the payload is where a program reads it.
+- **What an action costs is the action's, and it is a separate sentence from the fault.** `Consequence`
+  says what changes and whether it can be taken back — never how likely it is to help, which would be a
+  claim about a fault nothing here has diagnosed. ⚠ **It must not name the instance**: `/catalog` serves
+  it to an editor that has no instance to build an action for, and `ActionEntry.Consequence` builds
+  against an empty name on exactly that understanding.
+- **What an action *would* do is written in the infinitive; what it *did* is the performer's to say.**
+  `Describe()` is carried by three sentences that are all about something not yet done. The past tense
+  comes back on `ActionResult.Detail` from the thing that performed it — which is also the only thing
+  that knows the id of what it produced, and an audit row that cannot name the archive it created
+  cannot lead anybody to it.
 - **Arguments bind once at rule level, under an alias.** Repeating them at each mention is how two
   mentions of "the last update" come to mean different windows. A signal that takes no arguments needs
   no binding: its own id is the alias.

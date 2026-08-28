@@ -55,7 +55,7 @@ public class RulePreviewTests
 
         Assert.Equal("romestead", verdict.Subject);
         Assert.Equal("holds", verdict.Outcome);
-        Assert.Contains("2908MB against 4096MB declared", verdict.Reason);
+        Assert.Contains("peaks at 2908MB where its blueprint declares 4096MB", verdict.Reason);
     }
 
     /// <summary>
@@ -182,6 +182,10 @@ public class RulePreviewTests
         public ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(
             string instance, CancellationToken token) =>
             ValueTask.FromResult(Reading<MemoryDeclaration>.Measured(new MemoryDeclaration(4096, 8192, null)));
+
+        public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+            string instance, CancellationToken token) =>
+            ValueTask.FromResult(Reading<InstanceSupervision>.Measured(new InstanceSupervision(3)));
     }
 
     private sealed class StubFootprints(IReadOnlyList<InstanceFootprint> footprints) : IFootprintSource

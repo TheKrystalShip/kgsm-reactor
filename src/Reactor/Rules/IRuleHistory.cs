@@ -19,6 +19,51 @@ internal readonly record struct OpenEpisode(
     Ledger.EventSource Source);
 
 /// <summary>
+/// How an episode's two ends are named, and how far back one is looked for.
+/// </summary>
+/// <remarks>
+/// <b>The pairing is a convention rather than a declaration, and it lives here once.</b> A closing
+/// event is its opening's counterpart by name — <c>.breached</c> closes with <c>.cleared</c> — so a
+/// rule that named both would be restating what its own predicate already knows, and two places
+/// deriving it would be two places to disagree.
+/// </remarks>
+internal static class EpisodeShape
+{
+    /// <summary>How far back an episode is looked for. The ledger's own retention bounds it regardless.</summary>
+    public static readonly TimeSpan LookBack = TimeSpan.FromDays(30);
+
+    /// <summary>The event that closes what <paramref name="opensWith"/> opened.</summary>
+    public static string Closes(string opensWith) =>
+        opensWith.Replace(".breached", ".cleared", StringComparison.Ordinal);
+
+    /// <summary>
+    /// When the condition a rule waking on <paramref name="opensWith"/> judges began for one subject,
+    /// or null when nothing on record says.
+    /// </summary>
+    /// <remarks>
+    /// The open episode first, because that is the condition itself; the last opening event otherwise,
+    /// for a rule whose condition is the event rather than a span. ⚠ Null is unknown and stays unknown:
+    /// a caller that filled it with the current instant would be dating the condition from the moment
+    /// it was asked about.
+    /// </remarks>
+    public static DateTimeOffset? BeganAt(
+        IRuleHistory history, string opensWith, string subject, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        DateTimeOffset notBefore = now - LookBack;
+
+        foreach (OpenEpisode episode in history.OpenEpisodes(opensWith, Closes(opensWith), notBefore))
+        {
+            if (string.Equals(episode.Subject, subject, StringComparison.Ordinal))
+                return episode.OpenedAt;
+        }
+
+        return history.LastOccurrence(opensWith, subject, notBefore)?.OccurredAt;
+    }
+}
+
+/// <summary>
 /// What has been observed, for the questions a single event cannot answer.
 /// </summary>
 /// <remarks>

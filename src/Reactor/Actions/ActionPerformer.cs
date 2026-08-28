@@ -88,11 +88,24 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
         // The engine prints the id it minted. Read back rather than parsed out of the output: what
         // was written is a fact the engine holds, and a string scraped from a log is a guess that
         // would name a backup nobody can find the day the output changes.
-        string? id = NewestBackup(action.Instance, BackupReason.Incident)?.Id;
-        if (id is null)
+        InstanceBackup? written = NewestBackup(action.Instance, BackupReason.Incident);
+        if (written is null)
+        {
             logger.LogWarning("Backed up {Instance}, and no archive came back to name.", action.Instance);
 
-        return ActionResult.Succeeded(id, $"captured the state {action.Instance} was left in");
+            // The archive exists — the engine said so — and this cannot say which. Reported as
+            // succeeded-without-a-name rather than dressed up with a guess: somebody sent to find a
+            // backup id that does not resolve is worse off than one told to go and look.
+            return ActionResult.Succeeded(
+                null,
+                $"archived the state {action.Instance} was left in, and the engine did not name the "
+                + "archive it wrote");
+        }
+
+        return ActionResult.Succeeded(
+            written.Id,
+            $"archived the state {action.Instance} was left in as {written.Id}{Size(written)}, "
+            + "pinned so nothing rotates it away");
     }
 
     /// <summary>
@@ -120,11 +133,48 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
 
         return result.IsFailure
             ? ActionResult.Failed(Explain(result))
-            : ActionResult.Succeeded(
-                candidate.Id,
-                $"restored {action.Instance} from the archive taken before its update"
-                + (candidate.CreatedAt is { } at ? $" on {at:u}" : string.Empty));
+            : ActionResult.Succeeded(candidate.Id, $"restored {action.Instance} from {Name(candidate)}");
     }
+
+    /// <summary>
+    /// One archive as a person needs to see it named: which one, from when, and of what.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Each part appears only when the manifest carries it.</b> An archive written before the
+    /// manifest recorded a version says nothing about one, and a date invented for it would be the
+    /// most convincing fabrication on the page — this is the sentence somebody checks before deciding
+    /// a week of a world is worth overwriting.
+    /// </remarks>
+    internal static string Name(InstanceBackup backup)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+
+        string said = backup.Id;
+
+        // ⚠ Converted, not just formatted. A manifest may carry any offset, and printing its local
+        // wall clock under the word UTC would misdate the archive by hours in the one sentence
+        // somebody reads before overwriting a world.
+        if (backup.CreatedAt is { } at)
+            said += $", taken {at.UtcDateTime:yyyy-MM-dd HH:mm} UTC";
+
+        if (!string.IsNullOrWhiteSpace(backup.Version))
+            said += $" at version {backup.Version}";
+
+        return said + Size(backup);
+    }
+
+    /// <summary>How big an archive is, or nothing at all when the manifest does not say.</summary>
+    /// <remarks>
+    /// A zero here is a manifest that recorded no size, not an empty archive — and " (0 B)" beside a
+    /// backup id reads as one.
+    /// </remarks>
+    private static string Size(InstanceBackup backup) => backup.SizeBytes switch
+    {
+        >= 1_073_741_824 => $" ({backup.SizeBytes / 1_073_741_824.0:F1} GB)",
+        >= 1_048_576 => $" ({backup.SizeBytes / 1_048_576.0:F0} MB)",
+        > 0 => $" ({backup.SizeBytes / 1024.0:F0} KB)",
+        _ => string.Empty,
+    };
 
     /// <summary>
     /// The most recent archive of an instance taken for <paramref name="reason"/>, or null.

@@ -383,13 +383,10 @@ internal sealed class RuleEngine : BackgroundService
                 new EventSource(rule.Id, subject, 0, null));
         }
 
-        // The closing type is the opening type's counterpart by convention: `.breached` closes with
-        // `.cleared`. Derived rather than declared because a rule that named both would be declaring
-        // the same pairing its Holds predicate already knows.
         string opens = rule.Wakes[0];
-        string closes = opens.Replace(".breached", ".cleared", StringComparison.Ordinal);
 
-        IReadOnlyList<OpenEpisode> open = _history.OpenEpisodes(opens, closes, now - TimeSpan.FromDays(30));
+        IReadOnlyList<OpenEpisode> open = _history.OpenEpisodes(
+            opens, EpisodeShape.Closes(opens), now - EpisodeShape.LookBack);
         foreach (OpenEpisode episode in open)
         {
             if (string.Equals(episode.Subject, subject, StringComparison.Ordinal))
@@ -399,12 +396,25 @@ internal sealed class RuleEngine : BackgroundService
         return null;
     }
 
+    /// <summary>
+    /// When the condition began, for a sentence that wants to date it, or null when nothing observed
+    /// it beginning.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A rule that wakes on nothing has no opening, and its synthetic episode's stamp is not
+    /// one.</b> That stamp records when this daemon first looked, which is a fact about the reactor;
+    /// handing it to a sentence would date a fortnight-old drift from the moment somebody deployed.
+    /// </remarks>
+    private static DateTimeOffset? OpeningInstant(Pending pending) =>
+        pending.Rule.Rule.Wakes.Count == 0 ? null : pending.OpenedAt;
+
     /// <summary>Evaluate one rule against one subject, run the gate, and record what came of it.</summary>
     private async Task EvaluateAsync(Pending pending, DateTimeOffset now, CancellationToken token)
     {
         RuleDefinition definition = pending.Rule.Definition;
         Rule rule = pending.Rule.Rule;
-        var context = new RuleContext(pending.Subject, now, _world, _history, _footprint);
+        var context = new RuleContext(
+            pending.Subject, now, _world, _history, _footprint, OpeningInstant(pending));
 
         Verdict verdict;
         try
@@ -576,16 +586,17 @@ internal sealed class RuleEngine : BackgroundService
         if (lastFired is { } fired && now - fired < window)
         {
             return (DecisionOutcome.Suppressed,
-                $"{holds}; but this rule already fired for {pending.Subject} "
-                + $"{(int)(now - fired).TotalMinutes}m ago, inside the {(int)window.TotalMinutes}m window");
+                $"{holds}. This rule already said so about {pending.Subject} "
+                + $"{(int)(now - fired).TotalMinutes} minutes ago and stays quiet for "
+                + $"{(int)window.TotalMinutes} after it does");
         }
 
         int firedThisHour = _decisions.FiredSince(now - TimeSpan.FromHours(1));
         if (_options.MaxActionsPerHour > 0 && firedThisHour >= _options.MaxActionsPerHour)
         {
             return (DecisionOutcome.Ceilinged,
-                $"{holds}; but {firedThisHour} decision(s) already fired this hour, at the ceiling of "
-                + $"{_options.MaxActionsPerHour}");
+                $"{holds}. This host has already had {firedThisHour} rule(s) fire in the last hour, "
+                + $"which is all it allows ({_options.MaxActionsPerHour})");
         }
 
         // ⚠ The carve-out: an additive action competes with nothing. A regression wants the broken
@@ -599,7 +610,8 @@ internal sealed class RuleEngine : BackgroundService
                 if (Enum.TryParse(severity, out EventSeverity other) && other > rule.Severity)
                 {
                     return (DecisionOutcome.Superseded,
-                        $"{holds}; but {otherRule} already spoke for this episode at {other}");
+                        $"{holds}. {otherRule} already spoke about the same episode and speaks more "
+                        + $"loudly ({other.ToWire()}), so it decides what happens to this server");
                 }
             }
         }

@@ -110,7 +110,20 @@ internal sealed record ActionEntry(
     string Id,
     string Label,
     string Description,
-    Func<string, ReactorAction> Create);
+    Func<string, ReactorAction> Create)
+{
+    /// <summary>
+    /// What performing it costs, and whether it can be taken back.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Read off the action itself rather than restated here, and it must not name the
+    /// instance.</b> What an action does to a server is a property of the action on every host that
+    /// has it — a second copy in this catalog would be the one somebody forgets to change, and it is
+    /// read by an editor that has no instance to build one for. <c>ActionCatalogTests</c> holds the
+    /// contract by asking two different instances for the same sentence.
+    /// </remarks>
+    public string Consequence => Create(string.Empty).Consequence;
+}
 
 /// <summary>Everything this build can do about a rule that fires.</summary>
 internal static class ActionCatalog
@@ -125,14 +138,16 @@ internal static class ActionCatalog
             "Record the decision and do nothing else. The decision record is the whole output.",
             _ => new ReactorAction.Nothing()),
 
-        new(CreateBackup, "Take a pinned backup",
-            "Capture the instance as a pinned archive. Only ever creates, so a false positive costs "
-            + "disk rather than a running server.",
+        new(CreateBackup, "Archive it as it stands",
+            "Capture the instance exactly as it is, as a pinned archive — the state somebody debugging "
+            + "it will want and the running server will not keep. Only ever creates, so a false "
+            + "positive costs disk rather than a running server.",
             instance => new ReactorAction.CreateBackup(instance)),
 
-        new(ProposeRestore, "Offer a rollback",
-            "Stage a restore to the archive taken before the update that preceded the failure. "
-            + "Overwrites live state, so it is offered and never performed.",
+        new(ProposeRestore, "Roll it back",
+            "Restore the archive taken before the update that preceded the failure. Overwrites live "
+            + "state irreversibly, so it is offered for a person to authorise and never performed on "
+            + "the host's own initiative.",
             instance => new ReactorAction.ProposeRestore(instance)),
     ];
 

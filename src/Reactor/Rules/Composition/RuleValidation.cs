@@ -98,6 +98,16 @@ internal static partial class RuleValidation
 
         foreach (SignalBinding binding in definition.Signals)
         {
+            // ⚠ Refused rather than resolved by precedence. The evaluator answers its own tokens
+            // before it looks at a binding, so a rule naming one would read as saved-and-working
+            // while every sentence mentioning it silently said something else.
+            if (MessageTemplate.IsIntrinsic(binding.Alias))
+            {
+                problems.Add(
+                    $"{id} binds a measurement as '{binding.Alias}', which is a name every rule's "
+                    + "sentences already use for something else. Bind it under another name.");
+            }
+
             Signal? signal = SignalCatalog.ById(binding.SignalId);
             if (signal is null)
             {

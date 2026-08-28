@@ -87,7 +87,7 @@ public class ComposedRuleTwinTests
             WellEvidenced(hours: 0.4, span: 0.02), new MemoryDeclaration(6144, 12288, null));
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("span", v.Reason);
+        Assert.Contains("observed across", v.Reason);
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class ComposedRuleTwinTests
 
         Assert.Equal(VerdictKind.Holds, v.Kind);
         Assert.Contains("below it", v.Reason);
-        Assert.Contains("settled at +0% growth over 600 points", v.Reason);
+        Assert.Contains("settled — its working set moved +0% over 600 measurements", v.Reason);
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public class ComposedRuleTwinTests
             trend: Reading<MemoryTrend>.Unavailable("only 4 working-set points"));
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
-        Assert.Contains("2908MB against 4096MB declared", v.Reason);
+        Assert.Contains("peaks at 2908MB where its blueprint declares 4096MB", v.Reason);
         Assert.Contains("cannot be told: only 4 working-set points", v.Reason);
     }
 
@@ -317,7 +317,10 @@ public class ComposedRuleTwinTests
             new StubHistory(), new UnreachableMonitor());
 
         Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Equal("still given up on after 120s (5 consecutive failures)", v.Reason);
+        Assert.Equal(
+            "pz crashed 5 times in a row and the supervisor has stopped trying to restart it — it "
+            + "stays down until somebody starts it",
+            v.Reason);
     }
 
     [Fact]
@@ -328,7 +331,8 @@ public class ComposedRuleTwinTests
             new StubHistory(), new UnreachableMonitor());
 
         Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Equal("no longer given up on — the supervisor reports running", v.Reason);
+        Assert.Equal(
+            "the supervisor is looking after pz again — it reports the instance running", v.Reason);
     }
 
     [Fact]
@@ -353,7 +357,10 @@ public class ComposedRuleTwinTests
             new StubHistory(), new UnreachableMonitor());
 
         Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Equal("no update finished on pz in the last 30 minutes", v.Reason);
+        Assert.Equal(
+            "nothing updated pz in the last 30 minutes, so whatever is wrong with it did not "
+            + "arrive with an update",
+            v.Reason);
     }
 
     [Fact]
@@ -364,7 +371,7 @@ public class ComposedRuleTwinTests
             new StubHistory(LastUpdate: Now.AddMinutes(-12)), new UnreachableMonitor());
 
         Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Equal("it is running again", v.Reason);
+        Assert.Equal("pz is running again", v.Reason);
     }
 
     [Fact]
@@ -375,7 +382,10 @@ public class ComposedRuleTwinTests
             new StubHistory(LastUpdate: Now.AddMinutes(-12)), new UnreachableMonitor());
 
         Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Equal("failed 12m after an update finished, and is not running", v.Reason);
+        Assert.Equal(
+            "pz failed 12m after an update finished and is not running now — near enough in time "
+            + "that the update is worth ruling out before anything else",
+            v.Reason);
     }
 
     // ---- threshold_stuck ----
@@ -390,7 +400,7 @@ public class ComposedRuleTwinTests
         Verdict v = await Threshold(new StubHistory());
 
         Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Equal("no episode is open", v.Reason);
+        Assert.Equal("no threshold on cpu is currently breached", v.Reason);
     }
 
     [Fact]
@@ -402,7 +412,9 @@ public class ComposedRuleTwinTests
 
         Assert.Equal(VerdictKind.Unreadable, v.Kind);
         Assert.Equal(
-            "only 3 closed episode(s) on record for cpu — too few to say what unusual is", v.Reason);
+            "cpu has only 3 breach(es) on record that cleared — too few to say what unusually "
+            + "long means on this host",
+            v.Reason);
     }
 
     /// <summary>
@@ -421,7 +433,10 @@ public class ComposedRuleTwinTests
             Episodes: (TimeSpan.FromMinutes(40), 12)));
 
         Assert.Equal(VerdictKind.Holds, v.Kind);
-        Assert.Equal("open for 3.0h, past the p95 of 40m over 12 closed episodes", v.Reason);
+        Assert.Equal(
+            "cpu has been over its threshold for 3.0h — 95% of the 12 breaches on record here "
+            + "cleared within 40m, so this one is not clearing the way they do",
+            v.Reason);
     }
 
     [Fact]
@@ -432,7 +447,10 @@ public class ComposedRuleTwinTests
             Episodes: (TimeSpan.FromMinutes(40), 12)));
 
         Assert.Equal(VerdictKind.DoesNotHold, v.Kind);
-        Assert.Equal("open for 20m, within the p95 of 40m", v.Reason);
+        Assert.Equal(
+            "cpu has been over its threshold for 20m, inside the 40m that 95% of its breaches "
+            + "clear within",
+            v.Reason);
     }
 
     // ---- what each rule evaluates over ----
@@ -512,6 +530,10 @@ public class ComposedRuleTwinTests
             string instance, CancellationToken token) =>
             ValueTask.FromResult(Declaration
                 ?? Reading<MemoryDeclaration>.Unavailable("no declaration in this fixture"));
+
+        public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+            string instance, CancellationToken token) =>
+            ValueTask.FromResult(Reading<InstanceSupervision>.Measured(new InstanceSupervision(null)));
     }
 
     private sealed class StubFootprints(

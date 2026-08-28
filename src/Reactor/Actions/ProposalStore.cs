@@ -30,8 +30,19 @@ namespace TheKrystalShip.Kgsm.Reactor.Actions;
 /// </remarks>
 internal sealed class ProposalStore(ObservationLedger ledger)
 {
-    /// <summary>Creates the table. Idempotent, and called once at startup.</summary>
-    public void Initialize() => ledger.Execute(
+    /// <summary>Creates the table and brings an existing one up to date. Idempotent, called at startup.</summary>
+    public void Initialize()
+    {
+        Create();
+
+        // ⚠ CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it is, so a column added
+        // here reaches a host that already has the table only through this. Nullable, like every
+        // additive column in this ledger: an offer staged before the condition was dated does not
+        // carry one, and unknown is the honest answer for it.
+        ledger.AddColumnIfMissing("proposals", "opened_at", "INTEGER NULL");
+    }
+
+    private void Create() => ledger.Execute(
         """
         CREATE TABLE IF NOT EXISTS proposals (
             handle        TEXT    NOT NULL PRIMARY KEY,
@@ -46,6 +57,7 @@ internal sealed class ProposalStore(ObservationLedger ledger)
             action        TEXT    NOT NULL,
             action_inst   TEXT    NULL,
             reason        TEXT    NOT NULL,
+            opened_at     INTEGER NULL,
             staged_at     INTEGER NOT NULL,
             expires_at    INTEGER NOT NULL,
             state         TEXT    NOT NULL,
@@ -81,12 +93,12 @@ internal sealed class ProposalStore(ObservationLedger ledger)
                 """
                 INSERT INTO proposals (
                     handle, decision_id, rule_id, rule_author, subject, subject_kind, episode_key,
-                    severity, action_name, action, action_inst, reason, staged_at, expires_at, state,
-                    answered_at, answered_by, ok, artifact, detail)
+                    severity, action_name, action, action_inst, reason, opened_at, staged_at,
+                    expires_at, state, answered_at, answered_by, ok, artifact, detail)
                 VALUES (
                     $handle, $decision, $rule, $author, $subject, $kind, $episode,
-                    $severity, $actionName, $action, $actionInst, $reason, $staged, $expires, $state,
-                    NULL, NULL, NULL, NULL, NULL);
+                    $severity, $actionName, $action, $actionInst, $reason, $opened, $staged,
+                    $expires, $state, NULL, NULL, NULL, NULL, NULL);
                 """,
                 command =>
                 {
@@ -102,6 +114,10 @@ internal sealed class ProposalStore(ObservationLedger ledger)
                     command.Parameters.AddWithValue("$action", proposal.Action);
                     command.Parameters.AddWithValue("$actionInst", (object?)proposal.ActionInstance ?? DBNull.Value);
                     command.Parameters.AddWithValue("$reason", proposal.Reason);
+                    command.Parameters.AddWithValue("$opened",
+                        proposal.OpenedAt is { } opened
+                            ? opened.ToUnixTimeSeconds()
+                            : (object)DBNull.Value);
                     command.Parameters.AddWithValue("$staged", proposal.StagedAt.ToUnixTimeSeconds());
                     command.Parameters.AddWithValue("$expires", proposal.ExpiresAt.ToUnixTimeSeconds());
                     command.Parameters.AddWithValue("$state", Wire(proposal.State));
@@ -263,8 +279,8 @@ internal sealed class ProposalStore(ObservationLedger ledger)
 
     private const string Columns =
         "handle, decision_id, rule_id, rule_author, subject, subject_kind, episode_key, severity, "
-        + "action_name, action, action_inst, reason, staged_at, expires_at, state, answered_at, "
-        + "answered_by, ok, artifact, detail";
+        + "action_name, action, action_inst, reason, opened_at, staged_at, expires_at, state, "
+        + "answered_at, answered_by, ok, artifact, detail";
 
     private static Proposal Read(SqliteDataReader reader) => new(
         Handle: reader.GetString(0),
@@ -279,14 +295,15 @@ internal sealed class ProposalStore(ObservationLedger ledger)
         Action: reader.GetString(9),
         ActionInstance: reader.IsDBNull(10) ? null : reader.GetString(10),
         Reason: reader.GetString(11),
-        StagedAt: DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(12)),
-        ExpiresAt: DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(13)),
-        State: Parse(reader.GetString(14)),
-        AnsweredAt: reader.IsDBNull(15) ? null : DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(15)),
-        AnsweredBy: reader.IsDBNull(16) ? null : reader.GetString(16),
-        Ok: reader.IsDBNull(17) ? null : reader.GetInt64(17) != 0,
-        Artifact: reader.IsDBNull(18) ? null : reader.GetString(18),
-        Detail: reader.IsDBNull(19) ? null : reader.GetString(19));
+        OpenedAt: reader.IsDBNull(12) ? null : DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(12)),
+        StagedAt: DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(13)),
+        ExpiresAt: DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(14)),
+        State: Parse(reader.GetString(15)),
+        AnsweredAt: reader.IsDBNull(16) ? null : DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(16)),
+        AnsweredBy: reader.IsDBNull(17) ? null : reader.GetString(17),
+        Ok: reader.IsDBNull(18) ? null : reader.GetInt64(18) != 0,
+        Artifact: reader.IsDBNull(19) ? null : reader.GetString(19),
+        Detail: reader.IsDBNull(20) ? null : reader.GetString(20));
 
     private static ProposalState Parse(string state) => state switch
     {

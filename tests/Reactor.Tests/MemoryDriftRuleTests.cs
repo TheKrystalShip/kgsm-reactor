@@ -121,7 +121,7 @@ public class MemoryDriftRuleTests
 
         Verdict shipped = await Evaluate(young, new MemoryDeclaration(4096, 8192, null));
         Assert.Equal(VerdictKind.Unreadable, shipped.Kind);
-        Assert.Contains("span", shipped.Reason);
+        Assert.Contains("observed across", shipped.Reason);
 
         Verdict tuned = await Evaluate(
             young, new MemoryDeclaration(4096, 8192, null),
@@ -298,6 +298,10 @@ public class MemoryDriftRuleTests
 
         public ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(
             string instance, CancellationToken token) => ValueTask.FromResult(declaration);
+
+        public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+            string instance, CancellationToken token) =>
+            ValueTask.FromResult(Reading<InstanceSupervision>.Measured(new InstanceSupervision(null)));
     }
 
     private sealed class StubFootprints(

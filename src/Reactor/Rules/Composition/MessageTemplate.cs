@@ -15,6 +15,9 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 /// The placeholders, all resolved against the same reads the clauses used:
 /// <list type="bullet">
 /// <item><description><c>{subject}</c> — what is being decided about.</description></item>
+/// <item><description><c>{openedAt}</c> — when the condition began.</description></item>
+/// <item><description><c>{openFor}</c> — how long it has been true, as an operator reads a
+/// duration.</description></item>
 /// <item><description><c>{settleSeconds}</c> — how long the rule waited before judging.</description></item>
 /// <item><description><c>{reason}</c> — the reader's own words. Only in an unreadable message.</description></item>
 /// <item><description><c>{alias}</c> — a signal's value, rendered for a person.</description></item>
@@ -37,6 +40,22 @@ internal static class MessageTemplate
     public const string SubjectToken = "subject";
     public const string SettleToken = "settleSeconds";
     public const string ReasonToken = "reason";
+
+    /// <summary>When the condition began.</summary>
+    /// <remarks>
+    /// ⚠ <b>Not every evaluation has one, and the two that do not are different.</b> A rule that wakes
+    /// on nothing judges a standing fact with no opening to name; a preview is asked about a rule that
+    /// has never run. Both leave this unresolved, which ends the sentence as unreadable rather than
+    /// dating a condition from whenever it happened to be asked about.
+    /// </remarks>
+    public const string OpenedAtToken = "openedAt";
+
+    /// <summary>How long the condition has been true.</summary>
+    public const string OpenForToken = "openFor";
+
+    /// <summary>The tokens the evaluator resolves itself, which therefore name no signal.</summary>
+    private static readonly string[] Intrinsic =
+        [SubjectToken, SettleToken, ReasonToken, OpenedAtToken, OpenForToken];
 
     /// <summary>Literal text, or one placeholder.</summary>
     /// <param name="Literal">The text, when this is text. Null for a placeholder.</param>
@@ -134,10 +153,13 @@ internal static class MessageTemplate
         return new Part(null, head, format, comparand, argument);
     }
 
+    /// <summary>Whether a name is one the evaluator answers itself, and therefore not bindable.</summary>
+    public static bool IsIntrinsic(string name) => Intrinsic.Contains(name, StringComparer.Ordinal);
+
     /// <summary>Every alias a template reads, so a rule can be checked before it runs.</summary>
     public static IEnumerable<string> Aliases(string template) =>
         Parse(template)
             .Where(p => p.Literal is null && p.Head is not null
-                        && p.Head is not (SubjectToken or SettleToken or ReasonToken))
+                        && !Intrinsic.Contains(p.Head, StringComparer.Ordinal))
             .Select(p => p.Head!);
 }

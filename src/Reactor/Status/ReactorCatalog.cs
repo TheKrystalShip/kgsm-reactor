@@ -121,7 +121,8 @@ public sealed record ReactorCatalog
         Actions =
         [
             .. ActionCatalog.All.Select(a => new ActionInfo(
-                a.Id, a.Label, a.Description, a.Create("an-instance").ChangesServerState)),
+                a.Id, a.Label, a.Description, a.Consequence,
+                a.Create("an-instance").ChangesServerState)),
         ],
         Operators = Operators_,
         Outcomes =
@@ -239,6 +240,11 @@ public sealed record SubjectSourceInfo(
 /// <param name="Id">The stable wire id, matching what a decision records.</param>
 /// <param name="Label">Short human name.</param>
 /// <param name="Description">What it does, in an operator's terms.</param>
+/// <param name="Consequence">
+/// What performing it costs, and whether it can be taken back — the sentence a person is shown beside
+/// the offer. It describes the action and never the target, so it reads the same whichever server the
+/// rule turns out to be about.
+/// </param>
 /// <param name="ChangesServerState">
 /// Whether performing it changes the server rather than only adding something beside it. Served
 /// because it is what a person is really being asked to weigh, and because the composition gate
@@ -248,6 +254,7 @@ public sealed record ActionInfo(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("consequence")] string Consequence,
     [property: JsonPropertyName("changesServerState")] bool ChangesServerState);
 
 /// <summary>One way a clause can compare.</summary>

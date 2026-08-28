@@ -89,7 +89,9 @@ internal readonly record struct SignalValue
             SignalKind.Duration => format is null
                 ? RenderDuration(Duration)
                 : Duration.TotalMinutes.ToString(format, CultureInfo.InvariantCulture),
-            SignalKind.Instant => Instant.ToString("O", CultureInfo.InvariantCulture),
+            // Round-trip unless a sentence asks for something else. A moment inside prose wants
+            // `{openedAt:HH:mm}`, and a full ISO stamp mid-sentence is a figure nobody reads.
+            SignalKind.Instant => Instant.ToString(format ?? "O", CultureInfo.InvariantCulture),
             _ => string.Empty,
         };
     }
@@ -229,11 +231,13 @@ internal sealed class EvaluationScope(
     DateTimeOffset now,
     IWorldView world,
     IRuleHistory history,
-    IFootprintSource footprint)
+    IFootprintSource footprint,
+    DateTimeOffset? openedAt = null)
 {
     private readonly Dictionary<string, SignalReading> _signals = new(StringComparer.Ordinal);
 
     private Task<Reading<InstanceRunState>>? _instance;
+    private Task<Reading<InstanceSupervision>>? _supervision;
     private Task<Reading<MemoryDeclaration>>? _declaration;
     private Task<Reading<IReadOnlyList<InstanceFootprint>>>? _footprints;
     private Task<Reading<MemoryTrend>>? _trend;
@@ -242,10 +246,24 @@ internal sealed class EvaluationScope(
 
     public DateTimeOffset Now { get; } = now;
 
+    /// <summary>
+    /// When the condition being judged began, or null when this evaluation has no opening to name.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Null is unknown, and a sentence that asks for it says so rather than dating the condition
+    /// from now.</b> An engine evaluation carries the journal line the episode opened on; a preview
+    /// carries whatever the ledger can find; a rule judging a standing fact carries neither, because
+    /// a footprint drifting from a declaration did not start at a moment anybody observed.
+    /// </remarks>
+    public DateTimeOffset? OpenedAt { get; } = openedAt;
+
     public IRuleHistory History { get; } = history;
 
     public Task<Reading<InstanceRunState>> InstanceAsync(CancellationToken token) =>
         _instance ??= world.InstanceAsync(Subject, token).AsTask();
+
+    public Task<Reading<InstanceSupervision>> SupervisionAsync(CancellationToken token) =>
+        _supervision ??= world.SupervisionAsync(Subject, token).AsTask();
 
     public Task<Reading<MemoryDeclaration>> DeclarationAsync(CancellationToken token) =>
         _declaration ??= world.MemoryDeclarationAsync(Subject, token).AsTask();

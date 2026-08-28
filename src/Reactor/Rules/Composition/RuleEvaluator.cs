@@ -21,6 +21,10 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 /// </remarks>
 internal static class RuleEvaluator
 {
+    /// <summary>What a sentence is told when it asks to date a condition nobody saw begin.</summary>
+    private const string WhenUnknown =
+        "when this condition began is not on record, so it cannot be dated";
+
     /// <summary>Decide one rule about one subject.</summary>
     public static async ValueTask<Verdict> EvaluateAsync(
         RuleDefinition definition, EvaluationScope scope, CancellationToken token)
@@ -254,6 +258,20 @@ internal static class RuleEvaluator
                 case MessageTemplate.ReasonToken:
                     output.Append(reason ?? string.Empty);
                     continue;
+
+                // Unreadable rather than filled from the evaluation instant. A sentence saying a
+                // server has been down "0m" because nobody knew when it went down is worse than one
+                // that admits it cannot date the condition.
+                case MessageTemplate.OpenedAtToken:
+                    if (scope.OpenedAt is not { } at)
+                        return (string.Empty, WhenUnknown);
+                    output.Append(SignalValue.OfInstant(at).Render(part.Format));
+                    continue;
+                case MessageTemplate.OpenForToken:
+                    if (scope.OpenedAt is not { } began)
+                        return (string.Empty, WhenUnknown);
+                    output.Append(SignalValue.OfDuration(scope.Now - began).Render(part.Format));
+                    continue;
             }
 
             if (part.Argument is { } argument)
@@ -334,7 +352,8 @@ internal static class RuleEvaluator
             Settle: definition.Settle,
             Holds: (ctx, token) => EvaluateAsync(
                 definition,
-                new EvaluationScope(ctx.Subject, ctx.Now, ctx.World, ctx.History, ctx.Footprint),
+                new EvaluationScope(
+                    ctx.Subject, ctx.Now, ctx.World, ctx.History, ctx.Footprint, ctx.OpenedAt),
                 token),
             Action: action.Create,
             Subjects: definition.Shape == RuleShape.State

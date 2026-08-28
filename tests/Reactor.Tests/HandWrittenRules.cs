@@ -241,15 +241,15 @@ internal static class HandWrittenRules
             if (footprint.SpanDays < minSpanDays)
             {
                 return Verdict.Unreadable(
-                    $"observations of {ctx.Subject} span {footprint.SpanDays:F1} days, short of the "
-                    + $"{minSpanDays:0.###} a world's growth shows up over");
+                    $"{ctx.Subject} has only been observed across {footprint.SpanDays:F1} days, short "
+                    + $"of the {minSpanDays:0.###} days a world's growth shows up over");
             }
 
             if (footprint.ObservedHours < minObservedHours)
             {
                 return Verdict.Unreadable(
                     $"{ctx.Subject} has been measured for {footprint.ObservedHours:F1} hours, short of "
-                    + $"the {minObservedHours:0.###} a peak means anything over");
+                    + $"the {minObservedHours:0.###} hours a peak means anything over");
             }
 
             if (footprint.Runs < minRuns && footprint.ObservedHours < continuousRunHours)
@@ -284,15 +284,13 @@ internal static class HandWrittenRules
             double driftPct = (observedMb - declaredMb) / (double)declaredMb * 100.0;
             string evidence =
                 $"measured over {footprint.ObservedHours:F0}h spanning {footprint.SpanDays:F0} days";
+            string holds =
+                $"{ctx.Subject} peaks at {observedMb}MB where its blueprint declares {declaredMb}MB, ";
 
             double marginPct = DriftMarginPct;
 
             if (Math.Abs(driftPct) < marginPct)
-            {
-                return Verdict.DoesNotHold(
-                    $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, within "
-                    + $"{marginPct:0.###}% ({evidence})");
-            }
+                return Verdict.DoesNotHold(holds + $"within {marginPct:0.###}% of it ({evidence})");
 
             // Upward drift needs no trend: an instance already holding more than its declaration is
             // not going to be talked out of it by which way it is heading.
@@ -305,8 +303,7 @@ internal static class HandWrittenRules
                         : ", without ever stalling on memory";
 
                 return Verdict.Holds(
-                    $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, "
-                    + $"{driftPct:+0;-0}% above it ({evidence}){pressure}");
+                    holds + $"{Math.Abs(driftPct):F0}% above it ({evidence}){pressure}");
             }
 
             // Downward is the direction that can do harm, so it carries the extra burden: a working
@@ -317,22 +314,20 @@ internal static class HandWrittenRules
             if (trend.State != ReadingState.Measured)
             {
                 return Verdict.Unreadable(
-                    $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, but whether "
-                    + $"that has settled cannot be told: {trend.Reason}");
+                    holds + $"but whether it has stopped growing cannot be told: {trend.Reason}");
             }
 
             if (trend.Value.GrowthPct > SettledGrowthPct)
             {
                 return Verdict.DoesNotHold(
-                    $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, but its "
-                    + $"working set has grown {trend.Value.GrowthPct:F0}% across the window and has "
-                    + "not found its ceiling");
+                    holds + $"but its working set is still climbing — up {trend.Value.GrowthPct:F0}% "
+                    + "across the window — so it has not found its ceiling and the gap may close on "
+                    + "its own");
             }
 
             return Verdict.Holds(
-                $"{ctx.Subject} holds {observedMb}MB against {declaredMb}MB declared, "
-                + $"{driftPct:+0;-0}% below it ({evidence}), settled at {trend.Value.GrowthPct:+0;-0}% "
-                + $"growth over {trend.Value.Points} points");
+                holds + $"{Math.Abs(driftPct):F0}% below it ({evidence}), and settled — its working "
+                + $"set moved {trend.Value.GrowthPct:+0;-0}% over {trend.Value.Points} measurements");
         },
         // Rewriting instance config is on the never-list, and the figure a surface would render is the
         // monitor's to serve. So the decision record is the whole output and there is nothing to stage.
@@ -380,8 +375,12 @@ internal static class HandWrittenRules
             // backup taken over an instance that is coming back up is a hot archive where a cold one
             // was intended — no error, just a quieter and worse result.
             return state.GaveUp
-                ? Verdict.Holds($"still given up on after {(int)GiveUpSettle.TotalSeconds}s ({state.Restarts} consecutive failures)")
-                : Verdict.DoesNotHold($"no longer given up on — the supervisor reports {state.Phase}");
+                ? Verdict.Holds(
+                    $"{ctx.Subject} crashed {state.Restarts} times in a row and the supervisor has "
+                    + "stopped trying to restart it — it stays down until somebody starts it")
+                : Verdict.DoesNotHold(
+                    $"the supervisor is looking after {ctx.Subject} again — it reports the instance "
+                    + $"{state.Phase}");
         },
         Action: instance => new ReactorAction.CreateBackup(instance));
 
@@ -413,18 +412,22 @@ internal static class HandWrittenRules
 
             if (update is null)
                 return Verdict.DoesNotHold(
-                    $"no update finished on {ctx.Subject} in the last {(int)RegressionWindow.TotalMinutes} minutes");
+                    $"nothing updated {ctx.Subject} in the last "
+                    + $"{(int)RegressionWindow.TotalMinutes} minutes, so whatever is wrong with it "
+                    + "did not arrive with an update");
 
             var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
             if (reading.State != KGSM.Core.Models.ReadingState.Measured)
                 return Verdict.Unreadable($"the supervisor could not be read: {reading.Reason ?? "no reason given"}");
 
             if (reading.Value.Running)
-                return Verdict.DoesNotHold("it is running again");
+                return Verdict.DoesNotHold($"{ctx.Subject} is running again");
 
             var since = ctx.Now - update.Value.OccurredAt;
             return Verdict.Holds(
-                $"failed {(int)since.TotalMinutes}m after an update finished, and is not running");
+                $"{ctx.Subject} failed {(int)since.TotalMinutes}m after an update finished and is not "
+                + "running now — near enough in time that the update is worth ruling out before "
+                + "anything else");
         },
         Action: instance => new ReactorAction.ProposeRestore(instance));
 
@@ -467,21 +470,26 @@ internal static class HandWrittenRules
 
             OpenEpisode episode = open.FirstOrDefault(e => e.Subject == ctx.Subject);
             if (episode.Subject is null)
-                return ValueTask.FromResult(Verdict.DoesNotHold("no episode is open"));
+                return ValueTask.FromResult(
+                    Verdict.DoesNotHold($"no threshold on {ctx.Subject} is currently breached"));
 
             (TimeSpan p95, int samples) = ctx.History.EpisodeDuration(
                 "host.threshold.breached", "host.threshold.cleared", ctx.Subject, ctx.Now - LookBack);
 
             if (samples < MinimumEpisodeSamples)
                 return ValueTask.FromResult(Verdict.Unreadable(
-                    $"only {samples} closed episode(s) on record for {ctx.Subject} — too few to say what unusual is"));
+                    $"{ctx.Subject} has only {samples} breach(es) on record that cleared — too few to "
+                    + "say what unusually long means on this host"));
 
-            TimeSpan openFor = ctx.Now - episode.OpenedAt;
-            return ValueTask.FromResult(openFor > p95
+            TimeSpan breachAge = ctx.Now - episode.OpenedAt;
+            return ValueTask.FromResult(breachAge > p95
                 ? Verdict.Holds(
-                    $"open for {Format(openFor)}, past the p95 of {Format(p95)} over {samples} closed episodes")
+                    $"{ctx.Subject} has been over its threshold for {Format(breachAge)} — 95% of the "
+                    + $"{samples} breaches on record here cleared within {Format(p95)}, so this one is "
+                    + "not clearing the way they do")
                 : Verdict.DoesNotHold(
-                    $"open for {Format(openFor)}, within the p95 of {Format(p95)}"));
+                    $"{ctx.Subject} has been over its threshold for {Format(breachAge)}, inside the "
+                    + $"{Format(p95)} that 95% of its breaches clear within"));
         },
         Action: _ => new ReactorAction.Nothing());
 

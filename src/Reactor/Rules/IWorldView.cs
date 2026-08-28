@@ -49,6 +49,26 @@ internal readonly record struct InstanceRunState(string Phase, bool DesiredRunni
 internal readonly record struct MemoryDeclaration(int? MinRamMb, int? RecommendedRamMb, string? HeapFlag);
 
 /// <summary>
+/// What the supervisor is configured to do about an instance failing.
+/// </summary>
+/// <remarks>
+/// <b>The denominator behind a failure count.</b> "Failed twice" and "failed twice out of two" are
+/// different statements, and only the second says the supervisor has run out of attempts rather than
+/// being partway through them.
+/// </remarks>
+/// <param name="MaxRestarts">
+/// How many times in a row the supervisor will restart it before giving up, or null when the instance
+/// declares no figure of its own.
+/// <para>
+/// ⚠ <b>Null is "this instance names none", never "there is no limit".</b> The watchdog falls back to
+/// its own setting, which is not readable from here — so a rule that wants the denominator asks
+/// whether there is one and says what it found, and nothing anywhere substitutes a plausible number
+/// for the one that actually applies.
+/// </para>
+/// </param>
+internal readonly record struct InstanceSupervision(int? MaxRestarts);
+
+/// <summary>
 /// The live world, read fresh at every evaluation.
 /// </summary>
 /// <remarks>
@@ -71,4 +91,13 @@ internal interface IWorldView
 
     /// <summary>What this instance is declared to need, and whether it can be measured at all.</summary>
     ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(string instance, CancellationToken token);
+
+    /// <summary>How many failures the supervisor will absorb before it gives up on this instance.</summary>
+    /// <remarks>
+    /// Its own read rather than a field on <see cref="InstanceRunState"/>: run state is asked for by
+    /// every rule that mentions the supervisor at all, and this comes from the engine's instance
+    /// record instead of the supervisor's socket. Folding them would put an engine read behind every
+    /// <c>world.*</c> signal on the host.
+    /// </remarks>
+    ValueTask<Reading<InstanceSupervision>> SupervisionAsync(string instance, CancellationToken token);
 }

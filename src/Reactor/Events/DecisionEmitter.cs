@@ -7,6 +7,7 @@ using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Interfaces;
 
 using TheKrystalShip.KGSM.Events;
@@ -342,7 +343,9 @@ internal sealed class DecisionEmitter(
             // Neutral: an offer is a question, and an outcome here would have a surface colour it as a
             // result. What became of it is the resolution's to report.
             EventOutcome.Neutral,
-            $"offers to {proposal.Action} — {proposal.Reason}",
+            // The fault first and the offer second, which is the order somebody decides in: what is
+            // wrong, then what is being proposed about it.
+            $"{proposal.Reason}. {Sentence($"offers to {proposal.Action}")} Waiting for somebody to confirm.",
             ReactorEvents.Proposed, proposal.Subject, token).ConfigureAwait(false);
     }
 
@@ -402,9 +405,12 @@ internal sealed class DecisionEmitter(
             // The ACTION's outcome, unlike the other three: something was attempted and either worked
             // or did not, and that is exactly what this event reports.
             result.Ok ? EventOutcome.Success : EventOutcome.Failure,
+            // Past tense from the performer, which is the only thing that knows what actually
+            // happened — including the id of whatever it produced. The rule's description of the
+            // action is written in the infinitive and belongs to an offer, not to a completed one.
             result.Ok
-                ? $"{decision.Action} — {result.Detail ?? "done"}"
-                : $"tried to {decision.Action} and could not — {result.Detail}",
+                ? $"{decision.Reason}. {Sentence(result.Detail ?? "done")}"
+                : $"{decision.Reason}. {Sentence($"tried to {decision.Action} and could not: {result.Detail}")}",
             ReactorEvents.Acted, decision.Subject, token).ConfigureAwait(false);
     }
 
@@ -419,15 +425,28 @@ internal sealed class DecisionEmitter(
     private static string Describe(Proposal proposal, string resolution) => proposal.State switch
     {
         ProposalState.Confirmed when proposal.Ok is true =>
-            $"{proposal.AnsweredBy} confirmed — {proposal.Detail ?? proposal.Action}",
+            $"{proposal.AnsweredBy} authorised the offer to {proposal.Action}. "
+            + Sentence(proposal.Detail ?? "done"),
+
         ProposalState.Confirmed =>
-            $"{proposal.AnsweredBy} confirmed and it could not be done — {proposal.Detail}",
-        ProposalState.Dismissed => $"{proposal.AnsweredBy} dismissed the offer to {proposal.Action}",
+            $"{proposal.AnsweredBy} authorised the offer to {proposal.Action} and it could not be "
+            + $"done: {proposal.Detail}",
+
+        ProposalState.Dismissed => $"{proposal.AnsweredBy} declined the offer to {proposal.Action}",
+
+        // ⚠ It says the condition was never re-checked, because that is the part a reader gets wrong.
+        // An offer expiring is this leaf giving up on being answered, and says nothing whatever about
+        // whether the server is still broken.
         ProposalState.Lapsed =>
-            $"nobody answered the offer to {proposal.Action} before it expired",
+            $"nobody answered the offer to {proposal.Action}. It expired after "
+            + $"{(proposal.ExpiresAt - proposal.StagedAt).TotalHours:F0}h, and whether the condition "
+            + "still holds was never re-checked",
+
         ProposalState.NoLongerApplicable =>
-            $"no longer applicable when {proposal.AnsweredBy} confirmed — {proposal.Detail}",
-        _ => $"{resolution} — {proposal.Action}",
+            $"{proposal.AnsweredBy} authorised the offer to {proposal.Action}, and the condition had "
+            + $"gone by then, so nothing was done: {proposal.Detail}",
+
+        _ => $"{resolution}: {proposal.Action}",
     };
 
     /// <summary>
@@ -459,12 +478,28 @@ internal sealed class DecisionEmitter(
     /// One decision in the words a person reads.
     /// </summary>
     /// <remarks>
-    /// The actor already names the rule, so this completes that sentence rather than repeating it: a
-    /// reader sees "rule:stale_backup fired on Ketchup — no backup in 48h". The reason is the rule's
-    /// own, and is never rewritten here.
+    /// <para>
+    /// <b>The rule's own sentence, and then what the reactor made of it.</b> A reason names its own
+    /// subject and stands alone, so this adds only what the reason cannot know: whether anything
+    /// followed from it. The reason itself is never rewritten here.
+    /// </para>
+    /// <para>
+    /// The three outcomes that mean <em>the condition holds and the reactor is staying quiet</em> share
+    /// one lead-in, because which gate stopped it is what the reason already goes on to say — and the
+    /// wire outcome in the payload is what a program reads. Spelling them apart here would put the
+    /// same distinction in front of a reader twice, in different words.
+    /// </para>
     /// </remarks>
-    internal static string SummaryFor(Decision decision) =>
-        $"{Spell(decision.Outcome)} on {decision.Subject} — {decision.Reason}";
+    internal static string SummaryFor(Decision decision) => decision.Outcome switch
+    {
+        // A report-only rule's reason IS its output. "Would do nothing" beside it says less than
+        // nothing — it invites a reader to look for an action that was never the point.
+        DecisionOutcome.Fired when decision.ActionName == ActionCatalog.None => decision.Reason,
+        DecisionOutcome.Fired => $"{decision.Reason}. {Sentence($"would {decision.Action}")}",
+        DecisionOutcome.Settled => $"cleared on its own: {decision.Reason}",
+        DecisionOutcome.Unreadable => $"cannot tell: {decision.Reason}",
+        _ => $"holds, and this stays quiet: {decision.Reason}",
+    };
 
     /// <summary>
     /// One decision as the payload that is written.
@@ -493,6 +528,32 @@ internal sealed class DecisionEmitter(
         SourceOffset = decision.Source.Offset,
         SourceEventId = decision.Source.EventId,
     };
+
+    /// <summary>
+    /// A clause written to stand as its own sentence after a full stop: capitalised, and closed.
+    /// </summary>
+    /// <remarks>
+    /// Every fragment joined here is written lower-case and open, because each is also read on its
+    /// own — a rule's action reads <em>"would archive it"</em> in an editor and a performer's detail is
+    /// the body of a log line. Punctuating them at the source would put a stray capital in the middle
+    /// of every other sentence they appear in.
+    /// </remarks>
+    private static string Sentence(string text)
+    {
+        string trimmed = text.Trim();
+        if (trimmed.Length == 0)
+            return string.Empty;
+
+        // Only the first letter, and only when it is one: an id, a version or a figure at the front of
+        // a sentence is spelled the way the thing it names is spelled.
+        string opened = char.IsLower(trimmed[0])
+            ? char.ToUpperInvariant(trimmed[0]) + trimmed[1..]
+            : trimmed;
+
+        return opened.EndsWith('.') || opened.EndsWith('!') || opened.EndsWith('?')
+            ? opened
+            : opened + ".";
+    }
 
     /// <summary>
     /// Lower-case, underscore-separated — the spelling every other event payload on this host uses for

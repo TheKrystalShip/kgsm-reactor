@@ -109,6 +109,30 @@ internal sealed class WatchdogWorldView(
         }
     }
 
+    /// <inheritdoc/>
+    public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+        string instance, CancellationToken token)
+    {
+        try
+        {
+            Instance? spec = instances.GetInstanceInfo(instance);
+
+            return ValueTask.FromResult(spec is null
+                ? Reading<InstanceSupervision>.Unavailable(
+                    $"the engine does not know an instance called {instance}")
+                // A limit of zero or below is not a limit, and passing one on would let a sentence
+                // read "0 of 0" about a supervisor that had in fact tried.
+                : Reading<InstanceSupervision>.Measured(
+                    new InstanceSupervision(Positive(spec.CrashMaxRestarts))));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read how {Instance} is supervised.", instance);
+            return ValueTask.FromResult(Reading<InstanceSupervision>.Unavailable(
+                $"the engine could not be read: {ex.Message}"));
+        }
+    }
+
     /// <summary>A declared figure of zero is KGSM's spelling of "not declared", not a requirement of none.</summary>
     private static int? Positive(int? value) => value is { } v and > 0 ? v : null;
 

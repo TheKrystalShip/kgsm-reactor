@@ -578,6 +578,10 @@ public sealed class ProposalTests : IDisposable
         public ValueTask<Reading<MemoryDeclaration>> MemoryDeclarationAsync(
             string instance, CancellationToken token) =>
             ValueTask.FromResult(Reading<MemoryDeclaration>.Unavailable("not asked here"));
+
+        public ValueTask<Reading<InstanceSupervision>> SupervisionAsync(
+            string instance, CancellationToken token) =>
+            ValueTask.FromResult(Reading<InstanceSupervision>.Measured(new InstanceSupervision(null)));
     }
 
     private sealed class EmptyFootprints : IFootprintSource

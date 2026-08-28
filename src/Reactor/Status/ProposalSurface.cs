@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using TheKrystalShip.Kgsm.Reactor.Actions;
+using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Status;
@@ -65,6 +66,25 @@ public sealed record ProposalView
     public string? ActionInstance { get; init; }
 
     /// <summary>
+    /// What performing it costs, and whether it can be taken back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The other half of what a person needs to answer.</b> <see cref="Reason"/> says what is wrong;
+    /// this says what the host will look like afterwards. A confirm dialog carrying only the first asks
+    /// somebody to authorise an action on the strength of the problem it names.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>This build's sentence, resolved from the catalog rather than stored with the offer.</b> An
+    /// offer staged before an action's consequence was understood better must be answered against what
+    /// performing it does <em>now</em> — and an action this build no longer has says so, which is the
+    /// same answer redeeming it would give.
+    /// </para>
+    /// </remarks>
+    [JsonPropertyName("actionConsequence")]
+    public required string ActionConsequence { get; init; }
+
+    /// <summary>
     /// Why the rule concluded it, carrying the figures.
     /// </summary>
     /// <remarks>
@@ -78,6 +98,18 @@ public sealed record ProposalView
     /// <summary>The decision that staged it, so a reader can find the judgment behind the offer.</summary>
     [JsonPropertyName("decisionId")]
     public required string DecisionId { get; init; }
+
+    /// <summary>
+    /// When the condition began, or null when nothing observed it beginning.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="StagedAt"/>, and further back: the two differ by the settle window at
+    /// least, and by however long the condition had been true before anything woke. A surface showing
+    /// only the staging instant reports how long ago the reactor spoke, which is not how long the
+    /// server has been broken.
+    /// </remarks>
+    [JsonPropertyName("openedAt")]
+    public DateTimeOffset? OpenedAt { get; init; }
 
     /// <summary>When it was offered.</summary>
     [JsonPropertyName("stagedAt")]
@@ -129,8 +161,14 @@ public sealed record ProposalView
         ActionName = proposal.ActionName,
         Action = proposal.Action,
         ActionInstance = proposal.ActionInstance,
+        // Resolved from the catalog rather than read off the row, so it is what performing the action
+        // does on this build. An action this build does not have describes doing nothing, which is
+        // exactly what redeeming the offer would do.
+        ActionConsequence = ActionCatalog.ById(proposal.ActionName)?.Consequence
+            ?? "This build no longer has that action, so confirming would do nothing.",
         Reason = proposal.Reason,
         DecisionId = proposal.DecisionId,
+        OpenedAt = proposal.OpenedAt,
         StagedAt = proposal.StagedAt,
         ExpiresAt = proposal.ExpiresAt,
         State = ProposalStore.Wire(proposal.State),

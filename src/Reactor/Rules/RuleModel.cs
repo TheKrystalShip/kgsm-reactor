@@ -117,6 +117,24 @@ internal abstract record ReactorAction
     public abstract string Describe();
 
     /// <summary>
+    /// What performing it costs, and whether it can be taken back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The half of an offer that is not about the fault.</b> A person deciding whether to authorise
+    /// something needs to know what the host will look like afterwards, and every part of that lives
+    /// here rather than in the rule: the rule found a condition, and what an action does to a server is
+    /// a property of the action on every host that has it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>It says what changes, never how likely it is to help.</b> "This will fix it" is a claim
+    /// about a fault nothing here has diagnosed, and an offer that made one would be selling the action
+    /// rather than describing it.
+    /// </para>
+    /// </remarks>
+    public abstract string Consequence { get; }
+
+    /// <summary>
     /// The stable name of the action, for a reader that switches on it rather than reads it.
     /// </summary>
     /// <remarks>
@@ -141,6 +159,9 @@ internal abstract record ReactorAction
 
         public override string Describe() => "nothing";
 
+        /// <summary>Nothing is offered for this, so nobody is ever shown it.</summary>
+        public override string Consequence => "Nothing on this host changes.";
+
         public override string Name => "none";
 
         public override string? TargetInstance => null;
@@ -153,7 +174,12 @@ internal abstract record ReactorAction
         /// <summary>Additive: it takes nothing away and competes with nothing.</summary>
         public override bool ChangesServerState => false;
 
-        public override string Describe() => $"take a pinned backup of {Instance}";
+        public override string Describe() => $"archive {Instance} as it stands, pinned";
+
+        public override string Consequence =>
+            "Adds an archive and changes nothing about the server — it is not started, stopped or "
+            + "written to. The archive is pinned, so rotation never deletes it and it takes no slot "
+            + "from the ordinary backups. It costs disk until somebody removes it.";
 
         public override string Name => "create_backup";
 
@@ -175,7 +201,12 @@ internal abstract record ReactorAction
     {
         public override bool ChangesServerState => true;
 
-        public override string Describe() => $"restore {Instance} to its pre-update backup";
+        public override string Describe() => $"roll {Instance} back to the archive taken before its update";
+
+        public override string Consequence =>
+            "Overwrites the server's files with the archive's. Everything it has done since that "
+            + "archive was taken — world state, saves, config edits — is gone, and nothing keeps a "
+            + "copy of it unless somebody archives it first. There is no undo.";
 
         public override string Name => "propose_restore";
 
@@ -192,12 +223,21 @@ internal abstract record ReactorAction
 /// What kgsm-monitor has measured, for the questions no event answers at all. Reads through it are
 /// three-valued like the rest: the monitor is a leaf and may not be installed.
 /// </param>
+/// <param name="OpenedAt">
+/// When the condition being judged began, or null when this evaluation has no opening to name.
+/// <para>
+/// ⚠ <b>Not the evaluation instant, and never filled in with it.</b> A sentence dating a crash loop
+/// from the moment somebody looked at it would be a fabricated measurement in the one place an
+/// operator most needs a real one.
+/// </para>
+/// </param>
 internal sealed record RuleContext(
     string Subject,
     DateTimeOffset Now,
     IWorldView World,
     IRuleHistory History,
-    IFootprintSource Footprint);
+    IFootprintSource Footprint,
+    DateTimeOffset? OpenedAt = null);
 
 /// <summary>
 /// What a state rule is given to work out which subjects it should evaluate.

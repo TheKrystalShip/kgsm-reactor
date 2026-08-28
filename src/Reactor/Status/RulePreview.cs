@@ -141,7 +141,14 @@ public sealed record RulePreview
             {
                 verdict = await RuleEvaluator.EvaluateAsync(
                     definition,
-                    new EvaluationScope(one, now, world, history, footprint),
+                    // Looked up rather than left unknown, so a rule whose sentence dates its condition
+                    // previews as the sentence a person will actually read. A rule that wakes on
+                    // nothing has no opening to find, and such a sentence previews as unreadable —
+                    // which is what it would do when the rule ran.
+                    new EvaluationScope(one, now, world, history, footprint,
+                        definition.Wakes.Count == 0
+                            ? null
+                            : EpisodeShape.BeganAt(history, definition.Wakes[0], one, now)),
                     token).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

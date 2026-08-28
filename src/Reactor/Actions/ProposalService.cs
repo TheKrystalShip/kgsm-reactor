@@ -130,6 +130,9 @@ internal sealed class ProposalService(
             Action: decision.Action,
             ActionInstance: decision.ActionInstance,
             Reason: decision.Reason,
+            // ⚠ The decision's own opening, not the staging instant. They differ by the settle window
+            // at least, and by however long the condition had been true before anything woke.
+            OpenedAt: definition.Wakes.Count == 0 ? null : decision.OpenedAt,
             StagedAt: now,
             ExpiresAt: now + LifetimeOf(definition));
 
@@ -426,7 +429,12 @@ internal sealed class ProposalService(
         try
         {
             Rule rule = RuleEvaluator.ToRule(definition);
-            var context = new RuleContext(proposal.Subject, now, world, history, footprint);
+
+            // ⚠ The opening carried on the offer, not one looked up now. The condition is re-derived
+            // against the live world — that is the safety property — but WHEN it began is a fact about
+            // the episode this offer was staged for, and a fresh lookup could land on a later one.
+            var context = new RuleContext(
+                proposal.Subject, now, world, history, footprint, proposal.OpenedAt);
             return await rule.Holds(context, token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
