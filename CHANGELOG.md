@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the descriptor names this leaf's unit, not a path to it (0.28.0)
+
+The `systemd-unit` floor source names `kgsm-reactor.service`. Where that file sits is a property of how the host was
+provisioned — `/usr/lib/systemd/system` when a package installed it, `/etc` when a deploy script placed
+it — and this leaf cannot know which, so naming one of them made the Control Panel report every value
+this unit sets as unknown on the other kind of host.
+
 ### Added — a rule can be switched off without losing what it would do (0.27.0)
 
 `enabled` is a field of its own on a rule, beside `mode`. The two answer different questions —
