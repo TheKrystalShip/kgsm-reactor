@@ -1,4 +1,4 @@
-using TheKrystalShip.KGSM.LeafConfig;
+using TheKrystalShip.KGSM.ComponentConfig;
 
 namespace TheKrystalShip.Kgsm.Reactor;
 
@@ -24,7 +24,7 @@ namespace TheKrystalShip.Kgsm.Reactor;
 /// the point of typing it at all.
 /// </para>
 /// </remarks>
-[LeafSection(Section)]
+[ConfigSection(Section)]
 internal sealed class ReactorSettings
 {
     /// <summary>The configuration section this type binds to.</summary>
@@ -40,7 +40,7 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>Whether the reactor watches the host's events at all. With this off it keeps running and
     /// records nothing, which is how you silence it without stopping the service.</panel>
-    [LeafField("reactorEnabled", "Observe events", Group = "general", Type = LeafType.Bool)]
+    [ConfigField("reactorEnabled", "Observe events", Group = "general", Type = ConfigType.Bool)]
     public bool? Enabled { get; set; }
 
     /// <summary>
@@ -55,8 +55,8 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>Path to the KGSM executable. The reactor re-reads the world through it before deciding
     /// anything, so it is checked at startup and the daemon refuses to run if nothing is there.</panel>
-    [LeafField("kgsmPath", "KGSM executable", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("kgsmPath", "KGSM executable", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string KgsmPath { get; set; } = "/usr/bin/kgsm";
 
     /// <summary>Where the engine's own event journal lives.</summary>
@@ -66,8 +66,8 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>Where the KGSM engine writes its event journal. Every other component's journal is found
     /// automatically; the engine's is the one that has to be named.</panel>
-    [LeafField("journalDir", "Engine event journal", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("journalDir", "Engine event journal", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string JournalDir { get; set; } = "/var/lib/kgsm/events";
 
     /// <summary>
@@ -77,8 +77,8 @@ internal sealed class ReactorSettings
     /// <panel>Where the host keeps each KGSM component's state directory. The reactor scans it to find
     /// every component's event journal, so pointing it elsewhere makes the reactor deaf to everything
     /// except the engine.</panel>
-    [LeafField("stateRoot", "Component state root", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("stateRoot", "Component state root", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string StateRoot { get; set; } = string.Empty;
 
     /// <summary>
@@ -87,8 +87,8 @@ internal sealed class ReactorSettings
     /// </summary>
     /// <panel>The database file the reactor records what it saw in. Leave it blank to keep it in this
     /// service's own state directory, which is what a normal install wants.</panel>
-    [LeafField("ledgerPath", "Observation ledger", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("ledgerPath", "Observation ledger", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string LedgerPath { get; set; } = string.Empty;
 
     /// <summary>How long an observation is kept, in days.</summary>
@@ -100,7 +100,7 @@ internal sealed class ReactorSettings
     /// <panel>How long the reactor keeps what it observed. This is working data, not a record: every
     /// row restates something a component's own journal already holds, so shortening it loses nothing
     /// except how far back the reactor can measure its own thresholds.</panel>
-    [LeafField("retentionDays", "Keep observations for", Group = "retention",
+    [ConfigField("retentionDays", "Keep observations for", Group = "retention",
         Min = ReactorOptions.MinRetentionDays, Unit = "days")]
     public int? RetentionDays { get; set; }
 
@@ -113,7 +113,7 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>How often the reactor commits what it has seen. Longer means fewer, larger writes; the
     /// only thing at risk is the last few seconds of working data, never a record.</panel>
-    [LeafField("flushIntervalSec", "Commit observations every", Group = "retention",
+    [ConfigField("flushIntervalSec", "Commit observations every", Group = "retention",
         Min = ReactorOptions.MinFlushIntervalSeconds, Unit = "s")]
     public int? FlushIntervalSeconds { get; set; }
 
@@ -127,8 +127,8 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>The watchdog's control socket. The reactor asks it how a server actually stands before
     /// deciding anything, so this has to match the path the watchdog listens on.</panel>
-    [LeafField("watchdogSocket", "Watchdog control socket", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("watchdogSocket", "Watchdog control socket", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string WatchdogSocketPath { get; set; } = "/run/kgsm-watchdog/control.sock";
 
     /// <summary>The metrics socket kgsm-monitor serves on.</summary>
@@ -140,8 +140,8 @@ internal sealed class ReactorSettings
     /// <panel>The monitor's metrics socket. The reactor reads it for what each server has actually been
     /// measured using, which is what the memory-drift rule compares against. With no monitor on this
     /// host, that rule simply has nothing to read.</panel>
-    [LeafField("monitorSocket", "Monitor metrics socket", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("monitorSocket", "Monitor metrics socket", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string MonitorSocketPath { get; set; } = "/run/kgsm-monitor/metrics.sock";
 
     /// <summary>
@@ -155,8 +155,8 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>Where the reactor answers questions about what it is doing right now. A local socket,
     /// readable by anything in its group; it is never exposed on the network.</panel>
-    [LeafField("statusSocket", "Status socket", Group = "wiring", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("statusSocket", "Status socket", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string StatusSocketPath { get; set; } = "/run/kgsm-reactor/status.sock";
 
     /// <summary>
@@ -168,12 +168,12 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>Who may read the status socket, as octal permission bits. The default lets a service in
     /// the same group ask; it is not readable by everyone on the host.</panel>
-    [LeafField("statusSocketMode", "Status socket permissions", Group = "wiring")]
+    [ConfigField("statusSocketMode", "Status socket permissions", Group = "wiring")]
     public string StatusSocketMode { get; set; } = "660";
 
     /// <summary>How often rules are evaluated, in seconds.</summary>
     /// <panel>How often the reactor re-checks the conditions it is watching.</panel>
-    [LeafField("sweepIntervalSec", "Evaluate rules every", Group = "rules",
+    [ConfigField("sweepIntervalSec", "Evaluate rules every", Group = "rules",
         Min = ReactorOptions.MinSweepIntervalSeconds, Unit = "s")]
     public int? SweepIntervalSeconds { get; set; }
 
@@ -185,7 +185,7 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>How long a rule stays quiet about the same server after it has spoken once. Too short and
     /// you hear the same thing repeatedly; too long and the second occurrence goes unmentioned.</panel>
-    [LeafField("suppressionWindowMin", "Stay quiet for", Group = "rules", Min = 0, Unit = "min")]
+    [ConfigField("suppressionWindowMin", "Stay quiet for", Group = "rules", Min = 0, Unit = "min")]
     public int? SuppressionWindowMinutes { get; set; }
 
     /// <summary>The most decisions that may fire host-wide in a rolling hour.</summary>
@@ -196,7 +196,7 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>The most the reactor may decide in an hour, across the whole host. A host that loses
     /// every server at once is one story, and this is what stops it becoming forty.</panel>
-    [LeafField("maxDecisionsPerHour", "Decisions per hour", Group = "rules", Min = 0)]
+    [ConfigField("maxDecisionsPerHour", "Decisions per hour", Group = "rules", Min = 0)]
     public int? MaxActionsPerHour { get; set; }
 
     /// <summary>How long an unanswered proposal stays redeemable, for rules that name no window.</summary>
@@ -207,7 +207,7 @@ internal sealed class ReactorSettings
     /// </remarks>
     /// <panel>How long an offer waits for an answer before it expires unanswered. A shift, because a
     /// proposal is addressed to whoever notices next rather than to whoever was watching.</panel>
-    [LeafField("proposalLifetimeHours", "Offers expire after", Group = "rules", Min = 1, Unit = "h")]
+    [ConfigField("proposalLifetimeHours", "Offers expire after", Group = "rules", Min = 1, Unit = "h")]
     public int? ProposalLifetimeHours { get; set; }
 
     /// <summary>
@@ -234,7 +234,7 @@ internal sealed class ReactorSettings
     /// were installed here and can be edited, retired or deleted like any other. Leave it blank to keep
     /// them in this service's own state directory, which is what a normal install wants. An empty
     /// directory means the reactor judges nothing.</panel>
-    [LeafField("rulesDirectory", "Rules directory", Group = "rules", Type = LeafType.Path,
-        Risk = LeafRisk.Wiring)]
+    [ConfigField("rulesDirectory", "Rules directory", Group = "rules", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
     public string RulesDirectory { get; set; } = string.Empty;
 }
