@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a boolean this component's settings file sets reads as on (0.29.1)
+
+`ComponentSurface` 1.0.0-dev.6 spells a settings file's JSON booleans `true`/`false` rather than
+`True`/`False`. A surface decides which provenance tier a value came from, and whether a switch is on,
+by comparing those strings — so a floor of `True` against a coded default of `true` drew a switch this
+component has enabled as off, and named the wrong tier as its source.
+
 ### Added — this leaf answers for its own configuration, unit and journal (0.29.0)
 
 A second unix socket, `Reactor__SurfaceSocketPath` (default `/run/kgsm-reactor/surface.sock`),
