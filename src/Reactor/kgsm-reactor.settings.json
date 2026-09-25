@@ -57,6 +57,8 @@
     // whole boundary. It lives in the systemd runtime directory, so it is created on start and gone
     // on stop and a stale file can never look like a running reactor.
     "StatusSocketPath": "/run/kgsm-reactor/status.sock",
+    "SurfaceSocketPath": "/run/kgsm-reactor/surface.sock",
+    "ConfigOverridePath": "/var/lib/kgsm-api/leaf-overrides/reactor.env",
 
     // Permission bits set on that socket, as an OCTAL STRING. Quoted because a leading zero is not
     // legal JSON and an unquoted 660 would be read as decimal — a different mode entirely.

@@ -12,6 +12,8 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
+using TheKrystalShip.KGSM.ComponentSurface;
+using TheKrystalShip.KGSM.ComponentSurface.Http;
 using TheKrystalShip.Kgsm.Reactor.Status;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -22,6 +24,9 @@ namespace TheKrystalShip.Kgsm.Reactor;
 
 internal sealed class Program
 {
+    /// <summary>The id this component is described and addressed under, everywhere in the ecosystem.</summary>
+    private const string ComponentId = "reactor";
+
     /// <summary>
     /// Redeems a handle, and maps what came of it onto a status code.
     /// </summary>
@@ -311,18 +316,45 @@ internal sealed class Program
         // Server to client only, and only over a unix socket — no TCP anywhere. Nothing off this host
         // has any business asking a leaf what it is thinking, so the socket's filesystem permissions
         // are the entire access boundary rather than one layer of several.
-        if (options.StatusSocketPath.Length > 0)
+        if (options.StatusSocketPath.Length > 0 || options.SurfaceSocketPath.Length > 0)
         {
             builder.WebHost.ConfigureKestrel(kestrel =>
             {
                 // A socket file left behind by a killed process would otherwise make the bind fail and
                 // take the daemon down over an artefact of the last run.
-                if (File.Exists(options.StatusSocketPath))
-                    File.Delete(options.StatusSocketPath);
+                if (options.StatusSocketPath.Length > 0)
+                {
+                    if (File.Exists(options.StatusSocketPath))
+                        File.Delete(options.StatusSocketPath);
 
-                kestrel.ListenUnixSocket(options.StatusSocketPath);
+                    kestrel.ListenUnixSocket(options.StatusSocketPath);
+                }
+
+                // What this daemon answers about ITSELF, on a socket of its own. A component owns its
+                // configuration, its unit and its journal wherever it runs and only the transport
+                // differs; the node's API relays over this socket rather than reading the descriptor
+                // on this daemon's behalf.
+                //
+                // Its own socket rather than the status one so the API finds it from this component's
+                // id alone — every unit already provisions /run/kgsm-<id>/ — and so the file's
+                // presence is the whole of what says this component answers for itself.
+                if (options.SurfaceSocketPath.Length > 0)
+                {
+                    if (File.Exists(options.SurfaceSocketPath))
+                        File.Delete(options.SurfaceSocketPath);
+
+                    kestrel.ListenUnixSocket(options.SurfaceSocketPath);
+                }
             });
         }
+
+        // The descriptor this build generated, the host's deploy floors beneath it, the overrides in
+        // force, this unit's journal, and the bounce that makes a change take effect — all the shared
+        // component library, which lives beside the generator that writes the descriptor it reads.
+        builder.Services.AddComponentSurface(new ComponentSurfaceOptions(
+            ComponentSurfacePaths.Descriptor(ComponentId),
+            options.ConfigOverridePath,
+            ComponentSurfacePaths.Commands(ComponentId)));
 
         WebApplication host = builder.Build();
 
@@ -336,6 +368,8 @@ internal sealed class Program
                 {
                     if (OperatingSystem.IsLinux() && File.Exists(options.StatusSocketPath))
                         File.SetUnixFileMode(options.StatusSocketPath, options.StatusSocketMode);
+                    if (OperatingSystem.IsLinux() && File.Exists(options.SurfaceSocketPath))
+                        File.SetUnixFileMode(options.SurfaceSocketPath, options.StatusSocketMode);
                 }
                 catch (Exception ex)
                 {
@@ -348,6 +382,10 @@ internal sealed class Program
             // serving", and a reactor that is up while unable to read its ledger must still be able to
             // say so on /status rather than failing this and looking dead.
             host.MapGet("/health", () => Results.Text("ok\n"));
+
+            // What this daemon answers about itself, at the routes every component serves them at. No
+            // gate: the socket's filesystem permissions are the boundary, and nothing else is on it.
+            host.MapGroup("/component").MapComponentSurface();
 
             // What it is doing right now — the counters, the live rules and their modes, and the
             // evaluations waiting out their settle windows.

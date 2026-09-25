@@ -111,6 +111,12 @@ internal sealed record ReactorOptions
     /// <summary>Where the status endpoint listens. Blank means it does not listen at all.</summary>
     public required string StatusSocketPath { get; init; }
 
+    /// <summary>Where this daemon serves its own surface. Blank means it serves none.</summary>
+    public required string SurfaceSocketPath { get; init; }
+
+    /// <summary>Where a configuration change made through the Control Panel is written.</summary>
+    public required string ConfigOverridePath { get; init; }
+
     /// <summary>Permission bits applied to the status socket once it exists.</summary>
     public required UnixFileMode StatusSocketMode { get; init; }
     public required int SweepIntervalSeconds { get; init; }
@@ -189,6 +195,12 @@ internal sealed record ReactorOptions
             StatusSocketPath = Blank(settings.StatusSocketPath)
                 ? string.Empty
                 : settings.StatusSocketPath.Trim(),
+            SurfaceSocketPath = Blank(settings.SurfaceSocketPath)
+                ? string.Empty
+                : settings.SurfaceSocketPath.Trim(),
+            ConfigOverridePath = Blank(settings.ConfigOverridePath)
+                ? "/var/lib/kgsm-api/leaf-overrides/reactor.env"
+                : settings.ConfigOverridePath.Trim(),
             StatusSocketMode = ParseMode(settings.StatusSocketMode),
             SweepIntervalSeconds =
                 AtLeast(settings.SweepIntervalSeconds ?? DefaultSweepIntervalSeconds, MinSweepIntervalSeconds),

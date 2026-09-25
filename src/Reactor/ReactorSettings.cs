@@ -159,6 +159,23 @@ internal sealed class ReactorSettings
         Risk = ConfigRisk.Wiring)]
     public string StatusSocketPath { get; set; } = "/run/kgsm-reactor/status.sock";
 
+    /// <summary>Unix socket this daemon answers for ITSELF on — its configuration, its unit, its
+    /// journal and the commands it declares.</summary>
+    /// <panel>Unix socket the Control Panel reaches this service's own configuration and journal
+    /// through. Moving it makes the panel read these settings off disk instead, which still works and
+    /// cannot apply a change while the service is up.</panel>
+    [ConfigField("surfaceSocket", "Own-surface socket", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
+    public string SurfaceSocketPath { get; set; } = "/run/kgsm-reactor/surface.sock";
+
+    /// <summary>The env file a configuration change made through the panel is written to.</summary>
+    /// <panel>Where a setting changed in the Control Panel is written. It has to be a file this
+    /// service's unit loads with EnvironmentFile= — the panel checks, and reports the settings as
+    /// read-only rather than writing a change nothing would read.</panel>
+    [ConfigField("configOverridePath", "Override file", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
+    public string ConfigOverridePath { get; set; } = "/var/lib/kgsm-api/leaf-overrides/reactor.env";
+
     /// <summary>
     /// Permission bits set on the socket once it exists, as an octal string.
     /// </summary>
