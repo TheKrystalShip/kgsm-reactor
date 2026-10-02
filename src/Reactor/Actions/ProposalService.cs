@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 
+using TheKrystalShip.KGSM.Auth.Cluster;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
@@ -39,6 +40,12 @@ internal enum RedemptionOutcome
 
     /// <summary>The caller was not named in the shape an actor has to have.</summary>
     Unattributable,
+
+    /// <summary>
+    /// The person confirming, or this daemon's own service account, may not perform the offer's action
+    /// at its server. Nothing was done and the offer stays open for somebody who may.
+    /// </summary>
+    Refused,
 
     /// <summary>
     /// The condition could not be re-read, so nothing is known and nothing was done.
@@ -85,10 +92,19 @@ internal readonly record struct Redemption(
 /// Two people pressing confirm in the same second both find a redeemable proposal; only one changes a
 /// row, and only that one performs the action.
 /// </para>
+/// <para>
+/// <b>Nothing is performed on one account's say-so.</b> A rule acting performs only where both this
+/// daemon's service account and the rule's author hold the action at the server; a confirmed offer only
+/// where both the service account and the person confirming do (<see cref="AutomationAccess"/>). A rule
+/// therefore restarts only what its author could restart by hand, an author who loses the access stops
+/// their rule at its next firing, and a rule nobody is recorded as saving acts on nothing.
+/// </para>
 /// </remarks>
 internal sealed class ProposalService(
     ProposalStore proposals,
     IActionPerformer performer,
+    AutomationAccess access,
+    Func<string, string?> installNonce,
     IDecisionEmitter emitter,
     RuleRegistry registry,
     IWorldView world,
@@ -165,21 +181,34 @@ internal sealed class ProposalService(
     /// surface answering "what did this host do on its own" must not have to subtract the confirmed
     /// ones out of a combined list.
     /// </remarks>
-    public async Task<ActionResult> ActAsync(Decision decision, ReactorAction action, CancellationToken token)
+    /// <param name="decision">What the rule decided.</param>
+    /// <param name="action">What it decided to do.</param>
+    /// <param name="author">The account that last saved the rule, or null when nobody is recorded.</param>
+    /// <param name="token">Cancellation.</param>
+    public async Task<ActionResult> ActAsync(
+        Decision decision, ReactorAction action, string? author, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(decision);
         ArgumentNullException.ThrowIfNull(action);
 
         ActionResult result;
-        try
+        AutomationVerdict verdict = await AuthorizeAsync(action, author, token).ConfigureAwait(false);
+        if (!verdict.Allowed)
         {
-            result = await performer
-                .PerformAsync(action, ActorFor(decision.RuleId), token)
-                .ConfigureAwait(false);
+            result = ActionResult.Failed($"blocked: {verdict.Reason}");
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        else
         {
-            result = ActionResult.Failed(ex.Message);
+            try
+            {
+                result = await performer
+                    .PerformAsync(action, ActorFor(decision.RuleId), token)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                result = ActionResult.Failed(ex.Message);
+            }
         }
 
         if (result.Ok)
@@ -211,13 +240,17 @@ internal sealed class ProposalService(
     /// shape — an action a person authorised that cannot name the person is exactly the audit row this
     /// ecosystem does not write.
     /// </param>
+    /// <param name="account">
+    /// Their account id. Required: confirming is performing, and whoever performs is evaluated for the
+    /// offer's action, with this daemon's own service account, at its server.
+    /// </param>
     /// <param name="token">Cancellation.</param>
-    public async Task<Redemption> ConfirmAsync(string handle, string by, CancellationToken token)
+    public async Task<Redemption> ConfirmAsync(string handle, string by, string? account, CancellationToken token)
     {
-        if (!IsActor(by))
+        if (!IsActor(by) || string.IsNullOrWhiteSpace(account))
         {
             return Redemption.Of(RedemptionOutcome.Unattributable,
-                "a confirmation has to name who is confirming, as provider:name");
+                "a confirmation has to name who is confirming, as provider:name and as their account");
         }
 
         DateTimeOffset now = clock.GetUtcNow();
@@ -251,6 +284,15 @@ internal sealed class ProposalService(
                 detail: verdict.Reason,
                 outcome: RedemptionOutcome.NoLongerApplicable,
                 token).ConfigureAwait(false);
+        }
+
+        // Judged before the row is claimed, so a person who may not perform it leaves the offer standing
+        // for somebody who may — answering the reactor's offers is not the same grant as restoring a server.
+        AutomationVerdict allowed = await AuthorizeAsync(ActionOf(proposal), account, token).ConfigureAwait(false);
+        if (!allowed.Allowed)
+        {
+            logger.LogInformation("{By} may not confirm {Rule}'s offer: {Reason}", by, proposal.RuleId, allowed.Reason);
+            return Redemption.Of(RedemptionOutcome.Refused, allowed.Reason!, proposal);
         }
 
         // Claimed before the action runs. Whichever call changes the row is the one that performs, so
@@ -483,6 +525,16 @@ internal sealed class ProposalService(
 
     /// <summary>Invariant 2's actor shape, so an audit row names the rule and never a person.</summary>
     private static string ActorFor(string ruleId) => $"rule:{ruleId}";
+
+    /// <summary>
+    /// Whether this daemon's service account and <paramref name="person"/> may both perform
+    /// <paramref name="action"/> at its server now. An action on no server, or one that performs
+    /// nothing, needs nobody.
+    /// </summary>
+    private Task<AutomationVerdict> AuthorizeAsync(ReactorAction action, string? person, CancellationToken token) =>
+        action.TargetInstance is not { } instance || action.Performs.Count == 0
+            ? Task.FromResult(AutomationVerdict.Allow)
+            : access.DecideAsync(action.Performs, instance, installNonce(instance), person, token);
 
     /// <summary>
     /// Whether a caller named itself the way an actor has to be named.

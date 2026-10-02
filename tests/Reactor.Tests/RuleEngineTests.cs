@@ -32,6 +32,14 @@ public class RuleEngineTests : IDisposable
 
     private static readonly DateTimeOffset Now = new(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// The cluster's authority these engines evaluate against, with somebody who may do everything a
+    /// rule does — the author a test's rule is saved by when it is meant to act.
+    /// </summary>
+    private static readonly TestAuthority Authority = new();
+
+    private static readonly string Author = Authority.Permitted("tanya");
+
     /// <summary>An event service that replays to whoever registered.</summary>
     private sealed class FakeEvents : IEventService
     {
@@ -172,7 +180,7 @@ public class RuleEngineTests : IDisposable
         store.Initialize();
 
         var proposals = new ProposalService(
-            store, performer ?? new RefusingPerformer(), announcer, registry,
+            store, performer ?? new RefusingPerformer(), Authority.Access(), _ => null, announcer, registry,
             world, history, footprint, Microsoft.Extensions.Options.Options.Create(options), clock,
             NullLogger<ProposalService>.Instance);
 

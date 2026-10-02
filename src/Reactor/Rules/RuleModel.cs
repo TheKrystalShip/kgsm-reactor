@@ -178,10 +178,19 @@ internal abstract record ReactorAction
     /// </remarks>
     public abstract string? TargetInstance { get; }
 
+    /// <summary>
+    /// The engine actions performing this takes. It is performed only where both this daemon's service
+    /// account and the person behind it — the rule's author, or whoever confirmed the offer — hold every
+    /// one of them at the server.
+    /// </summary>
+    public abstract IReadOnlyList<string> Performs { get; }
+
     /// <summary>A rule that reports and proposes nothing.</summary>
     public sealed record Nothing : ReactorAction
     {
         public override bool ChangesServerState => false;
+
+        public override IReadOnlyList<string> Performs => [];
 
         public override string Describe() => "nothing";
 
@@ -199,6 +208,8 @@ internal abstract record ReactorAction
     {
         /// <summary>Additive: it takes nothing away and competes with nothing.</summary>
         public override bool ChangesServerState => false;
+
+        public override IReadOnlyList<string> Performs => [TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate];
 
         public override string Describe() => $"archive {Instance} as it stands, pinned";
 
@@ -226,6 +237,9 @@ internal abstract record ReactorAction
     public sealed record ProposeRestore(string Instance) : ReactorAction
     {
         public override bool ChangesServerState => true;
+
+        public override IReadOnlyList<string> Performs =>
+            [TheKrystalShip.KGSM.KgsmActions.ServerBackupsRead, TheKrystalShip.KGSM.KgsmActions.ServerBackupsRestore];
 
         public override string Describe() => $"roll {Instance} back to the archive taken before its update";
 

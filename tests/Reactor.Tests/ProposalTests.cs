@@ -39,8 +39,16 @@ public sealed class ProposalTests : IDisposable
 
     private readonly List<string> _ruleDirs = [];
 
+    // Everyone in these tests confirms, and every rule acts, as somebody who may do what it does —
+    // unless a test says otherwise.
+    private readonly TestAuthority _authority = new();
+    private readonly string _account;
+
+    public ProposalTests() => _account = _authority.Permitted("claude");
+
     public void Dispose()
     {
+        _authority.Dispose();
         File.Delete(_path);
         foreach (string dir in _ruleDirs)
             Directory.Delete(dir, recursive: true);
@@ -102,7 +110,7 @@ public sealed class ProposalTests : IDisposable
         Proposal staged = (await harness.StageAsync())!;
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Performed, redeemed.Outcome);
 
@@ -137,7 +145,7 @@ public sealed class ProposalTests : IDisposable
             Reading<InstanceRunState>.Measured(new InstanceRunState("running", true, 0));
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.NoLongerApplicable, redeemed.Outcome);
         Assert.Empty(harness.Performer.Performed);
@@ -168,7 +176,7 @@ public sealed class ProposalTests : IDisposable
         harness.World.Answer = Reading<InstanceRunState>.Unavailable("the supervisor is not answering");
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Unreadable, redeemed.Outcome);
         Assert.Empty(harness.Performer.Performed);
@@ -191,9 +199,9 @@ public sealed class ProposalTests : IDisposable
         Proposal staged = (await harness.StageAsync())!;
 
         Redemption first = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
         Redemption second = await harness.Service.ConfirmAsync(
-            staged.Handle, "discord:tanya", CancellationToken.None);
+            staged.Handle, "discord:tanya", _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Performed, first.Outcome);
         Assert.Equal(RedemptionOutcome.AlreadyAnswered, second.Outcome);
@@ -221,7 +229,7 @@ public sealed class ProposalTests : IDisposable
         Proposal staged = (await harness.StageAsync())!;
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, by, CancellationToken.None);
+            staged.Handle, by, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Unattributable, redeemed.Outcome);
         Assert.Empty(harness.Performer.Performed);
@@ -299,7 +307,7 @@ public sealed class ProposalTests : IDisposable
         harness.Clock.Advance(TimeSpan.FromHours(9));
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Expired, redeemed.Outcome);
         Assert.Empty(harness.Performer.Performed);
@@ -312,7 +320,7 @@ public sealed class ProposalTests : IDisposable
         Harness harness = Build();
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            new string('0', 32), Confirmer, CancellationToken.None);
+            new string('0', 32), Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Unknown, redeemed.Outcome);
         Assert.Null(redeemed.Proposal);
@@ -335,7 +343,7 @@ public sealed class ProposalTests : IDisposable
         Harness without = Build(rules: []);
 
         Redemption redeemed = await without.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.NoLongerApplicable, redeemed.Outcome);
         Assert.Empty(without.Performer.Performed);
@@ -358,7 +366,7 @@ public sealed class ProposalTests : IDisposable
         Proposal staged = (await harness.StageAsync())!;
 
         Redemption redeemed = await harness.Service.ConfirmAsync(
-            staged.Handle, Confirmer, CancellationToken.None);
+            staged.Handle, Confirmer, _account, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Failed, redeemed.Outcome);
 
@@ -383,7 +391,7 @@ public sealed class ProposalTests : IDisposable
         Harness harness = Build();
 
         ActionResult result = await harness.Service.ActAsync(
-            harness.Decision(), new ReactorAction.CreateBackup("Ketchup"), CancellationToken.None);
+            harness.Decision(), new ReactorAction.CreateBackup("Ketchup"), _account, CancellationToken.None);
 
         Assert.True(result.Ok);
         Assert.Empty(harness.Emitter.Resolved);
@@ -393,6 +401,81 @@ public sealed class ProposalTests : IDisposable
         Assert.Equal("give_up_backup", decision.RuleId);
         Assert.True(announced.Ok);
         Assert.Equal("rule:give_up_backup", Assert.Single(harness.Performer.Performed).Actor);
+    }
+
+    /// <summary>
+    /// A rule nobody is recorded as saving acts on nothing: the attempt is announced as a failure
+    /// naming why, and nothing reaches the engine.
+    /// </summary>
+    [Fact]
+    public async Task A_rule_with_no_author_performs_nothing()
+    {
+        Harness harness = Build();
+
+        ActionResult result = await harness.Service.ActAsync(
+            harness.Decision(), new ReactorAction.CreateBackup("Ketchup"), author: null, CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.StartsWith("blocked:", result.Detail);
+        Assert.Contains("nobody is recorded", result.Detail);
+        Assert.Empty(harness.Performer.Performed);
+        Assert.False(Assert.Single(harness.Emitter.Acted).Item2.Ok);
+    }
+
+    /// <summary>
+    /// A rule restarts only what its author could by hand: an author without the action is refused at
+    /// the firing, by name.
+    /// </summary>
+    [Fact]
+    public async Task A_rule_acts_only_where_its_author_may()
+    {
+        Harness harness = Build();
+        string bob = _authority.Person("bob");
+
+        ActionResult result = await harness.Service.ActAsync(
+            harness.Decision(), new ReactorAction.CreateBackup("Ketchup"), bob, CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Contains("bob", result.Detail);
+        Assert.Empty(harness.Performer.Performed);
+    }
+
+    /// <summary>
+    /// Answering the reactor's offers is not the same grant as the offer's own action. Somebody who may
+    /// not perform it is refused, nothing runs, and the offer stays open for somebody who may.
+    /// </summary>
+    [Fact]
+    public async Task Confirming_needs_the_offers_own_action()
+    {
+        Harness harness = Build();
+        Proposal staged = (await harness.StageAsync())!;
+        string bob = _authority.Person("bob");
+
+        Redemption refused = await harness.Service.ConfirmAsync(
+            staged.Handle, "local:bob", bob, CancellationToken.None);
+
+        Assert.Equal(RedemptionOutcome.Refused, refused.Outcome);
+        Assert.Contains(TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate, refused.Detail);
+        Assert.Empty(harness.Performer.Performed);
+        Assert.Equal(ProposalState.Open, harness.Service.Find(staged.Handle)!.State);
+
+        Redemption performed = await harness.Service.ConfirmAsync(
+            staged.Handle, Confirmer, _account, CancellationToken.None);
+        Assert.Equal(RedemptionOutcome.Performed, performed.Outcome);
+    }
+
+    /// <summary>A confirmation that names no account is nobody, and nobody performs nothing.</summary>
+    [Fact]
+    public async Task Confirming_without_an_account_is_unattributable()
+    {
+        Harness harness = Build();
+        Proposal staged = (await harness.StageAsync())!;
+
+        Redemption redeemed = await harness.Service.ConfirmAsync(
+            staged.Handle, Confirmer, account: null, CancellationToken.None);
+
+        Assert.Equal(RedemptionOutcome.Unattributable, redeemed.Outcome);
+        Assert.Empty(harness.Performer.Performed);
     }
 
     /// <summary>
@@ -509,7 +592,7 @@ public sealed class ProposalTests : IDisposable
         var emitter = new RecordingEmitter();
 
         var service = new ProposalService(
-            store, performer, emitter,
+            store, performer, _authority.Access(), _ => null, emitter,
             new RuleRegistry(dir, NullLogger<RuleRegistry>.Instance), world,
             new LedgerRuleHistory(ledger), new EmptyFootprints(), Options.Create(options), clock,
             NullLogger<ProposalService>.Instance);

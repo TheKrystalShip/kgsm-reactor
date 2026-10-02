@@ -117,6 +117,12 @@ internal sealed record ReactorOptions
     /// <summary>Where a configuration change made through the Control Panel is written.</summary>
     public required string ConfigOverridePath { get; init; }
 
+    /// <summary>The node's authority replica, read and never written.</summary>
+    public string AuthorityReplicaPath { get; init; } = "/var/lib/kgsm/auth/users.db";
+
+    /// <summary>The host file the node names itself in.</summary>
+    public string ProviderFilePath { get; init; } = "/var/lib/kgsm/cluster/auth-provider.json";
+
     /// <summary>Permission bits applied to the status socket once it exists.</summary>
     public required UnixFileMode StatusSocketMode { get; init; }
     public required int SweepIntervalSeconds { get; init; }
@@ -201,6 +207,12 @@ internal sealed record ReactorOptions
             ConfigOverridePath = Blank(settings.ConfigOverridePath)
                 ? "/var/lib/kgsm-api/leaf-overrides/reactor.env"
                 : settings.ConfigOverridePath.Trim(),
+            AuthorityReplicaPath = Blank(settings.AuthorityReplicaPath)
+                ? "/var/lib/kgsm/auth/users.db"
+                : settings.AuthorityReplicaPath.Trim(),
+            ProviderFilePath = Blank(settings.ProviderFilePath)
+                ? "/var/lib/kgsm/cluster/auth-provider.json"
+                : settings.ProviderFilePath.Trim(),
             StatusSocketMode = ParseMode(settings.StatusSocketMode),
             SweepIntervalSeconds =
                 AtLeast(settings.SweepIntervalSeconds ?? DefaultSweepIntervalSeconds, MinSweepIntervalSeconds),

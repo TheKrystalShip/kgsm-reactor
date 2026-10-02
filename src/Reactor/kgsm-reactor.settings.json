@@ -60,6 +60,13 @@
     "SurfaceSocketPath": "/run/kgsm-reactor/surface.sock",
     "ConfigOverridePath": "/var/lib/kgsm-api/leaf-overrides/reactor.env",
 
+    // The node's replica of the cluster's authority, read and never written: a rule acts only while
+    // both this service and the person who saved it may do what it does, and an offer is carried out
+    // only for somebody who may. And the host file the node names itself in, which names this
+    // service's own account.
+    "AuthorityReplicaPath": "/var/lib/kgsm/auth/users.db",
+    "ProviderFilePath": "/var/lib/kgsm/cluster/auth-provider.json",
+
     // Permission bits set on that socket, as an OCTAL STRING. Quoted because a leading zero is not
     // legal JSON and an unquoted 660 would be read as decimal — a different mode entirely.
     "StatusSocketMode": "660",

@@ -43,12 +43,13 @@ curl -s --unix-socket /run/kgsm-reactor/status.sock http://localhost/proposals \
   | jq '{honours, open: [.open[] | {handle, rule, subject, action, expiresAt}],
          endings: (.recent | group_by(.state) | map({(.[0].state): length}) | add)}'
 
-# Redeem one. `by` is required and must be provider:name — the leaf refuses a confirmation that
-# names nobody. Confirming re-derives the condition first, so a server that came back up on its own
-# answers no_longer_applicable and nothing runs.
+# Redeem one. `by` (provider:name) and `account` (the account id) are required — the leaf refuses a
+# confirmation that names nobody, and one whose account, or this daemon's own, may not perform the
+# offer's action at its server (403 refused, the offer left open). Confirming re-derives the condition
+# first, so a server that came back up on its own answers no_longer_applicable and nothing runs.
 curl -s -X POST --unix-socket /run/kgsm-reactor/status.sock \
   http://localhost/proposals/<handle>/confirm \
-  -H 'Content-Type: application/json' -d '{"by":"local:heisen"}' | jq
+  -H 'Content-Type: application/json' -d '{"by":"local:heisen","account":"usr_…"}' | jq
 
 dotnet build kgsm-reactor.slnx -c Release
 dotnet test  kgsm-reactor.slnx                          # hermetic; no host, no journals, no engine

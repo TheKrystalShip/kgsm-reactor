@@ -162,6 +162,26 @@
       "risk": "wiring"
     },
     {
+      "key": "authorityReplica",
+      "env": "Reactor__AuthorityReplicaPath",
+      "label": "Authority replica",
+      "description": "The file the node on this machine keeps its copy of the cluster's accounts and roles in. A rule acts only while both this service and the person who saved it may do what it does, and an offer is carried out only for somebody who may; this is where that is read.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/var/lib/kgsm/auth/users.db",
+      "risk": "wiring"
+    },
+    {
+      "key": "providerFile",
+      "env": "Reactor__ProviderFilePath",
+      "label": "Node identity file",
+      "description": "Where the reactor reads which node it is on, which names its own service account. The node on this machine writes it; leave it at the default unless the node writes somewhere else.",
+      "group": "wiring",
+      "type": "path",
+      "default": "/var/lib/kgsm/cluster/auth-provider.json",
+      "risk": "wiring"
+    },
+    {
       "key": "statusSocketMode",
       "env": "Reactor__StatusSocketMode",
       "label": "Status socket permissions",

@@ -159,7 +159,12 @@ internal sealed record GuardRow(
 /// change the second, which would then rewrite what an old decision appears to say.
 /// </param>
 /// <param name="At">When they did it.</param>
-internal sealed record RuleAuthorship(string Actor, DateTimeOffset At);
+/// <param name="Account">
+/// Their account id, which is what the rule acts as beside this daemon's own service account: a rule
+/// does only what both may do. Null on a rule nobody saved through the node's API, which then acts on
+/// nothing.
+/// </param>
+internal sealed record RuleAuthorship(string Actor, DateTimeOffset At, string? Account = null);
 
 /// <summary>
 /// A rule, assembled from what this build offers.
@@ -262,6 +267,12 @@ internal sealed record RuleDefinition(
     /// decided, and retiring one — or closing an account — erases the trace entirely.
     /// </remarks>
     public string? Author => (UpdatedBy ?? CreatedBy)?.Actor;
+
+    /// <summary>
+    /// The account the rule acts as beside this daemon's own: whoever last saved it, since saving a rule
+    /// is choosing what it does. Null when nobody is recorded, and a rule with no author performs nothing.
+    /// </summary>
+    public string? AuthorAccount => UpdatedBy?.Account;
 
     /// <summary>The binding an alias names, or null when nothing declares it.</summary>
     public SignalBinding? Binding(string alias) =>

@@ -7,6 +7,29 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — every action runs as author ∩ service (0.30.0)
+
+**Breaking.** Nothing this daemon performs runs on one account's say-so:
+
+- **A rule acting performs only where both `svc:reactor@<node>` and the rule's author hold the
+  action's engine actions at the server**, evaluated from the node's authority replica at the firing
+  (`Auth.Cluster`'s `AutomationAccess`). The author is the account that last saved the rule through
+  the node's API, recorded in the rule file as `updatedBy.account`; a rule with none — every shipped
+  sample until somebody saves it — acts on nothing. A refusal is the act's result, `blocked: …`.
+- **A confirmed offer performs only where both the service account and the person confirming hold its
+  action.** The redemption body names `account` beside `by`; a confirmation naming none is
+  `unattributable`, and one refused is `403 refused` with the offer left open.
+- **Each action names what it performs** (`ReactorAction.Performs`): an incident backup
+  `kgsm:server.backups.create`; a rollback `kgsm:server.backups.read` and `.restore`.
+- **The actions it declares**: `reactor:rules.read` and `reactor:rules.write`, which kgsm-api checks
+  before relaying. **What its service account requires**: server and library reads, backups read,
+  create and restore — written to `deploy/kgsm-reactor.leaf.actions.json` by `ComponentConfig` 3.2 and
+  installed into `/var/lib/kgsm/leaves/actions/reactor.json` by `deploy.sh` (synced with the template)
+  and the package.
+- New settings `AuthorityReplicaPath` and `ProviderFilePath`. Pins: `TheKrystalShip.KGSM.Lib`
+  8.10.0-dev.5, `Auth.Cluster` 1.0.0-dev.20, `ComponentConfig` 3.2.0-dev.2, `ComponentSurface`
+  1.0.0-dev.10, `ComponentSurface.Http` 1.0.0-dev.6.
+
 ### Fixed — a setting whose source this component could not read reports as unknown (0.29.2)
 
 `ComponentSurface` 1.0.0-dev.8 carries whether every declared floor source was actually read, and reads

@@ -19,13 +19,23 @@ internal sealed class RuleWriteRequest
     /// Who is doing this, as <c>provider:name</c>.
     /// </summary>
     /// <remarks>
-    /// Required, and checked for having been NAMED rather than for being allowed. This leaf holds no
-    /// identity system and no tiers; the surface that authenticated the person is what knows whether
-    /// editing a rule is theirs to do. What it refuses is an anonymous write, because the actor is
+    /// Required, and checked for having been NAMED: whether editing a rule is theirs to do is the node's
+    /// API's question, asked before it relays. What this refuses is an anonymous write, because the actor is
     /// stamped onto the rule and travels from there onto every decision the rule goes on to make.
     /// </remarks>
     [JsonPropertyName("by")]
     public string? By { get; set; }
+
+    /// <summary>
+    /// Their account id, which the rule then acts as beside this daemon's own service account.
+    /// </summary>
+    /// <remarks>
+    /// Named by the node's API from the session it verified, beside <see cref="By"/>. A write naming no
+    /// account stores a rule that performs nothing until somebody who does saves it — never one acting as
+    /// whoever saved it last.
+    /// </remarks>
+    [JsonPropertyName("account")]
+    public string? Account { get; set; }
 }
 
 /// <summary>What became of a write.</summary>

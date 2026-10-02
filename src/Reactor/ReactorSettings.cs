@@ -176,6 +176,21 @@ internal sealed class ReactorSettings
         Risk = ConfigRisk.Wiring)]
     public string ConfigOverridePath { get; set; } = "/var/lib/kgsm-api/leaf-overrides/reactor.env";
 
+    /// <summary>The node's replica of the cluster's authority, read and never written.</summary>
+    /// <panel>The file the node on this machine keeps its copy of the cluster's accounts and roles in. A
+    /// rule acts only while both this service and the person who saved it may do what it does, and an
+    /// offer is carried out only for somebody who may; this is where that is read.</panel>
+    [ConfigField("authorityReplica", "Authority replica", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
+    public string AuthorityReplicaPath { get; set; } = "/var/lib/kgsm/auth/users.db";
+
+    /// <summary>The host file the node on this machine names itself in.</summary>
+    /// <panel>Where the reactor reads which node it is on, which names its own service account. The node
+    /// on this machine writes it; leave it at the default unless the node writes somewhere else.</panel>
+    [ConfigField("providerFile", "Node identity file", Group = "wiring", Type = ConfigType.Path,
+        Risk = ConfigRisk.Wiring)]
+    public string ProviderFilePath { get; set; } = "/var/lib/kgsm/cluster/auth-provider.json";
+
     /// <summary>
     /// Permission bits set on the socket once it exists, as an octal string.
     /// </summary>

@@ -12,6 +12,7 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
+using TheKrystalShip.KGSM.Auth.Cluster;
 using TheKrystalShip.KGSM.ComponentSurface;
 using TheKrystalShip.KGSM.ComponentSurface.Http;
 using TheKrystalShip.Kgsm.Reactor.Status;
@@ -59,7 +60,7 @@ internal sealed class Program
         }
 
         Redemption redeemed = confirm
-            ? await proposals.ConfirmAsync(handle, body?.By ?? string.Empty, ct).ConfigureAwait(false)
+            ? await proposals.ConfirmAsync(handle, body?.By ?? string.Empty, body?.Account, ct).ConfigureAwait(false)
             : await proposals.DismissAsync(handle, body?.By ?? string.Empty, ct).ConfigureAwait(false);
 
         var result = new RedemptionResult
@@ -73,6 +74,8 @@ internal sealed class Program
         {
             RedemptionOutcome.Unknown => StatusCodes.Status404NotFound,
             RedemptionOutcome.Unattributable => StatusCodes.Status400BadRequest,
+            // The offer is still open for somebody who may perform it.
+            RedemptionOutcome.Refused => StatusCodes.Status403Forbidden,
             RedemptionOutcome.Expired or RedemptionOutcome.AlreadyAnswered =>
                 StatusCodes.Status409Conflict,
             // The offer is still open and still redeemable; what could not be reached is the world.
@@ -296,6 +299,31 @@ internal sealed class Program
         // this leaf, and attributed to the rule rather than to whoever the daemon runs as.
         builder.Services.AddSingleton<IActionPerformer, KgsmActionPerformer>();
         builder.Services.AddSingleton<ProposalStore>();
+
+        // Whether something may be performed: this daemon's own service account and the person behind it
+        // — the rule's author, or whoever confirmed the offer — evaluated together from the replica the
+        // node on this machine keeps, which this daemon reads and never writes. The node it is on, and so
+        // its own account, is the member id that node writes into the host file.
+        builder.Services.AddSingleton<IReplicatedAuthority>(sp => new AuthorityReplicaFile(
+            options.AuthorityReplicaPath, sp.GetRequiredService<ILogger<AuthorityReplicaFile>>()));
+        builder.Services.AddSingleton<MemberAccess>();
+        builder.Services.AddSingleton(sp => new HostSessionKeys(
+            options.ProviderFilePath, sp.GetRequiredService<ILogger<HostSessionKeys>>()));
+        builder.Services.AddSingleton(sp => new AutomationAccess(
+            sp.GetRequiredService<MemberAccess>(),
+            ComponentId,
+            () => sp.GetRequiredService<HostSessionKeys>().Node));
+
+        // The install a server is, so a grant on one install never reaches a reinstall under its name.
+        builder.Services.AddSingleton<Func<string, string?>>(sp =>
+        {
+            IInstanceService instances = sp.GetRequiredService<IInstanceService>();
+            return name =>
+            {
+                try { return instances.GetInstanceInfo(name)?.InstallNonce; }
+                catch (Exception) { return null; }
+            };
+        });
         builder.Services.AddSingleton<ProposalService>();
 
         // Registered as singletons and then handed to the host, rather than AddHostedService<T>()
@@ -458,10 +486,11 @@ internal sealed class Program
             // because confirming re-derives the condition — which means re-evaluating the rule, which
             // only the reactor can do.
             //
-            // The leaf checks that the caller NAMED itself and never that it was ALLOWED to. It holds
-            // no identity system and no tiers; the surface that authenticated the person is what knows
-            // whether a restore is theirs to authorise, exactly as it is for every other write on this
-            // host. What guards the socket itself is its mode and the handle being unguessable.
+            // The node's API authenticates the person and checks that they may answer the reactor's
+            // offers before it dials this; it names them, by actor and by account. Whether they may
+            // perform the offer's own action at its server is judged here, together with this daemon's
+            // own service account, before anything runs. What guards the socket itself is its mode and
+            // the handle being unguessable.
             host.MapPost("/proposals/{handle}/confirm", (
                     string handle, HttpRequest request, ProposalService proposalService,
                     CancellationToken ct) =>
@@ -480,9 +509,9 @@ internal sealed class Program
             // that knows what this build can honour is the thing that decides whether to store it — and
             // it refuses in the response, while the person is still looking at what they wrote.
             //
-            // Same attribution rule as a redemption: the caller must NAME itself. Whether it was
-            // allowed to is the authenticating surface's question, exactly as it is for every other
-            // write on this host.
+            // The caller must name itself: whether it may change rules is the node's API's question,
+            // asked before it dials this. The account it names is what the rule then acts as, beside
+            // this daemon's own service account.
             host.MapPut("/rules/{id}", async (
                 string id, HttpRequest request, RuleRegistry registry, TimeProvider clock,
                 CancellationToken ct) =>
@@ -521,7 +550,8 @@ internal sealed class Program
 
                 // Stamped here rather than taken from the body: authorship is a fact about who called,
                 // and a caller that could write its own would be able to sign a rule as somebody else.
-                var hand = new RuleAuthorship(body.By, clock.GetUtcNow());
+                var hand = new RuleAuthorship(body.By, clock.GetUtcNow(),
+                    string.IsNullOrWhiteSpace(body.Account) ? null : body.Account.Trim());
                 definition = definition with
                 {
                     Shipped = false,

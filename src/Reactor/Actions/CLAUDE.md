@@ -4,6 +4,23 @@ The reactor acts only on what the watchdog has **given up** on; the watchdog own
 autostart and caps, the scheduler timed restarts, scheduled backups and update sweeps. It holds no
 delivery channel — no Discord token, no VAPID key, no SMTP.
 
+## Who it acts as
+
+**Nothing is performed on one account's say-so.** Every action names the engine actions it takes
+(`ReactorAction.Performs`), and `ProposalService` performs it only where both this daemon's service
+account, `svc:reactor@<node>`, and the person behind it hold every one of them at the server's install
+— evaluated from the node's replica at that moment by `Auth.Cluster`'s `AutomationAccess`, the same
+check the scheduler makes.
+
+- **A rule acting** acts as its author: whoever last saved it through the node's API, whose account the
+  rule file records beside the actor (`updatedBy.account`). A rule restarts only what its author could
+  by hand; an author who loses the access stops the rule at its next firing; a rule nobody saved that
+  way — a shipped sample, a file written by hand — acts on nothing. A refusal is the action's result,
+  `blocked: <why>`, announced like any other failed act, and nothing reaches the engine.
+- **A confirmed offer** acts as the person confirming, judged before the offer is claimed, so a person
+  who may answer offers but not restore a server leaves it standing for somebody who may.
+- **Reading the world** is the service account alone: those reads are declared as its requirements.
+
 ## What an action says
 
 - **What an action costs is the action's, and it is a separate sentence from the fault.** `Consequence`

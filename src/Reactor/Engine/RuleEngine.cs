@@ -632,7 +632,7 @@ internal sealed class RuleEngine : BackgroundService
                 _decisions.SetActionState(decision.Id, ActionState.Dispatched);
 
                 ActionResult result = await _proposals
-                    .ActAsync(decision, action, token)
+                    .ActAsync(decision, action, pending.Rule.Definition.AuthorAccount, token)
                     .ConfigureAwait(false);
 
                 _decisions.SetActionState(

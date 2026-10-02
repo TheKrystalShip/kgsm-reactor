@@ -86,6 +86,10 @@ internal sealed class AuthorshipDocument
 
     [JsonPropertyName("at")]
     public DateTimeOffset At { get; set; }
+
+    /// <summary>Their account id, which the rule acts as beside this daemon's own service account.</summary>
+    [JsonPropertyName("account")]
+    public string? Account { get; set; }
 }
 
 /// <summary>One rule, on the wire.</summary>
@@ -610,7 +614,9 @@ internal static class RuleStore
     };
 
     private static AuthorshipDocument? ToDocument(RuleAuthorship? authorship) =>
-        authorship is null ? null : new AuthorshipDocument { Actor = authorship.Actor, At = authorship.At };
+        authorship is null
+            ? null
+            : new AuthorshipDocument { Actor = authorship.Actor, At = authorship.At, Account = authorship.Account };
 
     /// <summary>
     /// Authorship as written, or none.
@@ -623,7 +629,8 @@ internal static class RuleStore
     private static RuleAuthorship? Authorship(AuthorshipDocument? document) =>
         document is null || string.IsNullOrWhiteSpace(document.Actor)
             ? null
-            : new RuleAuthorship(document.Actor.Trim(), document.At);
+            : new RuleAuthorship(document.Actor.Trim(), document.At,
+                string.IsNullOrWhiteSpace(document.Account) ? null : document.Account.Trim());
 
     private static IReadOnlyDictionary<string, string> Insensitive(Dictionary<string, string> values) =>
         new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);

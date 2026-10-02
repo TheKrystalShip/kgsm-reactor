@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "component": "reactor",
+  "version": "0.30.0",
+  "actions": [
+    {
+      "id": "config.read",
+      "title": "Read Reactor settings",
+      "effect": "read",
+      "scope": "node"
+    },
+    {
+      "id": "config.write",
+      "title": "Change Reactor settings",
+      "effect": "write",
+      "scope": "node"
+    },
+    {
+      "id": "journal.read",
+      "title": "Read Reactor logs",
+      "effect": "read",
+      "scope": "node"
+    },
+    {
+      "id": "lifecycle.restart",
+      "title": "Restart Reactor",
+      "effect": "execute",
+      "scope": "node"
+    },
+    {
+      "id": "rules.read",
+      "title": "See the reactor's rules, decisions and offers",
+      "effect": "read",
+      "scope": "node"
+    },
+    {
+      "id": "rules.write",
+      "title": "Change reactor rules, and answer what they offer",
+      "effect": "write",
+      "scope": "node"
+    }
+  ],
+  "requires": [
+    {
+      "action": "kgsm:library.read",
+      "scope": "node",
+      "why": "Read what a server's blueprint declares it needs, to judge its footprint against"
+    },
+    {
+      "action": "kgsm:server.backups.create",
+      "scope": "instance",
+      "why": "Archive the state a server was left in when a rule decides to keep it"
+    },
+    {
+      "action": "kgsm:server.backups.read",
+      "scope": "instance",
+      "why": "Find the archive a backup or a rollback names"
+    },
+    {
+      "action": "kgsm:server.backups.restore",
+      "scope": "instance",
+      "why": "Roll a server back to the archive taken before an update, once somebody confirms the offer"
+    },
+    {
+      "action": "kgsm:server.read",
+      "scope": "instance",
+      "why": "Read a server's run state and supervision, which every rule is judged against"
+    }
+  ]
+}

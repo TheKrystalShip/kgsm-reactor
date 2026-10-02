@@ -249,15 +249,22 @@ public sealed record RedemptionResult
 /// <remarks>
 /// <b>Required, and the leaf refuses a confirmation without it.</b> This is the one path where a
 /// person authorises something, so the record it produces has to name them — and there is no fallback
-/// to the OS user the daemon runs as. <b>Whether they are <em>allowed</em> to is the caller's
-/// question:</b> the leaf holds no identity system and no tiers, so it checks the shape and trusts the
-/// surface that authenticated them, which is the same split every other write on this host uses.
+/// to the OS user the daemon runs as. The node's API checks that they may answer the reactor's offers
+/// before it dials this; whether they may do <em>the offer's own action</em> at its server is judged
+/// here, by their <see cref="Account"/>, together with this daemon's own service account.
 /// </remarks>
 public sealed record RedemptionRequest
 {
     /// <summary>The stable <c>provider:name</c> username, never a display name.</summary>
     [JsonPropertyName("by")]
     public string? By { get; init; }
+
+    /// <summary>
+    /// Their account id, named by the node's API from the session it verified. A confirmation naming
+    /// none is refused: confirming is performing, and the person performing has to be evaluated.
+    /// </summary>
+    [JsonPropertyName("account")]
+    public string? Account { get; init; }
 }
 
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
