@@ -12,7 +12,7 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
-using TheKrystalShip.KGSM.Auth.Cluster;
+using TheKrystalShip.Auth.Cluster;
 using TheKrystalShip.KGSM.ComponentSurface;
 using TheKrystalShip.KGSM.ComponentSurface.Http;
 using TheKrystalShip.Kgsm.Reactor.Status;

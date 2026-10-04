@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.30.1</Version>
+    <Version>0.30.2</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -44,7 +44,7 @@
     <!-- The cluster's authority, read off the replica the node on this machine keeps: a rule acts only
          where both this daemon's service account and the rule's author may do what it does, and a
          confirmed offer only where the person confirming may. -->
-    <PackageReference Include="TheKrystalShip.KGSM.Auth.Cluster" Version="1.0.0" />
+    <PackageReference Include="TheKrystalShip.Auth.Cluster" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>

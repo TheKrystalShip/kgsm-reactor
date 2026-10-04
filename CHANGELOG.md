@@ -7,6 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — built on tks-auth's packages (0.30.2)
+
+- `TheKrystalShip.Auth.Cluster` 2.0.0, the auth package under its new id. The namespaces follow. No
+  behaviour changes.
+
 ### Changed — built on released packages (0.30.1)
 
 Pinned to `Lib` 9.0.0, `Auth.Cluster` 1.0.0, `ComponentConfig` 3.2.0, and `ComponentSurface` and

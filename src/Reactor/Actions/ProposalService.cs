@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-using TheKrystalShip.KGSM.Auth.Cluster;
+using TheKrystalShip.Auth.Cluster;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
