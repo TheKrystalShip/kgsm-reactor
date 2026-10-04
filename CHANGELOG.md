@@ -7,6 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — built on released packages (0.30.1)
+
+Pinned to `Lib` 9.0.0, `Auth.Cluster` 1.0.0, `ComponentConfig` 3.2.0, and `ComponentSurface` and
+`ComponentSurface.Http` 1.0.0. No behaviour changes.
+
 ### Changed — every action runs as author ∩ service (0.30.0)
 
 **Breaking.** Nothing this daemon performs runs on one account's say-so:
