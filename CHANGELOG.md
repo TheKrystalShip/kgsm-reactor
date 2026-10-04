@@ -7,6 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — tks-auth's journal is read (0.30.3)
+
+- Built on `TheKrystalShip.KGSM.Lib` 9.1.0, whose journal scan finds the organization's `tks-`
+  services, so the account events tks-auth records reach the rules.
+
 ### Changed — built on tks-auth's packages (0.30.2)
 
 - `TheKrystalShip.Auth.Cluster` 2.0.0, the auth package under its new id. The namespaces follow. No

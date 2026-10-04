@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.30.2</Version>
+    <Version>0.30.3</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -39,7 +39,7 @@
          reference. Naming them here again pins versions the framework already owns, which is how a
          package and the runtime beneath it come to disagree. The status endpoint is a unix socket and
          never a port — the same shape kgsm-monitor serves its scrape from. -->
-    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="9.0.0" />
+    <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="9.1.0" />
 
     <!-- The cluster's authority, read off the replica the node on this machine keeps: a rule acts only
          where both this daemon's service account and the rule's author may do what it does, and a
