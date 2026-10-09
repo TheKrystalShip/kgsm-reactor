@@ -14,7 +14,7 @@ measurement. The plan, its phases and every decision still open are in `../kgsm-
 ## What it does now
 
 - Reads **every** producer's journal through one federated source — the engine, the supervisor, the
-  monitor, the firewall, the scheduler, the assistant, the bot, the API and the speech leaf.
+  monitor, the firewall, the scheduler, the assistant, the bot and the API.
 - Classifies each event down to the few facts a later rule would be built on: what kind of thing it
   is, what it is about, when it happened.
 - Records that in a local SQLite ledger, and prunes it on a retention window.
