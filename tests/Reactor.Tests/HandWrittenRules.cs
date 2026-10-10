@@ -21,10 +21,9 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// default's clothing. The seeds carry the same figures, which is asserted rather than assumed.
 /// </para>
 /// <para>
-/// Each rule survived the seven questions in <c>kgsm-reactor-plan.md</c> §P2. <b>The rejections are the
-/// more useful half of that exercise</b> and are recorded in the plan, each against the question it
-/// failed — a rule that restated a fact the give-up already carried, two that reached into what the
-/// watchdog and the firewall own, and one whose false positive is visible to players.
+/// Each rule here survived a seven-question admission test. <b>The rejections are the more useful half
+/// of that exercise</b>: a rule that restated a fact the give-up already carried, two that reached into
+/// what the watchdog and the firewall own, and one whose false positive is visible to players.
 /// </para>
 /// </remarks>
 internal static class HandWrittenRules

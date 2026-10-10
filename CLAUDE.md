@@ -1,13 +1,11 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-`kgsm-reactor` is the **event-triggered** leaf of the KGSM ecosystem — the sibling of `kgsm-scheduler`,
-which is the clock-triggered one. It reads every producer's event journal, evaluates rules against what
-it sees, and records every decision. A rule's default mode is `observe`, so nothing is offered or
-performed until somebody moves a named rule. The workspace keystone is `../system-architecture.md`;
-**the authority for this project is `../kgsm-reactor-plan.md`**, which holds the design, the boundary
-contract and every decision still open.
+`kgsm-reactor` is the event-triggered leaf, the sibling of `kgsm-scheduler`'s clock. It reads every
+producer's journal, evaluates rules against what it sees and records every decision; a rule's default mode
+is `observe`. Role, contracts and peers: `../kgsm-docs/components/kgsm-reactor.md`. The model, the seven
+invariants and the gate: `../kgsm-docs/systems/operations/reactor.md`; why:
+`../kgsm-docs/decisions/0021-reactor-observes-by-default.md`; what is unbuilt:
+`../kgsm-docs/plans/kgsm-reactor.md`. Settings: `CONFIGURATION.md`.
 
 **Each part's rules live in a `CLAUDE.md` beside its code** under `src/Reactor/`: `Ingest/`,
 `Classification/`, `Ledger/` (positions, migrations, decisions), `Engine/` (effective mode, verdicts,
@@ -76,30 +74,14 @@ dotnet publish src/Reactor/Reactor.csproj -c Release -r linux-x64
 a stronger check than the status socket would be: `/health` answering only proves Kestrel is listening,
 where the journal line is written after the ledger is open and the rules are resolved.
 
-## The invariants (from the plan — these do not get re-decided)
+## Rules for editing
 
-1. **It is never the only record.** The journals are the record; an observation is derived. A reactor
-   that was down during an incident must not be why nobody can reconstruct it.
-2. **It never fabricates an actor.** Origin `reactor`, actor the rule id — written `rule:<id>`, in the
-   ecosystem's `provider:name` actor shape. Never a person, never null.
-3. **It never acts on what another supervisor owns.** The watchdog owns crash-restart, autostart and
-   caps; the scheduler owns timed restarts, scheduled backups and update sweeps. The reactor acts on
-   what the watchdog has **given up** on.
-4. **A rule's default mode is `observe`.** Nothing is offered or performed until somebody moves a named
-   rule. `RuleEngine.Honours` is a ceiling over that, never a substitute for it.
-5. **It degrades to silence, never to a guess.** Cannot read the world ⇒ no decision.
-6. **Every evaluation is recorded with its reason**, including the ones that decided not to act.
-7. **It holds no delivery channel.** No Discord token, no VAPID key, no SMTP.
-
-## Repo-specific rules
-
-- **Never shell out to `kgsm.sh`.** All engine access goes through **kgsm-lib**, consumed as a
-  versioned `PackageReference` from the org's GitHub Packages feed.
-- **Never fabricate a status or a metric.** Measured, or explicitly unknown.
-- **This leaf depends only on kgsm-lib.** Not on the API, not on a sibling leaf.
-- **Native AOT, and nothing here needs the exemption.** The ledger is raw ADO over
-  `Microsoft.Data.Sqlite`; EF Core is what is not AOT-safe, which is why `kgsm-api` is the ecosystem's
-  one deliberate JIT exception and this leaf is not.
+- **The seven invariants in `systems/operations/reactor.md` are not re-decided here.** Two bite in code:
+  the actor is always `rule:<id>` with origin `reactor`, never a person and never null; and
+  `RuleEngine.Honours` is a ceiling over a rule's default `observe`, never a substitute for it.
+- **Never shell out to `kgsm.sh`.** All engine access goes through kgsm-lib, a versioned
+  `PackageReference`. The leaf depends on nothing else: not the API, not a sibling leaf.
+- **Native AOT.** The ledger is raw ADO over `Microsoft.Data.Sqlite`; EF Core is not AOT-safe.
 - **The settings file and `ReactorSettings` must agree**, in both directions, and
   `SettingsCoverageTests` fails the build when they do not. A key with no property binds to nothing; a
   property with no key is a knob documented nowhere and therefore absent from the leaf descriptor too.
@@ -107,11 +89,22 @@ where the journal line is written after the ledger is open and the rules are res
 - **Numbers in `ReactorSettings` are nullable on purpose.** A blank env value binds to a non-nullable
   `int` by throwing (taking the unit down at startup) and a JSON null binds to `0` (silently discarding
   a default). Nullable makes both "unset".
-- Work directly on **`main`** and commit there.
 
 ## Version tracking
 
-- **Version source:** `<Version>` in `src/Reactor/Reactor.csproj`. `./deploy/version.sh` reads it;
-  `--pkgver` prints the pacman-safe form. A package never restates a version — it asks for one.
-- Bump on any user-facing change; patch for fixes, minor for features, major for breaking changes, with
-  a `CHANGELOG.md` entry under `## [Unreleased]` in the same commit.
+- The version is `<Version>` in `src/Reactor/Reactor.csproj`; `./deploy/version.sh` reads it (`--pkgver`
+  for the pacman form).
+- Bump on any user-facing change (patch for fixes, minor for features, major for breaking changes), with a
+  `CHANGELOG.md` entry under `## [Unreleased]` in the same commit, and tag it
+  `git tag -a v<version> -m "kgsm-reactor v<version>"`.
+
+## Read before changing
+
+- `../kgsm-docs/systems/operations/reactor.md`, `../kgsm-docs/decisions/0021-reactor-observes-by-default.md`.
+- `../kgsm-docs/systems/authorization/` and `../kgsm-docs/reference/action-manifest.md`: who an action
+  runs as and how the leaf declares its actions.
+- `../kgsm-docs/reference/event-envelope.md`, `event-journal.md`: what the ingest reads.
+- `../kgsm-docs/reference/leaf-config-descriptor.md`, `logging-convention.md`.
+
+Docs and comments describe the system as it is now: present tense, no history, no emoji, no volatile
+numbers (workspace `../CLAUDE.md`).

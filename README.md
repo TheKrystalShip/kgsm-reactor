@@ -4,20 +4,23 @@ The **event-triggered** leaf of the KGSM ecosystem.
 
 `kgsm-scheduler` acts on a clock. Nothing acts on what it *observes* — the monitor measures, the bot
 announces, the API aggregates, the assistant answers. This is the component that watches every
-producer's event journal, and whose job will be to decide what is worth doing about what it sees.
+producer's event journal and decides what is worth doing about what it sees.
 
-**Today it observes and records. It decides nothing and it acts on nothing.** That is deliberate and
-it is the whole plan: a rule table invented at a desk is a list of things that sound sensible, and the
-one that works is derived from what this host actually does. The observing phase produces that
-measurement. The plan, its phases and every decision still open are in `../kgsm-reactor-plan.md`.
+**A rule's default mode is `observe`: it evaluates and records its decision, and offers or performs
+nothing until somebody moves that named rule.** A rule table invented at a desk is a list of things
+that sound sensible; the ledger of observations is what shows what this host actually does. The model
+is `../kgsm-docs/systems/operations/reactor.md`; the work that remains is
+`../kgsm-docs/plans/kgsm-reactor.md`.
 
-## What it does now
+## What it does
 
 - Reads **every** producer's journal through one federated source — the engine, the supervisor, the
   monitor, the firewall, the scheduler, the assistant, the bot and the API.
-- Classifies each event down to the few facts a later rule would be built on: what kind of thing it
-  is, what it is about, when it happened.
+- Classifies each event down to the few facts a rule is built on: what kind of thing it is, what it is
+  about, when it happened.
 - Records that in a local SQLite ledger, and prunes it on a retention window.
+- Evaluates its rules and records each decision with its reason; where a rule's mode allows it, offers
+  an action as a proposal or performs it.
 - Prints a **population report**: what fires here, how often, in what bursts, how long between repeats
   on one subject, and how long each candidate condition takes to resolve itself.
 
@@ -32,7 +35,7 @@ kgsm-reactor --report --ledger /path/to/reactor.db
 - **Act on what another supervisor owns.** `kgsm-watchdog` owns crash-restart, autostart and resource
   caps; `kgsm-scheduler` owns timed restarts, scheduled backups and the update sweep. The reactor acts
   only on what the watchdog has given up on, and never on work the scheduler is responsible for.
-- **Fabricate an actor.** Anything it eventually dispatches carries its own provenance — origin
+- **Fabricate an actor.** Anything it dispatches carries its own provenance — origin
   `reactor`, actor the rule id — so an audit row names the rule, never a person and never null.
 - **Hold a delivery channel.** It has no Discord token, no push key and no mail server. It decides;
   the surfaces that already own their channels deliver.
@@ -62,7 +65,8 @@ also satisfy.
 
 | Doc | For |
 |---|---|
-| `../kgsm-reactor-plan.md` | The plan: phases, the boundary contract, and every open decision |
+| `../kgsm-docs/systems/operations/reactor.md` | The model: rules, modes, proposals, the invariants |
+| `../kgsm-docs/plans/kgsm-reactor.md` | What is not built yet |
 | `CONFIGURATION.md` | Every config key, its default and its environment-variable form |
 | `CLAUDE.md` | The mental model and the invariants, for anyone changing this repo |
 | `CHANGELOG.md` | What changed, per version |
