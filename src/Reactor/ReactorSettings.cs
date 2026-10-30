@@ -176,21 +176,6 @@ internal sealed class ReactorSettings
         Risk = ConfigRisk.Wiring)]
     public string ConfigOverridePath { get; set; } = "/var/lib/kgsm-api/leaf-overrides/reactor.env";
 
-    /// <summary>The node's replica of the cluster's authority, read and never written.</summary>
-    /// <panel>The file the node on this machine keeps its copy of the cluster's accounts and roles in. A
-    /// rule acts only while both this service and the person who saved it may do what it does, and an
-    /// offer is carried out only for somebody who may; this is where that is read.</panel>
-    [ConfigField("authorityReplica", "Authority replica", Group = "wiring", Type = ConfigType.Path,
-        Risk = ConfigRisk.Wiring)]
-    public string AuthorityReplicaPath { get; set; } = "/var/lib/kgsm/auth/users.db";
-
-    /// <summary>The host file the node on this machine names itself in.</summary>
-    /// <panel>Where the reactor reads which node it is on, which names its own service account. The node
-    /// on this machine writes it; leave it at the default unless the node writes somewhere else.</panel>
-    [ConfigField("providerFile", "Node identity file", Group = "wiring", Type = ConfigType.Path,
-        Risk = ConfigRisk.Wiring)]
-    public string ProviderFilePath { get; set; } = "/var/lib/kgsm/cluster/auth-provider.json";
-
     /// <summary>
     /// Permission bits set on the socket once it exists, as an octal string.
     /// </summary>
@@ -269,4 +254,30 @@ internal sealed class ReactorSettings
     [ConfigField("rulesDirectory", "Rules directory", Group = "rules", Type = ConfigType.Path,
         Risk = ConfigRisk.Wiring)]
     public string RulesDirectory { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// The sign-in provider whose tokens this daemon's write routes admit, bound from the "Sessions" section.
+/// Both values are host-level, set once for every component on the machine in
+/// <c>/etc/kgsm/kgsm-cluster.env</c> (<c>Sessions__Issuer</c>, <c>Sessions__Audience</c>).
+/// </summary>
+[ConfigSection(Section)]
+internal sealed class SessionsSettings
+{
+    /// <summary>The configuration section this binds from.</summary>
+    public const string Section = "Sessions";
+
+    /// <summary>The provider's issuer, exactly as its tokens carry it.</summary>
+    /// <panel>The sign-in provider the reactor admits people from, as its tokens name it. It is the same
+    /// for every component on this machine, set in the shared cluster environment file. Blank, nobody
+    /// can save a rule or answer an offer.</panel>
+    [ConfigField("sessionsIssuer", "Sign-in provider", Group = "wiring", Risk = ConfigRisk.Wiring)]
+    public string Issuer { get; set; } = "";
+
+    /// <summary>The audience the cluster's tokens are minted for.</summary>
+    /// <panel>The audience the cluster's access tokens are minted for; a token for any other is refused.
+    /// It is the same for every component on this machine, set in the shared cluster environment
+    /// file.</panel>
+    [ConfigField("sessionsAudience", "Token audience", Group = "wiring", Risk = ConfigRisk.Wiring)]
+    public string Audience { get; set; } = "";
 }

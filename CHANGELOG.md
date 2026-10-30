@@ -7,6 +7,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — people are admitted by their token; the author is checked when a rule is saved (0.31.0)
+
+**Breaking.** The reactor no longer reads the node's authority replica or holds a service account.
+
+- **The write routes admit a person by their access token.** `PUT` and `DELETE /rules/{id}` and the
+  confirm and dismiss routes take the bearer the node relays, checked against the sign-in provider
+  (`TheKrystalShip.KGSM.Sessions` 1.0.0-dev.1) and requiring `reactor:rules.write`. The `by` and
+  `account` request fields are gone. With no `Sessions__Issuer` those routes answer `503`.
+- **A rule that acts is saved only when the saver's token lists every action it performs.** The rule
+  records the saver's subject and display name (`updatedBy.name`); at the firing the reactor performs it
+  as itself and attributes it to that author. Losing a role afterwards stops nothing already saved;
+  saving again re-checks it.
+- **Saved rules keep working.** A rule with a recorded account runs as before; one saved before display
+  names were recorded shows its actor. A rule with no recorded account still performs nothing.
+- **A confirmed offer is performed when the confirmer's token lists the offer's action**, else `403
+  refused` with the offer left open. The `unattributable` outcome no longer exists.
+- **Configuration:** `Sessions__Issuer` and `Sessions__Audience` (host-level, from
+  `/etc/kgsm/kgsm-cluster.env`, which the unit now loads). `Reactor__AuthorityReplicaPath` and
+  `Reactor__ProviderFilePath` are gone, and `TheKrystalShip.Auth.Cluster` is no longer referenced.
+
 ### Fixed — tks-auth's journal is read (0.30.3)
 
 - Built on `TheKrystalShip.KGSM.Lib` 9.1.0, whose journal scan finds the organization's `tks-`

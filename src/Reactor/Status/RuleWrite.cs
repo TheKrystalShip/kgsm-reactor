@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
 
+using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
+using TheKrystalShip.KGSM.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor.Status;
 
@@ -14,28 +16,24 @@ internal sealed class RuleWriteRequest
     /// <summary>The rule to store, in the file's own shape.</summary>
     [JsonPropertyName("rule")]
     public RuleDocument? Rule { get; set; }
+}
 
+/// <summary>What saving a rule requires of the person saving it.</summary>
+internal static class RuleWrite
+{
     /// <summary>
-    /// Who is doing this, as <c>provider:name</c>.
+    /// The first action <paramref name="definition"/> performs that <paramref name="person"/>'s token does
+    /// not list, or null when they hold every one.
     /// </summary>
     /// <remarks>
-    /// Required, and checked for having been NAMED: whether editing a rule is theirs to do is the node's
-    /// API's question, asked before it relays. What this refuses is an anonymous write, because the actor is
-    /// stamped onto the rule and travels from there onto every decision the rule goes on to make.
+    /// Only a rule in <c>act</c> mode performs anything on its own: an offer is carried out for whoever
+    /// confirms it, with their own token. The check is cluster-wide because an action is: a token lists an
+    /// action or it does not.
     /// </remarks>
-    [JsonPropertyName("by")]
-    public string? By { get; set; }
-
-    /// <summary>
-    /// Their account id, which the rule then acts as beside this daemon's own service account.
-    /// </summary>
-    /// <remarks>
-    /// Named by the node's API from the session it verified, beside <see cref="By"/>. A write naming no
-    /// account stores a rule that performs nothing until somebody who does saves it — never one acting as
-    /// whoever saved it last.
-    /// </remarks>
-    [JsonPropertyName("account")]
-    public string? Account { get; set; }
+    public static string? MissingAction(RuleDefinition definition, KgsmPerson person) =>
+        definition.Mode != RuleMode.Act
+            ? null
+            : ActionCatalog.Build(definition.ActionId, string.Empty).Performs.FirstOrDefault(a => !person.Holds(a));
 }
 
 /// <summary>What became of a write.</summary>

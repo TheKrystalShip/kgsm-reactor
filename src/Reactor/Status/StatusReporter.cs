@@ -122,7 +122,7 @@ internal sealed class StatusReporter(
             ],
             [.. definition.Rows.Select(Describe)],
             Describe(definition.Default),
-            definition.Author,
+            definition.AuthorName,
             definition.Enabled,
             definition.Retired);
 

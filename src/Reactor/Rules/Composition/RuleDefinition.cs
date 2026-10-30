@@ -155,16 +155,24 @@ internal sealed record GuardRow(
 /// <c>discord:tanya</c>"</em> — the act and its origin named without being confused.
 /// </remarks>
 /// <param name="Actor">
-/// <c>provider:name</c>, and the stable <b>username</b> rather than a display name — a person can
-/// change the second, which would then rewrite what an old decision appears to say.
+/// The saver's stable identity: the token's subject, and never a display name — a person can change the
+/// second, which would then rewrite what an old decision appears to say. A rule saved before accounts
+/// were subjects holds the <c>provider:name</c> it was saved under.
 /// </param>
 /// <param name="At">When they did it.</param>
 /// <param name="Account">
-/// Their account id, which is what the rule acts as beside this daemon's own service account: a rule
-/// does only what both may do. Null on a rule nobody saved through the node's API, which then acts on
-/// nothing.
+/// The subject whose token held every action the rule performs when it was saved. Null on a rule nobody
+/// saved through the node's API, which then acts on nothing.
 /// </param>
-internal sealed record RuleAuthorship(string Actor, DateTimeOffset At, string? Account = null);
+/// <param name="Name">
+/// The saver's display name as their token carried it. Null on a rule saved without one; the
+/// <paramref name="Actor"/> is shown instead.
+/// </param>
+internal sealed record RuleAuthorship(string Actor, DateTimeOffset At, string? Account = null, string? Name = null)
+{
+    /// <summary>What a surface calls the saver: their name when one was recorded, otherwise their identity.</summary>
+    public string Display => Name ?? Actor;
+}
 
 /// <summary>
 /// A rule, assembled from what this build offers.
@@ -268,11 +276,14 @@ internal sealed record RuleDefinition(
     /// </remarks>
     public string? Author => (UpdatedBy ?? CreatedBy)?.Actor;
 
+    /// <summary>What a surface calls <see cref="Author"/>: their display name when one was recorded.</summary>
+    public string? AuthorName => (UpdatedBy ?? CreatedBy)?.Display;
+
     /// <summary>
-    /// The account the rule acts as beside this daemon's own: whoever last saved it, since saving a rule
-    /// is choosing what it does. Null when nobody is recorded, and a rule with no author performs nothing.
+    /// Whether the rule may perform anything: someone's token held what it performs when they saved it.
+    /// A rule nobody is recorded as saving through the node's API performs nothing.
     /// </summary>
-    public string? AuthorAccount => UpdatedBy?.Account;
+    public bool HasAuthor => !string.IsNullOrWhiteSpace(UpdatedBy?.Account);
 
     /// <summary>The binding an alias names, or null when nothing declares it.</summary>
     public SignalBinding? Binding(string alias) =>

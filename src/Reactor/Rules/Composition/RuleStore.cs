@@ -80,16 +80,20 @@ internal sealed class SubjectDocument
 /// <summary>Who shaped a rule, on the wire.</summary>
 internal sealed class AuthorshipDocument
 {
-    /// <summary><c>provider:name</c>, and the stable username rather than a display name.</summary>
+    /// <summary>The saver's stable identity, never a display name.</summary>
     [JsonPropertyName("actor")]
     public string Actor { get; set; } = string.Empty;
 
     [JsonPropertyName("at")]
     public DateTimeOffset At { get; set; }
 
-    /// <summary>Their account id, which the rule acts as beside this daemon's own service account.</summary>
+    /// <summary>The subject whose token held what the rule performs when it was saved.</summary>
     [JsonPropertyName("account")]
     public string? Account { get; set; }
+
+    /// <summary>Their display name as their token carried it.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
 }
 
 /// <summary>One rule, on the wire.</summary>
@@ -616,7 +620,10 @@ internal static class RuleStore
     private static AuthorshipDocument? ToDocument(RuleAuthorship? authorship) =>
         authorship is null
             ? null
-            : new AuthorshipDocument { Actor = authorship.Actor, At = authorship.At, Account = authorship.Account };
+            : new AuthorshipDocument
+            {
+                Actor = authorship.Actor, At = authorship.At, Account = authorship.Account, Name = authorship.Name,
+            };
 
     /// <summary>
     /// Authorship as written, or none.
@@ -630,7 +637,8 @@ internal static class RuleStore
         document is null || string.IsNullOrWhiteSpace(document.Actor)
             ? null
             : new RuleAuthorship(document.Actor.Trim(), document.At,
-                string.IsNullOrWhiteSpace(document.Account) ? null : document.Account.Trim());
+                string.IsNullOrWhiteSpace(document.Account) ? null : document.Account.Trim(),
+                string.IsNullOrWhiteSpace(document.Name) ? null : document.Name.Trim());
 
     private static IReadOnlyDictionary<string, string> Insensitive(Dictionary<string, string> values) =>
         new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);

@@ -12,7 +12,6 @@ using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Reporting;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
-using TheKrystalShip.Auth.Cluster;
 using TheKrystalShip.KGSM.ComponentSurface;
 using TheKrystalShip.KGSM.ComponentSurface.Http;
 using TheKrystalShip.Kgsm.Reactor.Status;
@@ -20,6 +19,7 @@ using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Extensions;
 using TheKrystalShip.KGSM.Lifecycle;
+using TheKrystalShip.KGSM.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor;
 
@@ -45,23 +45,14 @@ internal sealed class Program
     /// </para>
     /// </remarks>
     private static async Task<IResult> RedeemAsync(
-        string handle, HttpRequest request, ProposalService proposals, bool confirm, CancellationToken ct)
+        string handle, HttpContext context, ProposalService proposals, bool confirm, CancellationToken ct)
     {
-        RedemptionRequest? body;
-        try
-        {
-            body = await System.Text.Json.JsonSerializer
-                .DeserializeAsync(request.Body, ProposalJsonContext.Default.RedemptionRequest, ct)
-                .ConfigureAwait(false);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return Refused("the request body could not be read");
-        }
+        // The route admitted the request on a valid token, so a person is attached to it.
+        KgsmPerson person = KgsmPerson.Of(context)!;
 
         Redemption redeemed = confirm
-            ? await proposals.ConfirmAsync(handle, body?.By ?? string.Empty, body?.Account, ct).ConfigureAwait(false)
-            : await proposals.DismissAsync(handle, body?.By ?? string.Empty, ct).ConfigureAwait(false);
+            ? await proposals.ConfirmAsync(handle, person, ct).ConfigureAwait(false)
+            : await proposals.DismissAsync(handle, person, ct).ConfigureAwait(false);
 
         var result = new RedemptionResult
         {
@@ -73,8 +64,7 @@ internal sealed class Program
         int status = redeemed.Outcome switch
         {
             RedemptionOutcome.Unknown => StatusCodes.Status404NotFound,
-            RedemptionOutcome.Unattributable => StatusCodes.Status400BadRequest,
-            // The offer is still open for somebody who may perform it.
+            // The offer is still open for somebody who holds its action.
             RedemptionOutcome.Refused => StatusCodes.Status403Forbidden,
             RedemptionOutcome.Expired or RedemptionOutcome.AlreadyAnswered =>
                 StatusCodes.Status409Conflict,
@@ -224,6 +214,17 @@ internal sealed class Program
         builder.Services.AddSingleton<IOptions<ReactorOptions>>(Options.Create(options));
         builder.Services.AddSingleton(TimeProvider.System);
 
+        // The people the write routes admit. The node relays a person's access token over the socket and
+        // it is checked here against the keys of the provider named by Sessions__Issuer and
+        // Sessions__Audience; a route admits a token listing the route's action. With no issuer nothing can
+        // be verified, so the gated routes answer 503 rather than admit anyone.
+        SessionsSettings sessionSettings =
+            builder.Configuration.GetSection(SessionsSettings.Section).Get<SessionsSettings>()
+            ?? new SessionsSettings();
+        bool sessionsConfigured = !string.IsNullOrWhiteSpace(sessionSettings.Issuer);
+        if (sessionsConfigured)
+            builder.Services.AddKgsmSessions();
+
         builder.Logging.ClearProviders();
         builder.Logging.AddSystemdConsole();
 
@@ -300,30 +301,6 @@ internal sealed class Program
         builder.Services.AddSingleton<IActionPerformer, KgsmActionPerformer>();
         builder.Services.AddSingleton<ProposalStore>();
 
-        // Whether something may be performed: this daemon's own service account and the person behind it
-        // — the rule's author, or whoever confirmed the offer — evaluated together from the replica the
-        // node on this machine keeps, which this daemon reads and never writes. The node it is on, and so
-        // its own account, is the member id that node writes into the host file.
-        builder.Services.AddSingleton<IReplicatedAuthority>(sp => new AuthorityReplicaFile(
-            options.AuthorityReplicaPath, sp.GetRequiredService<ILogger<AuthorityReplicaFile>>()));
-        builder.Services.AddSingleton<MemberAccess>();
-        builder.Services.AddSingleton(sp => new HostSessionKeys(
-            options.ProviderFilePath, sp.GetRequiredService<ILogger<HostSessionKeys>>()));
-        builder.Services.AddSingleton(sp => new AutomationAccess(
-            sp.GetRequiredService<MemberAccess>(),
-            ComponentId,
-            () => sp.GetRequiredService<HostSessionKeys>().Node));
-
-        // The install a server is, so a grant on one install never reaches a reinstall under its name.
-        builder.Services.AddSingleton<Func<string, string?>>(sp =>
-        {
-            IInstanceService instances = sp.GetRequiredService<IInstanceService>();
-            return name =>
-            {
-                try { return instances.GetInstanceInfo(name)?.InstallNonce; }
-                catch (Exception) { return null; }
-            };
-        });
         builder.Services.AddSingleton<ProposalService>();
 
         // Registered as singletons and then handed to the host, rather than AddHostedService<T>()
@@ -385,6 +362,27 @@ internal sealed class Program
             ComponentSurfacePaths.Commands(ComponentId)));
 
         WebApplication host = builder.Build();
+
+        if (sessionsConfigured)
+        {
+            host.UseAuthentication();
+            host.UseAuthorization();
+        }
+        else
+        {
+            host.Use(async (context, next) =>
+            {
+                if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() is not null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    await context.Response.WriteAsync(
+                        "no sign-in provider is configured (Sessions__Issuer), so nobody can be admitted\n");
+                    return;
+                }
+
+                await next();
+            });
+        }
 
         if (options.StatusSocketPath.Length > 0)
         {
@@ -486,20 +484,21 @@ internal sealed class Program
             // because confirming re-derives the condition — which means re-evaluating the rule, which
             // only the reactor can do.
             //
-            // The node's API authenticates the person and checks that they may answer the reactor's
-            // offers before it dials this; it names them, by actor and by account. Whether they may
-            // perform the offer's own action at its server is judged here, together with this daemon's
-            // own service account, before anything runs. What guards the socket itself is its mode and
-            // the handle being unguessable.
+            // The node's API relays the person's access token. The route admits a token listing the
+            // reactor's write action, and whether it also lists the offer's own action is judged here
+            // before anything runs. What guards the socket itself is its mode and the handle being
+            // unguessable.
             host.MapPost("/proposals/{handle}/confirm", (
-                    string handle, HttpRequest request, ProposalService proposalService,
+                    string handle, HttpContext context, ProposalService proposalService,
                     CancellationToken ct) =>
-                RedeemAsync(handle, request, proposalService, confirm: true, ct));
+                RedeemAsync(handle, context, proposalService, confirm: true, ct))
+                .RequireAction(ReactorActionIds.RulesWrite);
 
             host.MapPost("/proposals/{handle}/dismiss", (
-                    string handle, HttpRequest request, ProposalService proposalService,
+                    string handle, HttpContext context, ProposalService proposalService,
                     CancellationToken ct) =>
-                RedeemAsync(handle, request, proposalService, confirm: false, ct));
+                RedeemAsync(handle, context, proposalService, confirm: false, ct))
+                .RequireAction(ReactorActionIds.RulesWrite);
 
             // Storing a rule, and removing one.
             //
@@ -509,13 +508,16 @@ internal sealed class Program
             // that knows what this build can honour is the thing that decides whether to store it — and
             // it refuses in the response, while the person is still looking at what they wrote.
             //
-            // The caller must name itself: whether it may change rules is the node's API's question,
-            // asked before it dials this. The account it names is what the rule then acts as, beside
-            // this daemon's own service account.
+            // The saver is the person whose token the node relays. A rule that acts is saved only when
+            // that token lists every action it performs, anywhere in the cluster; the daemon then runs
+            // it as itself and attributes it to the subject and display name recorded here.
             host.MapPut("/rules/{id}", async (
-                string id, HttpRequest request, RuleRegistry registry, TimeProvider clock,
+                string id, HttpContext context, RuleRegistry registry, TimeProvider clock,
                 CancellationToken ct) =>
             {
+                HttpRequest request = context.Request;
+                KgsmPerson person = KgsmPerson.Of(context)!;
+
                 RuleWriteRequest? body;
                 try
                 {
@@ -533,9 +535,6 @@ internal sealed class Program
                 if (body?.Rule is null)
                     return Refused("no rule to store");
 
-                if (string.IsNullOrWhiteSpace(body.By) || !body.By.Contains(':', StringComparison.Ordinal))
-                    return Refused("'by' is required and must be provider:name");
-
                 // The route names the rule; a body disagreeing is a copied file about to be saved under
                 // the wrong identity, which is the one mistake that folds two rules' decisions together.
                 if (!string.Equals(body.Rule.Id, id, StringComparison.Ordinal))
@@ -550,8 +549,7 @@ internal sealed class Program
 
                 // Stamped here rather than taken from the body: authorship is a fact about who called,
                 // and a caller that could write its own would be able to sign a rule as somebody else.
-                var hand = new RuleAuthorship(body.By, clock.GetUtcNow(),
-                    string.IsNullOrWhiteSpace(body.Account) ? null : body.Account.Trim());
+                var hand = new RuleAuthorship(person.Subject, clock.GetUtcNow(), person.Subject, person.DisplayName);
                 definition = definition with
                 {
                     Shipped = false,
@@ -559,6 +557,19 @@ internal sealed class Program
                         .FirstOrDefault(r => r.Id == id)?.CreatedBy ?? hand,
                     UpdatedBy = hand,
                 };
+
+                if (parseProblems.Count == 0 && RuleWrite.MissingAction(definition, person) is { } missing)
+                {
+                    return Results.Json(
+                        new RuleWriteResult
+                        {
+                            Ok = false,
+                            Problems = [$"{missing} is not among the actions you hold, and this rule performs it"],
+                            Live = [.. registry.Current.Rules.Select(r => r.Id)],
+                        },
+                        RuleWriteJsonContext.Default.RuleWriteResult,
+                        statusCode: StatusCodes.Status403Forbidden);
+                }
 
                 IReadOnlyList<string> problems =
                     parseProblems.Count > 0 ? parseProblems : registry.Replace(definition);
@@ -575,7 +586,7 @@ internal sealed class Program
                     statusCode: problems.Count == 0
                         ? StatusCodes.Status200OK
                         : StatusCodes.Status422UnprocessableEntity);
-            });
+            }).RequireAction(ReactorActionIds.RulesWrite);
 
             // Deleting is not retiring. A retired rule keeps its file so the decisions it already made
             // still resolve to something nameable; deleting one leaves those naming an id nothing can
@@ -590,7 +601,8 @@ internal sealed class Program
                             Live = [.. registry.Current.Rules.Select(r => r.Id)],
                         },
                         RuleWriteJsonContext.Default.RuleWriteResult)
-                    : Missing($"no rule called '{id}' is stored on this host"));
+                    : Missing($"no rule called '{id}' is stored on this host"))
+                .RequireAction(ReactorActionIds.RulesWrite);
 
             // What a rule WOULD decide about this host right now, without becoming one of its rules.
             // The thing that makes composing one safe: a rule that reads plausibly can still fire on

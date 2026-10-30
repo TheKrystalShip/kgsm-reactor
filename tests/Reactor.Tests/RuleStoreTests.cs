@@ -294,6 +294,36 @@ public class RuleStoreTests
         Assert.Equal("local:claude", RuleStore.LoadDirectory(DirOf([edited])).Rules.Single().Author);
     }
 
+    /// <summary>The saver's display name is stored with the rule; one saved without it shows its actor.</summary>
+    [Fact]
+    public void An_authorship_keeps_the_display_name_it_was_saved_with()
+    {
+        var at = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero);
+        RuleDefinition named = Minimal() with { UpdatedBy = new RuleAuthorship("usr_1", at, "usr_1", "Tanya") };
+        RuleDefinition legacy = Minimal() with { UpdatedBy = new RuleAuthorship("local:claude", at, "usr_2") };
+
+        RuleDefinition loadedNamed = RuleStore.LoadDirectory(DirOf([named])).Rules.Single();
+        RuleDefinition loadedLegacy = RuleStore.LoadDirectory(DirOf([legacy])).Rules.Single();
+
+        Assert.Equal("Tanya", loadedNamed.AuthorName);
+        Assert.Equal("usr_1", loadedNamed.Author);
+        Assert.True(loadedNamed.HasAuthor);
+        Assert.Equal("local:claude", loadedLegacy.AuthorName);
+        Assert.True(loadedLegacy.HasAuthor);
+    }
+
+    /// <summary>A rule saved with an actor but no account performs nothing.</summary>
+    [Fact]
+    public void A_rule_saved_without_an_account_has_no_author_to_act_for()
+    {
+        RuleDefinition rule = Minimal() with
+        {
+            UpdatedBy = new RuleAuthorship("local:claude", new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero)),
+        };
+
+        Assert.False(RuleStore.LoadDirectory(DirOf([rule])).Rules.Single().HasAuthor);
+    }
+
     [Fact]
     public void An_authorship_with_an_empty_actor_is_no_authorship()
     {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "component": "reactor",
-  "version": "0.30.3",
+  "version": "0.31.0",
   "actions": [
     {
       "id": "config.read",

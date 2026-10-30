@@ -6,20 +6,21 @@ delivery channel — no Discord token, no VAPID key, no SMTP.
 
 ## Who it acts as
 
-**Nothing is performed on one account's say-so.** Every action names the engine actions it takes
-(`ReactorAction.Performs`), and `ProposalService` performs it only where both this daemon's service
-account, `svc:reactor@<node>`, and the person behind it hold every one of them at the server's install
-— evaluated from the node's replica at that moment by `Auth.Cluster`'s `AutomationAccess`, the same
-check the scheduler makes.
+**Nothing is performed without a person having held the action.** Every action names the engine actions
+it takes (`ReactorAction.Performs`). The daemon performs them as itself on its own host; the person
+behind them was checked once, by token.
 
-- **A rule acting** acts as its author: whoever last saved it through the node's API, whose account the
-  rule file records beside the actor (`updatedBy.account`). A rule restarts only what its author could
-  by hand; an author who loses the access stops the rule at its next firing; a rule nobody saved that
-  way — a shipped sample, a file written by hand — acts on nothing. A refusal is the action's result,
-  `blocked: <why>`, announced like any other failed act, and nothing reaches the engine.
-- **A confirmed offer** acts as the person confirming, judged before the offer is claimed, so a person
-  who may answer offers but not restore a server leaves it standing for somebody who may.
-- **Reading the world** is the service account alone: those reads are declared as its requirements.
+- **A rule acting** was saved by someone whose token listed every action it performs
+  (`RuleWrite.MissingAction`, cluster-wide, at `PUT /rules/{id}`). The rule file records their subject,
+  display name and the time (`updatedBy`); a decision it makes is attributed to that author. Losing a
+  role afterwards stops nothing already saved, and saving the rule again re-checks it. A rule nobody
+  saved that way — a shipped sample, a file written by hand — acts on nothing; the refusal is the
+  action's result, `blocked: <why>`, announced like any other failed act, and nothing reaches the engine.
+  A rule saved before display names were recorded shows its actor.
+- **A confirmed offer** acts as the person confirming: their token must list the offer's actions,
+  judged before the offer is claimed, so a person who may answer offers but not restore a server leaves
+  it standing for somebody who may.
+- **Reading the world** needs no check: the daemon reads its own host.
 
 ## What an action says
 

@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.30.3</Version>
+    <Version>0.31.0</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -41,10 +41,9 @@
          never a port — the same shape kgsm-monitor serves its scrape from. -->
     <PackageReference Include="TheKrystalShip.KGSM.Lib" Version="9.1.0" />
 
-    <!-- The cluster's authority, read off the replica the node on this machine keeps: a rule acts only
-         where both this daemon's service account and the rule's author may do what it does, and a
-         confirmed offer only where the person confirming may. -->
-    <PackageReference Include="TheKrystalShip.Auth.Cluster" Version="2.0.0" />
+    <!-- The people this daemon's write routes admit: the access token the node relays is checked against
+         the sign-in provider's keys, and the actions it lists are what a rule or an offer needs. -->
+    <PackageReference Include="TheKrystalShip.KGSM.Sessions" Version="1.0.0-dev.1" />
   </ItemGroup>
 
   <ItemGroup>

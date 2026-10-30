@@ -39,6 +39,16 @@ value that is present but is not a number still fails loudly, which is the point
 **Out-of-range numbers are raised to their floor, not refused.** The daemon starts on something sane
 and says so, rather than failing a service over a typo.
 
+## `Sessions`
+
+Host-level: set once for every component on the machine in `/etc/kgsm/kgsm-cluster.env`, which the unit
+loads before this leaf's own env file.
+
+| Key | Env | Default | What it decides |
+|---|---|---|---|
+| `Issuer` | `Sessions__Issuer` | *(blank)* | The sign-in provider whose access tokens the write routes admit (saving and deleting a rule, confirming and dismissing an offer), exactly as its tokens carry `iss`. Blank, those routes answer `503` and nobody can write. |
+| `Audience` | `Sessions__Audience` | *(blank)* | The audience the cluster's access tokens are minted for. A token for any other is refused. |
+
 ## `Logging`
 
 | Key | Env | Default |

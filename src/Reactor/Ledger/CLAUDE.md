@@ -53,7 +53,7 @@ derived from a journal line; the journals are the record.
   state = 'open'` *before* the action runs, and only the call that changed a row goes on to do
   anything. Reading the state first and writing afterwards would let both through.
 - **A decision carries who shaped the rule, beside the rule that made it.** `rule:<id>` stays the
-  actor; `RuleAuthor` is provenance, a stable `provider:name` username. **Copied onto the decision,
+  actor; `RuleAuthor` is provenance, the saver's stable subject. **Copied onto the decision,
   never joined at read time** — otherwise editing a rule rewrites the attribution of everything it ever
   decided, and retiring one erases the trace. **No fallback to the OS user**: a shipped sample, or a
   rule hand-written over SSH, is unattributed and says so.
