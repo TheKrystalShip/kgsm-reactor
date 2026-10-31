@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — built on the released packages (0.31.1)
+
+Builds with `TheKrystalShip.KGSM.ComponentConfig` 4.0.0 and serves its surface with
+`ComponentSurface` and `ComponentSurface.Http` 2.0.0. The action manifest it writes lists the actions the
+daemon performs and no requirements section. The manifest is served at `/.well-known/tks-actions.json`.
+
 ### Changed — people are admitted by their token; the author is checked when a rule is saved (0.31.0)
 
 **Breaking.** The reactor no longer reads the node's authority replica or holds a service account.

@@ -39,32 +39,5 @@
       "effect": "write",
       "scope": "node"
     }
-  ],
-  "requires": [
-    {
-      "action": "kgsm:library.read",
-      "scope": "node",
-      "why": "Read what a server's blueprint declares it needs, to judge its footprint against"
-    },
-    {
-      "action": "kgsm:server.backups.create",
-      "scope": "instance",
-      "why": "Archive the state a server was left in when a rule decides to keep it"
-    },
-    {
-      "action": "kgsm:server.backups.read",
-      "scope": "instance",
-      "why": "Find the archive a backup or a rollback names"
-    },
-    {
-      "action": "kgsm:server.backups.restore",
-      "scope": "instance",
-      "why": "Roll a server back to the archive taken before an update, once somebody confirms the offer"
-    },
-    {
-      "action": "kgsm:server.read",
-      "scope": "instance",
-      "why": "Read a server's run state and supervision, which every rule is judged against"
-    }
   ]
 }
