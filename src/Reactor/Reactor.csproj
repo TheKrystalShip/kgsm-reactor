@@ -17,7 +17,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <Version>0.31.1</Version>
+    <Version>0.31.2</Version>
 
     <!-- The leaf config descriptor is generated from ReactorSettings. These name the two files the
          generator works between; the attribute source, the documentation file the <panel> tags
@@ -51,15 +51,9 @@
          AOT-safe) bundles the e_sqlite3 native lib via SQLitePCLRaw.bundle_e_sqlite3, which the AOT
          publish emits alongside the binary. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
-  </ItemGroup>
-
-  <!-- Scoped NuGet-audit suppression (NOT a blanket NuGetAudit=off): GHSA-2m69-gcr7-jv3q is an
-       advisory on the native SQLite lib pulled TRANSITIVELY by Microsoft.Data.Sqlite
-       (SQLitePCLRaw.lib.e_sqlite3), the latest published build of it, with no fixed version to move
-       to. Exposure is minimal: the ledger holds this host's own observations, on a trusted host, with
-       no untrusted SQL and no network database. DELETE this when a patched bundle ships. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+    <!-- The bundle is pinned above the one Microsoft.Data.Sqlite asks for, so the native SQLite lib it
+         brings is a build the advisory GHSA-2m69-gcr7-jv3q does not cover. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
   </ItemGroup>
 
   <ItemGroup>

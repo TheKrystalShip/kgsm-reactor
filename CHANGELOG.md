@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a patched SQLite native library, and the write routes' gate under test (0.31.2)
+
+`SQLitePCLRaw.bundle_e_sqlite3` is pinned at a build whose native SQLite library the advisory
+GHSA-2m69-gcr7-jv3q does not cover, and the audit suppression is gone. The sign-in gate and the write routes
+are mapped by `Program.UseSessionsGate` and `Program.MapWriteRoutes`, and a test drives them through the
+provider's test issuer: no valid token is `401`, a token without `reactor:rules.write` is `403`, and with no
+provider configured the gated routes answer `503`.
+
 ### Changed — built on the released packages (0.31.1)
 
 Builds with `TheKrystalShip.KGSM.ComponentConfig` 4.0.0 and serves its surface with

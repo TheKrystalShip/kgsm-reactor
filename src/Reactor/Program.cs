@@ -363,26 +363,7 @@ internal sealed class Program
 
         WebApplication host = builder.Build();
 
-        if (sessionsConfigured)
-        {
-            host.UseAuthentication();
-            host.UseAuthorization();
-        }
-        else
-        {
-            host.Use(async (context, next) =>
-            {
-                if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() is not null)
-                {
-                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-                    await context.Response.WriteAsync(
-                        "no sign-in provider is configured (Sessions__Issuer), so nobody can be admitted\n");
-                    return;
-                }
-
-                await next();
-            });
-        }
+        UseSessionsGate(host, sessionsConfigured);
 
         if (options.StatusSocketPath.Length > 0)
         {
@@ -479,130 +460,7 @@ internal sealed class Program
                     ProposalJsonContext.Default.ProposalBoard);
             });
 
-            // The two writes this socket takes, and the only ones. Everything else here answers a
-            // question; these redeem a capability the leaf itself minted, and they have to live here
-            // because confirming re-derives the condition — which means re-evaluating the rule, which
-            // only the reactor can do.
-            //
-            // The node's API relays the person's access token. The route admits a token listing the
-            // reactor's write action, and whether it also lists the offer's own action is judged here
-            // before anything runs. What guards the socket itself is its mode and the handle being
-            // unguessable.
-            host.MapPost("/proposals/{handle}/confirm", (
-                    string handle, HttpContext context, ProposalService proposalService,
-                    CancellationToken ct) =>
-                RedeemAsync(handle, context, proposalService, confirm: true, ct))
-                .RequireAction(ReactorActionIds.RulesWrite);
-
-            host.MapPost("/proposals/{handle}/dismiss", (
-                    string handle, HttpContext context, ProposalService proposalService,
-                    CancellationToken ct) =>
-                RedeemAsync(handle, context, proposalService, confirm: false, ct))
-                .RequireAction(ReactorActionIds.RulesWrite);
-
-            // Storing a rule, and removing one.
-            //
-            // <b>The leaf writes its own files; nothing else may.</b> A panel that wrote into the
-            // state directory would be validating with a copy of the catalog against a build it cannot
-            // see, and would need write access to a directory that is not its own. Here the only thing
-            // that knows what this build can honour is the thing that decides whether to store it — and
-            // it refuses in the response, while the person is still looking at what they wrote.
-            //
-            // The saver is the person whose token the node relays. A rule that acts is saved only when
-            // that token lists every action it performs, anywhere in the cluster; the daemon then runs
-            // it as itself and attributes it to the subject and display name recorded here.
-            host.MapPut("/rules/{id}", async (
-                string id, HttpContext context, RuleRegistry registry, TimeProvider clock,
-                CancellationToken ct) =>
-            {
-                HttpRequest request = context.Request;
-                KgsmPerson person = KgsmPerson.Of(context)!;
-
-                RuleWriteRequest? body;
-                try
-                {
-                    body = await System.Text.Json.JsonSerializer.DeserializeAsync(
-                        request.Body, RuleWriteJsonContext.Default.RuleWriteRequest, ct)
-                        .ConfigureAwait(false);
-                }
-                catch (System.Text.Json.JsonException ex)
-                {
-                    return Refused(
-                        $"the rule could not be read at line {ex.LineNumber}, "
-                        + $"position {ex.BytePositionInLine}: {ex.Message}");
-                }
-
-                if (body?.Rule is null)
-                    return Refused("no rule to store");
-
-                // The route names the rule; a body disagreeing is a copied file about to be saved under
-                // the wrong identity, which is the one mistake that folds two rules' decisions together.
-                if (!string.Equals(body.Rule.Id, id, StringComparison.Ordinal))
-                {
-                    return Refused(
-                        $"this is /rules/{id} and the rule inside it is called '{body.Rule.Id}' — an id "
-                        + "is the actor on every decision a rule makes and cannot be changed by saving");
-                }
-
-                List<string> parseProblems = [];
-                RuleDefinition definition = RuleStore.FromDocument(body.Rule, parseProblems);
-
-                // Stamped here rather than taken from the body: authorship is a fact about who called,
-                // and a caller that could write its own would be able to sign a rule as somebody else.
-                var hand = new RuleAuthorship(person.Subject, clock.GetUtcNow(), person.Subject, person.DisplayName);
-                definition = definition with
-                {
-                    Shipped = false,
-                    CreatedBy = registry.Current.Rules.Concat(registry.Current.Retired)
-                        .FirstOrDefault(r => r.Id == id)?.CreatedBy ?? hand,
-                    UpdatedBy = hand,
-                };
-
-                if (parseProblems.Count == 0 && RuleWrite.MissingAction(definition, person) is { } missing)
-                {
-                    return Results.Json(
-                        new RuleWriteResult
-                        {
-                            Ok = false,
-                            Problems = [$"{missing} is not among the actions you hold, and this rule performs it"],
-                            Live = [.. registry.Current.Rules.Select(r => r.Id)],
-                        },
-                        RuleWriteJsonContext.Default.RuleWriteResult,
-                        statusCode: StatusCodes.Status403Forbidden);
-                }
-
-                IReadOnlyList<string> problems =
-                    parseProblems.Count > 0 ? parseProblems : registry.Replace(definition);
-
-                var result = new RuleWriteResult
-                {
-                    Ok = problems.Count == 0,
-                    Problems = problems,
-                    Live = [.. registry.Current.Rules.Select(r => r.Id)],
-                };
-
-                return Results.Json(
-                    result, RuleWriteJsonContext.Default.RuleWriteResult,
-                    statusCode: problems.Count == 0
-                        ? StatusCodes.Status200OK
-                        : StatusCodes.Status422UnprocessableEntity);
-            }).RequireAction(ReactorActionIds.RulesWrite);
-
-            // Deleting is not retiring. A retired rule keeps its file so the decisions it already made
-            // still resolve to something nameable; deleting one leaves those naming an id nothing can
-            // describe. The panel retires — this is for a rule that was never meant to exist.
-            host.MapDelete("/rules/{id}", (string id, RuleRegistry registry) =>
-                registry.Remove(id)
-                    ? Results.Json(
-                        new RuleWriteResult
-                        {
-                            Ok = true,
-                            Problems = [],
-                            Live = [.. registry.Current.Rules.Select(r => r.Id)],
-                        },
-                        RuleWriteJsonContext.Default.RuleWriteResult)
-                    : Missing($"no rule called '{id}' is stored on this host"))
-                .RequireAction(ReactorActionIds.RulesWrite);
+            MapWriteRoutes(host);
 
             // What a rule WOULD decide about this host right now, without becoming one of its rules.
             // The thing that makes composing one safe: a rule that reads plausibly can still fire on
@@ -702,6 +560,163 @@ internal sealed class Program
 
         await host.RunAsync();
         return 0;
+    }
+
+    /// <summary>
+    /// Puts the sign-in provider's access-token check in front of the gated routes, or, when no provider
+    /// is configured, answers 503 on every gated route: nothing can be verified, so nobody is admitted.
+    /// </summary>
+    internal static void UseSessionsGate(WebApplication host, bool sessionsConfigured)
+    {
+        if (sessionsConfigured)
+        {
+            host.UseAuthentication();
+            host.UseAuthorization();
+        }
+        else
+        {
+            host.Use(async (context, next) =>
+            {
+                if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() is not null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    await context.Response.WriteAsync(
+                        "no sign-in provider is configured (Sessions__Issuer), so nobody can be admitted\n");
+                    return;
+                }
+
+                await next();
+            });
+        }
+    }
+
+    /// <summary>The routes that change what the daemon holds, each gated by the action it needs.</summary>
+    internal static void MapWriteRoutes(WebApplication host)
+    {
+        // The two writes this socket takes, and the only ones. Everything else here answers a
+        // question; these redeem a capability the leaf itself minted, and they have to live here
+        // because confirming re-derives the condition — which means re-evaluating the rule, which
+        // only the reactor can do.
+        //
+        // The node's API relays the person's access token. The route admits a token listing the
+        // reactor's write action, and whether it also lists the offer's own action is judged here
+        // before anything runs. What guards the socket itself is its mode and the handle being
+        // unguessable.
+        host.MapPost("/proposals/{handle}/confirm", (
+                string handle, HttpContext context, ProposalService proposalService,
+                CancellationToken ct) =>
+            RedeemAsync(handle, context, proposalService, confirm: true, ct))
+            .RequireAction(ReactorActionIds.RulesWrite);
+
+        host.MapPost("/proposals/{handle}/dismiss", (
+                string handle, HttpContext context, ProposalService proposalService,
+                CancellationToken ct) =>
+            RedeemAsync(handle, context, proposalService, confirm: false, ct))
+            .RequireAction(ReactorActionIds.RulesWrite);
+
+        // Storing a rule, and removing one.
+        //
+        // <b>The leaf writes its own files; nothing else may.</b> A panel that wrote into the
+        // state directory would be validating with a copy of the catalog against a build it cannot
+        // see, and would need write access to a directory that is not its own. Here the only thing
+        // that knows what this build can honour is the thing that decides whether to store it — and
+        // it refuses in the response, while the person is still looking at what they wrote.
+        //
+        // The saver is the person whose token the node relays. A rule that acts is saved only when
+        // that token lists every action it performs, anywhere in the cluster; the daemon then runs
+        // it as itself and attributes it to the subject and display name recorded here.
+        host.MapPut("/rules/{id}", async (
+            string id, HttpContext context, RuleRegistry registry, TimeProvider clock,
+            CancellationToken ct) =>
+        {
+            HttpRequest request = context.Request;
+            KgsmPerson person = KgsmPerson.Of(context)!;
+
+            RuleWriteRequest? body;
+            try
+            {
+                body = await System.Text.Json.JsonSerializer.DeserializeAsync(
+                    request.Body, RuleWriteJsonContext.Default.RuleWriteRequest, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                return Refused(
+                    $"the rule could not be read at line {ex.LineNumber}, "
+                    + $"position {ex.BytePositionInLine}: {ex.Message}");
+            }
+
+            if (body?.Rule is null)
+                return Refused("no rule to store");
+
+            // The route names the rule; a body disagreeing is a copied file about to be saved under
+            // the wrong identity, which is the one mistake that folds two rules' decisions together.
+            if (!string.Equals(body.Rule.Id, id, StringComparison.Ordinal))
+            {
+                return Refused(
+                    $"this is /rules/{id} and the rule inside it is called '{body.Rule.Id}' — an id "
+                    + "is the actor on every decision a rule makes and cannot be changed by saving");
+            }
+
+            List<string> parseProblems = [];
+            RuleDefinition definition = RuleStore.FromDocument(body.Rule, parseProblems);
+
+            // Stamped here rather than taken from the body: authorship is a fact about who called,
+            // and a caller that could write its own would be able to sign a rule as somebody else.
+            var hand = new RuleAuthorship(person.Subject, clock.GetUtcNow(), person.Subject, person.DisplayName);
+            definition = definition with
+            {
+                Shipped = false,
+                CreatedBy = registry.Current.Rules.Concat(registry.Current.Retired)
+                    .FirstOrDefault(r => r.Id == id)?.CreatedBy ?? hand,
+                UpdatedBy = hand,
+            };
+
+            if (parseProblems.Count == 0 && RuleWrite.MissingAction(definition, person) is { } missing)
+            {
+                return Results.Json(
+                    new RuleWriteResult
+                    {
+                        Ok = false,
+                        Problems = [$"{missing} is not among the actions you hold, and this rule performs it"],
+                        Live = [.. registry.Current.Rules.Select(r => r.Id)],
+                    },
+                    RuleWriteJsonContext.Default.RuleWriteResult,
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            IReadOnlyList<string> problems =
+                parseProblems.Count > 0 ? parseProblems : registry.Replace(definition);
+
+            var result = new RuleWriteResult
+            {
+                Ok = problems.Count == 0,
+                Problems = problems,
+                Live = [.. registry.Current.Rules.Select(r => r.Id)],
+            };
+
+            return Results.Json(
+                result, RuleWriteJsonContext.Default.RuleWriteResult,
+                statusCode: problems.Count == 0
+                    ? StatusCodes.Status200OK
+                    : StatusCodes.Status422UnprocessableEntity);
+        }).RequireAction(ReactorActionIds.RulesWrite);
+
+        // Deleting is not retiring. A retired rule keeps its file so the decisions it already made
+        // still resolve to something nameable; deleting one leaves those naming an id nothing can
+        // describe. The panel retires — this is for a rule that was never meant to exist.
+        host.MapDelete("/rules/{id}", (string id, RuleRegistry registry) =>
+            registry.Remove(id)
+                ? Results.Json(
+                    new RuleWriteResult
+                    {
+                        Ok = true,
+                        Problems = [],
+                        Live = [.. registry.Current.Rules.Select(r => r.Id)],
+                    },
+                    RuleWriteJsonContext.Default.RuleWriteResult)
+                : Missing($"no rule called '{id}' is stored on this host"))
+            .RequireAction(ReactorActionIds.RulesWrite);
     }
 
     /// <summary>
