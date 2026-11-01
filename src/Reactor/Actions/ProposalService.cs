@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-using TheKrystalShip.KGSM.Sessions;
+using TheKrystalShip.Auth.Sessions;
 using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
@@ -233,7 +233,7 @@ internal sealed class ProposalService(
     /// carried out only when their token holds the offer's action, and the audit row names their subject.
     /// </param>
     /// <param name="token">Cancellation.</param>
-    public async Task<Redemption> ConfirmAsync(string handle, KgsmPerson person, CancellationToken token)
+    public async Task<Redemption> ConfirmAsync(string handle, SessionPerson person, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(person);
         string by = person.Subject;
@@ -328,7 +328,7 @@ internal sealed class ProposalService(
     /// The condition is not re-read, deliberately: a person saying no is answering the offer, not the
     /// world, and it stays a no whatever the world has since done.
     /// </remarks>
-    public async Task<Redemption> DismissAsync(string handle, KgsmPerson person, CancellationToken token)
+    public async Task<Redemption> DismissAsync(string handle, SessionPerson person, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(person);
         string by = person.Subject;

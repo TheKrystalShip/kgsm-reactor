@@ -10,7 +10,7 @@ using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 
-using TheKrystalShip.KGSM.Sessions;
+using TheKrystalShip.Auth.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
@@ -44,9 +44,9 @@ public sealed class ProposalTests : IDisposable
     // The person confirming holds the offer's action unless a test says otherwise.
     private static readonly string[] Holds = [TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate];
 
-    private static readonly KgsmPerson Claude = Person(Confirmer, Holds);
+    private static readonly SessionPerson Claude = Person(Confirmer, Holds);
 
-    private static KgsmPerson Person(string subject, params string[] actions) =>
+    private static SessionPerson Person(string subject, params string[] actions) =>
         new(subject, subject, new HashSet<string>(actions, StringComparer.Ordinal), DateTimeOffset.MaxValue);
 
     public void Dispose()
@@ -406,7 +406,7 @@ public sealed class ProposalTests : IDisposable
     {
         Harness harness = Build();
         Proposal staged = (await harness.StageAsync())!;
-        KgsmPerson bob = Person("usr_bob");
+        SessionPerson bob = Person("usr_bob");
 
         Redemption refused = await harness.Service.ConfirmAsync(
             staged.Handle, bob, CancellationToken.None);

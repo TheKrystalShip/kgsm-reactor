@@ -8,8 +8,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using TheKrystalShip.KGSM.Sessions;
-using TheKrystalShip.KGSM.Sessions.Testing;
+using TheKrystalShip.Auth.Sessions;
+using TheKrystalShip.Auth.Sessions.Testing;
 using TheKrystalShip.Kgsm.Reactor.Actions;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 
@@ -23,6 +23,8 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// </summary>
 public sealed class WriteRouteGateTests
 {
+    private const string Audience = "kgsm";
+
     private static readonly (HttpMethod Method, string Path)[] GatedRoutes =
     [
         (HttpMethod.Post, "/proposals/handle-1/confirm"),
@@ -53,7 +55,7 @@ public sealed class WriteRouteGateTests
     public async Task ATokenTheProviderDidNotSign_IsUnauthorized(string method, string path)
     {
         await using Host host = await Host.StartAsync(sessionsConfigured: true);
-        string foreign = new TestIssuer().Mint("u1", actions: [ReactorActionIds.RulesWrite]);
+        string foreign = new TestIssuer(Audience).Mint("u1", actions: [ReactorActionIds.RulesWrite]);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await host.Send(method, path, foreign)).StatusCode);
     }
@@ -103,13 +105,13 @@ public sealed class WriteRouteGateTests
 
         public static async Task<Host> StartAsync(bool sessionsConfigured)
         {
-            var issuer = new TestIssuer();
+            var issuer = new TestIssuer(Audience);
             WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
             builder.WebHost.UseTestServer();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Sessions:Issuer"] = TestIssuer.DefaultIssuer,
-                ["Sessions:Audience"] = TestIssuer.DefaultAudience,
+                ["Sessions:Audience"] = Audience,
             });
             builder.Services.AddSingleton(TimeProvider.System);
             builder.Services.AddSingleton(new RuleRegistry(string.Empty, NullLogger<RuleRegistry>.Instance));
@@ -117,7 +119,7 @@ public sealed class WriteRouteGateTests
                 _ => throw new InvalidOperationException("a refused request reached the proposal service"));
             if (sessionsConfigured)
             {
-                builder.Services.AddKgsmSessions();
+                builder.Services.AddSessions();
                 issuer.UseTestIssuer(builder.Services);
             }
 

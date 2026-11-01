@@ -2,14 +2,14 @@ using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.Kgsm.Reactor.Status;
 using TheKrystalShip.KGSM;
-using TheKrystalShip.KGSM.Sessions;
+using TheKrystalShip.Auth.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
 /// <summary>What saving a rule requires of the person saving it.</summary>
 public sealed class RuleWriteTests
 {
-    private static KgsmPerson Person(params string[] actions) =>
+    private static SessionPerson Person(params string[] actions) =>
         new("usr_1", "Tanya", new HashSet<string>(actions, StringComparer.Ordinal), DateTimeOffset.MaxValue);
 
     private static RuleDefinition Rule(RuleMode mode, string action = ActionCatalog.CreateBackup) => new(

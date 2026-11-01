@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — tokens checked by `TheKrystalShip.Auth.Sessions` (0.31.3)
+
+A person's access token is checked by `TheKrystalShip.Auth.Sessions` 1.0.0-dev.1, the package tks-auth
+publishes for every service that admits its tokens. The checks, the refusals and what a route requires are
+the same.
+
 ### Fixed — a patched SQLite native library, and the write routes' gate under test (0.31.2)
 
 `SQLitePCLRaw.bundle_e_sqlite3` is pinned at a build whose native SQLite library the advisory

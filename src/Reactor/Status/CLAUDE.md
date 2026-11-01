@@ -7,7 +7,7 @@ and the two redemptions. The root `CLAUDE.md`'s commands show each.
   /rules/{id}`.** Everything else answers a question. Confirming has to live here because it
   re-evaluates a rule, which only this leaf can do. **The node's API relays the person's access token as
   `Authorization: Bearer`**; each write route admits a token listing `reactor:rules.write`
-  (`KGSM.Sessions`), and the person attributed is the token's subject and name. A confirmation is then
+  (`TheKrystalShip.Auth.Sessions`), and the person attributed is the token's subject and name. A confirmation is then
   judged for the offer's own action: the confirmer's token must list it, else `403 refused` and the
   offer is left open. A rule that acts is saved only when the saver's token lists everything it
   performs, else `403` with the problem. With no `Sessions__Issuer` the write routes answer `503`.

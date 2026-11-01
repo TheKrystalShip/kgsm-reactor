@@ -19,7 +19,7 @@ using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Extensions;
 using TheKrystalShip.KGSM.Lifecycle;
-using TheKrystalShip.KGSM.Sessions;
+using TheKrystalShip.Auth.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor;
 
@@ -48,7 +48,7 @@ internal sealed class Program
         string handle, HttpContext context, ProposalService proposals, bool confirm, CancellationToken ct)
     {
         // The route admitted the request on a valid token, so a person is attached to it.
-        KgsmPerson person = KgsmPerson.Of(context)!;
+        SessionPerson person = SessionPerson.Of(context)!;
 
         Redemption redeemed = confirm
             ? await proposals.ConfirmAsync(handle, person, ct).ConfigureAwait(false)
@@ -223,7 +223,7 @@ internal sealed class Program
             ?? new SessionsSettings();
         bool sessionsConfigured = !string.IsNullOrWhiteSpace(sessionSettings.Issuer);
         if (sessionsConfigured)
-            builder.Services.AddKgsmSessions();
+            builder.Services.AddSessions();
 
         builder.Logging.ClearProviders();
         builder.Logging.AddSystemdConsole();
@@ -630,7 +630,7 @@ internal sealed class Program
             CancellationToken ct) =>
         {
             HttpRequest request = context.Request;
-            KgsmPerson person = KgsmPerson.Of(context)!;
+            SessionPerson person = SessionPerson.Of(context)!;
 
             RuleWriteRequest? body;
             try

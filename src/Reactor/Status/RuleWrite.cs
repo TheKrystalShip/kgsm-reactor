@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
-using TheKrystalShip.KGSM.Sessions;
+using TheKrystalShip.Auth.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor.Status;
 
@@ -30,7 +30,7 @@ internal static class RuleWrite
     /// confirms it, with their own token. The check is cluster-wide because an action is: a token lists an
     /// action or it does not.
     /// </remarks>
-    public static string? MissingAction(RuleDefinition definition, KgsmPerson person) =>
+    public static string? MissingAction(RuleDefinition definition, SessionPerson person) =>
         definition.Mode != RuleMode.Act
             ? null
             : ActionCatalog.Build(definition.ActionId, string.Empty).Performs.FirstOrDefault(a => !person.Holds(a));
