@@ -13,6 +13,7 @@ using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
+using TheKrystalShip.Testing;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
@@ -272,26 +273,12 @@ public class RuleEngineTests : IDisposable
         EventPosition position, TimeSpan settle)
     {
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
         await events.EmitAsync(wrapper, position);
         clock.Advance(settle);
         await engine.SweepAsync(CancellationToken.None);
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        // BackgroundService.StartAsync returning does not mean ExecuteAsync has begun — a test that
-        // emits immediately can reach an engine that has not registered yet.
-        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (condition())
-                return;
-            await Task.Delay(5);
-        }
-
-        Assert.Fail("the rule engine did not start within 10s");
-    }
 
     [Fact]
     public async Task A_give_up_that_is_still_failed_after_the_settle_window_fires()
@@ -560,7 +547,7 @@ public class RuleEngineTests : IDisposable
         var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 30), clock);
 
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
 
         await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
         clock.Advance(TimeSpan.FromMinutes(2));
@@ -604,7 +591,7 @@ public class RuleEngineTests : IDisposable
         var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 240), clock);
 
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
 
         await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
         clock.Advance(TimeSpan.FromMinutes(2));
@@ -635,7 +622,7 @@ public class RuleEngineTests : IDisposable
         var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 30), clock);
 
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
 
         await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
         clock.Advance(TimeSpan.FromMinutes(2));
@@ -662,7 +649,7 @@ public class RuleEngineTests : IDisposable
         var engine = Build(events, ledger, new FakeWorld(), Options(suppressionMinutes: 0, ceiling: 1), clock);
 
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
 
         foreach ((string instance, long offset) in new[] { ("alpha", 10L), ("beta", 900L) })
         {
@@ -694,7 +681,7 @@ public class RuleEngineTests : IDisposable
             Options(observe: "give_up_backup,update_regression", suppressionMinutes: 0), clock);
 
         await engine.StartAsync(CancellationToken.None);
-        await WaitForAsync(() => events.HasRawHandler);
+        await RuleEngineStarted(events);
 
         await events.EmitAsync(Failed("Ketchup"), new EventPosition("kgsm-watchdog", "s.ndjson", 10));
         clock.Advance(TimeSpan.FromMinutes(2));
@@ -891,4 +878,10 @@ public class RuleEngineTests : IDisposable
         Assert.Equal(DecisionOutcome.Unreadable, emitter.Emitted[1].Outcome);
     }
 
+    /// <summary>
+    /// BackgroundService.StartAsync returning does not mean ExecuteAsync has begun, so a test that emits at
+    /// once can reach an engine that has not registered yet.
+    /// </summary>
+    private static Task RuleEngineStarted(FakeEvents events) =>
+        Eventually.Holds(() => events.HasRawHandler, "the rule engine registers its handler");
 }

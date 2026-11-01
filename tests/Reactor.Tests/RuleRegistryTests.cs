@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
+using TheKrystalShip.Testing;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
@@ -198,8 +199,7 @@ public sealed class RuleRegistryTests : IDisposable
 
         File.WriteAllText(Path.Combine(_dir, "byhand.json"), RuleStore.Write(Rule("byhand")));
 
-        for (int i = 0; i < 100 && registry.Current.Rules.Count == 0; i++)
-            await Task.Delay(50);
+        await Eventually.Holds(() => registry.Current.Rules.Count > 0, "the rule written by hand is loaded");
 
         Assert.Equal("byhand", Assert.Single(registry.Current.Rules).Id);
     }

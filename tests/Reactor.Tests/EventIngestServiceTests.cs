@@ -9,6 +9,7 @@ using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 using TheKrystalShip.KGSM.Lifecycle;
+using TheKrystalShip.Testing;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 
@@ -129,7 +130,7 @@ public class EventIngestServiceTests : IDisposable
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(isUp);
+            await Eventually.Holds(isUp, "the ingest service is up");
             await whileRunning();
         }
         finally
@@ -139,19 +140,6 @@ public class EventIngestServiceTests : IDisposable
         }
     }
 
-    /// <summary>Polls until a condition holds, or fails the test saying which one did not.</summary>
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (condition())
-                return;
-            await Task.Delay(5);
-        }
-
-        Assert.Fail("the ingest service did not start within 10s");
-    }
 
     [Fact]
     public async Task An_observed_event_becomes_a_committed_row()
