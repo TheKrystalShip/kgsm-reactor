@@ -7,6 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — journal appends keep every line under concurrent writes (0.31.4)
+
+The daemon pins `TheKrystalShip.KGSM.Journal` 2.4.1, whose writer appends with `O_APPEND`. Concurrent appends
+no longer overwrite each other's lines.
+
 ### Changed — tokens checked by `TheKrystalShip.Auth.Sessions` (0.31.3)
 
 A person's access token is checked by `TheKrystalShip.Auth.Sessions` 1.0.0-dev.1, the package tks-auth
