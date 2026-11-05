@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM;
 using TheKrystalShip.KGSM.Core.Models;
 using System.Text.Json;
 
@@ -85,7 +86,8 @@ public class EventIngestServiceTests : IDisposable
     private static EventWrapper Envelope(string type, string payload, DateTimeOffset? at = null) => new()
     {
         EventType = type,
-        Data = JsonDocument.Parse(payload).RootElement,
+        Data = JsonSerializer.Deserialize(
+            $$"""{"EventType":"{{type}}","Data":{{payload}}}""", JournalJsonContext.Default.EventWrapper)!.Data,
         Timestamp = at ?? Now,
         Actor = "system:watchdog",
         Origin = "system",

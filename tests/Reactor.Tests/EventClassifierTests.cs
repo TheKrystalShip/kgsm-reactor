@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+using TheKrystalShip.KGSM;
+using TheKrystalShip.KGSM.Events;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
@@ -15,10 +17,13 @@ namespace TheKrystalShip.Kgsm.Reactor.Tests;
 /// </remarks>
 public class EventClassifierTests
 {
-    private static JsonElement Payload(string json) => JsonDocument.Parse(json).RootElement;
+    // The payload as the registered type its event names, read through the envelope as a journal line is.
+    private static KgsmEventDataBase? Payload(string eventType, string json) =>
+        JsonSerializer.Deserialize(
+            $$"""{"EventType":"{{eventType}}","Data":{{json}}}""", JournalJsonContext.Default.EventWrapper)!.Data;
 
     private static EventFacts Classify(string eventType, string json = "{}", string producer = "kgsm") =>
-        EventClassifier.Classify(eventType, Payload(json), producer);
+        EventClassifier.Classify(eventType, Payload(eventType, json), producer);
 
     [Theory]
     [InlineData("server.crashed")]
@@ -139,24 +144,12 @@ public class EventClassifierTests
     }
 
     [Fact]
-    public void A_payload_that_is_not_an_object_is_survived()
-    {
-        Assert.Equal(SubjectKind.Unknown, Classify("server.started", "[]").SubjectKind);
-        Assert.Equal(SubjectKind.Unknown, Classify("server.started", "\"text\"").SubjectKind);
-    }
-
-    [Fact]
     public void This_leafs_own_decision_is_recorded_with_the_subject_it_names()
     {
         // Recorded, not dropped: a decision about starbound is genuinely a fact about starbound, and
         // filing it under nothing would leave a hole in that server's history for no gain. Safe
         // because no rule wakes on a reactor.* event — see RuleCatalogTests.
-        EventFacts facts = EventClassifier.Classify(
-            "reactor.decided",
-            JsonDocument.Parse(
-                """{"Rule":"give_up_backup","Subject":"starbound","SubjectKind":"instance"}""")
-                .RootElement,
-            "kgsm-reactor");
+        EventFacts facts = Classify("reactor.decided", """{"Rule":"give_up_backup","Subject":"starbound","SubjectKind":"instance"}""", "kgsm-reactor");
 
         Assert.Equal(EventClass.Reactor, facts.Class);
         Assert.Equal(SubjectKind.Instance, facts.SubjectKind);
@@ -168,12 +161,7 @@ public class EventClassifierTests
     {
         // The bot routes on an instance name and a host subject has no channel to follow, so this is
         // the field that decides whether a consumer can tell the two apart at all.
-        EventFacts facts = EventClassifier.Classify(
-            "reactor.decided",
-            JsonDocument.Parse(
-                """{"Rule":"threshold_stuck","Subject":"k10temp/Tctl","SubjectKind":"host"}""")
-                .RootElement,
-            "kgsm-reactor");
+        EventFacts facts = Classify("reactor.decided", """{"Rule":"threshold_stuck","Subject":"k10temp/Tctl","SubjectKind":"host"}""", "kgsm-reactor");
 
         Assert.Equal(SubjectKind.Host, facts.SubjectKind);
         Assert.Equal("k10temp/Tctl", facts.Subject);
@@ -185,10 +173,7 @@ public class EventClassifierTests
         // A newer reactor's vocabulary reaching an older one. Unknown is the honest answer; mapping it
         // onto the nearest familiar kind would be a guess no reader could later distinguish from a
         // reading that was actually taken.
-        EventFacts facts = EventClassifier.Classify(
-            "reactor.decided",
-            JsonDocument.Parse("""{"Subject":"something","SubjectKind":"cluster"}""").RootElement,
-            "kgsm-reactor");
+        EventFacts facts = Classify("reactor.decided", """{"Subject":"something","SubjectKind":"cluster"}""", "kgsm-reactor");
 
         Assert.Equal(SubjectKind.Unknown, facts.SubjectKind);
         Assert.Equal("something", facts.Subject);

@@ -22,7 +22,7 @@ groups=('kgsm-node')
 options=('!debug')
 # kgsm-base carries the kgsm service account this unit runs as, the /var/lib/kgsm tree it tails the
 # journals from, and the preset policy deciding whether it runs here.
-depends=('kgsm-base' 'kgsm' 'systemd' 'glibc')
+depends=('kgsm-base' 'kgsm>=4.0.0' 'systemd' 'glibc')
 # The producers of the events worth observing. Absent, the reactor runs and simply sees nothing of
 # that kind — it depends on neither to start.
 optdepends=('kgsm-watchdog: produces the crash, give-up and player events'

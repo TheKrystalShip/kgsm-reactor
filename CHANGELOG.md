@@ -7,6 +7,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-05
+
+### Changed — the classifier reads the payload's registered type
+
+An event's payload arrives as the registered type its event names (`TheKrystalShip.KGSM.Journal` 3.1.0), and
+`EventClassifier` reads the instance, server, reference, metric and subject off it; an event the catalog does not
+classify reads as `UnrecognizedEventData`, which carries those names. The journal backfill reads a line through the
+envelope's converter instead of a JSON document. The daemon depends on `kgsm>=4.0.0`.
+
 ### Changed — the leaf reaches the native engine through its packages
 
 The leaf no longer references `TheKrystalShip.KGSM.Lib`. It pins `TheKrystalShip.KGSM.Engine`,

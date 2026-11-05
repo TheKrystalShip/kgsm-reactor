@@ -101,7 +101,7 @@ public class RuleEngineTests : IDisposable
     private static EventWrapper Failed(string instance) => new()
     {
         EventType = "server.crash.exhausted",
-        Data = JsonDocument.Parse($$"""{"InstanceName":"{{instance}}","ExitCode":"137","Restarts":"5"}""").RootElement,
+        Data = new InstanceFailedData { InstanceName = instance, ExitCode = "137", Restarts = "5" },
         Timestamp = Now,
         Actor = "system:watchdog",
         Origin = "system",

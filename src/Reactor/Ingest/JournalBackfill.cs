@@ -5,6 +5,7 @@ using System.Text.Json;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 
+using TheKrystalShip.KGSM;
 using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.Kgsm.Reactor.Ingest;
@@ -245,38 +246,25 @@ internal static class JournalBackfill
 
         try
         {
-            using JsonDocument document = JsonDocument.Parse(line);
-            JsonElement root = document.RootElement;
-
-            if (root.ValueKind != JsonValueKind.Object
-                || !root.TryGetProperty("EventType", out JsonElement typeElement)
-                || typeElement.ValueKind != JsonValueKind.String)
-            {
-                return false;
-            }
-
-            string eventType = typeElement.GetString()!;
-            if (eventType.Length == 0)
+            EventWrapper? wrapper = JsonSerializer.Deserialize(line, JournalJsonContext.Default.EventWrapper);
+            if (wrapper is null || wrapper.EventType.Length == 0)
                 return false;
 
-            JsonElement data = root.TryGetProperty("Data", out JsonElement dataElement)
-                ? dataElement.Clone()
-                : default;
-
-            EventFacts facts = EventClassifier.Classify(eventType, data, producer);
+            string eventType = wrapper.EventType;
+            EventFacts facts = EventClassifier.Classify(eventType, wrapper.Data, producer);
 
             observation = new Observation(
                 Producer: producer,
                 Segment: segment,
                 Offset: offset,
-                EventId: Text(root, "Id"),
+                EventId: wrapper.Id,
                 EventType: LegacyEventNames.Canonical(eventType),
                 Class: facts.Class,
                 SubjectKind: facts.SubjectKind,
                 Subject: facts.Subject,
-                Actor: Text(root, "Actor"),
-                Origin: Text(root, "Origin"),
-                OccurredAt: Instant(root, "Timestamp") ?? now,
+                Actor: wrapper.Actor,
+                Origin: wrapper.Origin,
+                OccurredAt: wrapper.Timestamp ?? now,
                 // When the reactor read it, which for a backfill is now — and the gap to OccurredAt is
                 // the honest measure of how long it was not watching.
                 ObservedAt: now);
@@ -288,20 +276,6 @@ internal static class JournalBackfill
             return false;
         }
     }
-
-    private static string? Text(JsonElement root, string name) =>
-        root.TryGetProperty(name, out JsonElement element) && element.ValueKind == JsonValueKind.String
-            ? element.GetString()
-            : null;
-
-    private static DateTimeOffset? Instant(JsonElement root, string name) =>
-        root.TryGetProperty(name, out JsonElement element)
-        && element.ValueKind == JsonValueKind.String
-        && DateTimeOffset.TryParse(
-            element.GetString(), CultureInfo.InvariantCulture,
-            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed)
-            ? parsed
-            : null;
 
     /// <summary>The producer id a journal directory belongs to: <c>/var/lib/&lt;producer&gt;/events</c>.</summary>
     private static string ProducerOf(string eventsDirectory)

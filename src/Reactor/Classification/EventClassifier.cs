@@ -1,4 +1,3 @@
-using System.Text.Json;
 
 using TheKrystalShip.KGSM.Events;
 
@@ -84,10 +83,9 @@ internal readonly record struct EventFacts(EventClass Class, SubjectKind Subject
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>It reads the payload, it does not deserialize it.</b> The subject is pulled out of the
-/// envelope's <see cref="JsonElement"/> by property name, so an event type this build has never
-/// heard of is still recorded with its subject — which is the whole point of recording at the raw
-/// level. A typed path would drop exactly the events a later rule might be about.
+/// <b>It reads the subject off the payload's registered type.</b> An event type this build has never
+/// heard of reads as <see cref="UnrecognizedEventData"/>, which carries the names a subject is keyed
+/// on, so it is still recorded with its subject — the whole point of recording at the raw level.
 /// </para>
 /// <para>
 /// <b>Nothing here is inferred.</b> A payload with no subject property yields
@@ -98,38 +96,16 @@ internal readonly record struct EventFacts(EventClass Class, SubjectKind Subject
 /// </remarks>
 internal static class EventClassifier
 {
-    /// <summary>The property carrying the server name, in every instance-scoped payload.</summary>
-    private const string InstanceNameProperty = "InstanceName";
-
-    /// <summary>The threshold payload's server, when the episode is scoped to one.</summary>
-    private const string ServerIdProperty = "ServerId";
-
-    /// <summary>
-    /// The subject named by this leaf's own events, which carry it under its own name.
-    /// </summary>
-    /// <remarks>
-    /// Read rather than ignored: a decision about <c>starbound</c> is genuinely about
-    /// <c>starbound</c>, and filing it under nothing would make the ledger's history of a server
-    /// incomplete for no gain. Safe because nothing wakes on a <c>reactor.*</c> event.
-    /// </remarks>
-    private const string SubjectProperty = "Subject";
-
-    /// <summary>The threshold payload's measured reference (a sensor, a mount).</summary>
-    private const string RefProperty = "Ref";
-
-    /// <summary>The threshold payload's metric, the fallback subject when there is no reference.</summary>
-    private const string MetricProperty = "Metric";
-
     /// <summary>
     /// Reduce one event to its facts.
     /// </summary>
     /// <param name="eventType">The event type, as the line carries it.</param>
-    /// <param name="data">The payload, as it arrived.</param>
+    /// <param name="data">The payload, as the registered type its event names; null when the line carried none.</param>
     /// <param name="producer">
     /// Whose journal it came from. Used only as the subject of a <c>leaf.*</c> event, which is about
     /// the component that wrote it and names no subject of its own.
     /// </param>
-    public static EventFacts Classify(string eventType, JsonElement data, string producer)
+    public static EventFacts Classify(string eventType, KgsmEventDataBase? data, string producer)
     {
         EventClass cls = ClassOf(eventType);
 
@@ -146,13 +122,13 @@ internal static class EventClassifier
         // everywhere else here: the classification travels with the observation.
         if (cls == EventClass.Reactor)
         {
-            string decided = StringProperty(data, SubjectProperty);
+            string decided = SubjectOf(data);
             return decided.Length > 0
                 ? new EventFacts(cls, ReactorSubjectKind(data), decided)
                 : new EventFacts(cls, SubjectKind.Unknown, string.Empty);
         }
 
-        string instance = StringProperty(data, InstanceNameProperty);
+        string instance = InstanceOf(data);
         return instance.Length > 0
             ? new EventFacts(cls, SubjectKind.Instance, instance)
             : new EventFacts(cls, SubjectKind.Unknown, string.Empty);
@@ -221,9 +197,9 @@ internal static class EventClassifier
     /// newer reactor's vocabulary reaching an older one, and guessing at it would be a fabrication
     /// indistinguishable from a reading afterwards.
     /// </remarks>
-    private static SubjectKind ReactorSubjectKind(JsonElement data) =>
+    private static SubjectKind ReactorSubjectKind(KgsmEventDataBase? data) =>
         Enum.TryParse(
-            StringProperty(data, Events.ReactorEventFields.SubjectKind),
+            SubjectKindOf(data),
             ignoreCase: true,
             out SubjectKind kind)
             ? kind
@@ -232,8 +208,8 @@ internal static class EventClassifier
     /// <summary>
     /// A threshold episode is about one server when it names one, and about the host otherwise.
     /// </summary>
-    private static SubjectKind ThresholdSubjectKind(JsonElement data) =>
-        StringProperty(data, ServerIdProperty).Length > 0 ? SubjectKind.Instance : SubjectKind.Host;
+    private static SubjectKind ThresholdSubjectKind(KgsmEventDataBase? data) =>
+        ServerIdOf(data).Length > 0 ? SubjectKind.Instance : SubjectKind.Host;
 
     /// <summary>
     /// Which server, or which measured reference of the host.
@@ -243,33 +219,56 @@ internal static class EventClassifier
     /// metric are two episodes, and a subject that collapsed them would make one look like a repeat
     /// of the other — which is exactly the reading a suppression window is derived from.
     /// </remarks>
-    private static string ThresholdSubject(JsonElement data)
+    private static string ThresholdSubject(KgsmEventDataBase? data)
     {
-        string server = StringProperty(data, ServerIdProperty);
+        string server = ServerIdOf(data);
         if (server.Length > 0)
             return server;
 
-        string reference = StringProperty(data, RefProperty);
-        return reference.Length > 0 ? reference : StringProperty(data, MetricProperty);
+        string reference = RefOf(data);
+        return reference.Length > 0 ? reference : MetricOf(data);
     }
 
-    /// <summary>
-    /// One string property of the payload, or empty.
-    /// </summary>
-    /// <remarks>
-    /// Empty for absent, for null and for a non-string alike. The caller's question is always "did
-    /// the payload name this", and a JSON null answers it the same way a missing property does —
-    /// several payloads carry an explicit <c>null</c> subject (a threshold episode scoped to the
-    /// host writes <c>"ServerId": null</c>).
-    /// </remarks>
-    private static string StringProperty(JsonElement data, string name)
+    private static string InstanceOf(KgsmEventDataBase? data) => data switch
     {
-        if (data.ValueKind != JsonValueKind.Object)
-            return string.Empty;
-        if (!data.TryGetProperty(name, out JsonElement property))
-            return string.Empty;
-        if (property.ValueKind != JsonValueKind.String)
-            return string.Empty;
-        return property.GetString() ?? string.Empty;
-    }
+        EventDataBase instance => instance.InstanceName,
+        UnrecognizedEventData unrecognized => unrecognized.InstanceName,
+        _ => null,
+    } ?? string.Empty;
+
+    private static string ServerIdOf(KgsmEventDataBase? data) => data switch
+    {
+        HostThresholdEventDataBase threshold => threshold.ServerId,
+        UnrecognizedEventData unrecognized => unrecognized.ServerId,
+        _ => null,
+    } ?? string.Empty;
+
+    private static string RefOf(KgsmEventDataBase? data) => data switch
+    {
+        HostThresholdEventDataBase threshold => threshold.Ref,
+        UnrecognizedEventData unrecognized => unrecognized.Ref,
+        _ => null,
+    } ?? string.Empty;
+
+    private static string MetricOf(KgsmEventDataBase? data) => data switch
+    {
+        HostThresholdEventDataBase threshold => threshold.Metric,
+        UnrecognizedEventData unrecognized => unrecognized.Metric,
+        _ => null,
+    } ?? string.Empty;
+
+    private static string SubjectOf(KgsmEventDataBase? data) => data switch
+    {
+        ReactorEventData reactor => reactor.Subject,
+        UnrecognizedEventData unrecognized => unrecognized.Subject,
+        _ => null,
+    } ?? string.Empty;
+
+    private static string SubjectKindOf(KgsmEventDataBase? data) => data switch
+    {
+        ReactorDecidedEventData decided => decided.SubjectKind,
+        ReactorProposedEventData proposed => proposed.SubjectKind,
+        UnrecognizedEventData unrecognized => unrecognized.SubjectKind,
+        _ => null,
+    } ?? string.Empty;
 }
