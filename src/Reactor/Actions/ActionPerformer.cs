@@ -1,6 +1,8 @@
 using TheKrystalShip.Kgsm.Reactor.Rules;
-using TheKrystalShip.KGSM.Core.Interfaces;
-using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Engine.Contracts.Backups;
+using TheKrystalShip.KGSM.Engine.Contracts.Invocation;
+using TheKrystalShip.KGSM.Engine.Contracts.Operations;
+using TheKrystalShip.KGSM.Engine.Reading;
 
 namespace TheKrystalShip.Kgsm.Reactor.Actions;
 
@@ -29,7 +31,7 @@ internal interface IActionPerformer
 }
 
 /// <summary>
-/// Performs a reactor action through kgsm-lib.
+/// Performs a reactor action through the engine: writes run the binary, reads come from the engine core.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -46,7 +48,7 @@ internal interface IActionPerformer
 /// this owns is the one thing the rule cannot describe: which archive a restore actually names.
 /// </para>
 /// </remarks>
-internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<KgsmActionPerformer> logger)
+internal sealed class KgsmActionPerformer(EngineCli engine, EngineReader reader, ILogger<KgsmActionPerformer> logger)
     : IActionPerformer
 {
     /// <summary>The origin every action this leaf performs carries.</summary>
@@ -61,8 +63,8 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
         return action switch
         {
             ReactorAction.Nothing => Task.FromResult(ActionResult.Succeeded(detail: "nothing to do")),
-            ReactorAction.CreateBackup backup => Task.Run(() => Capture(backup, actor), token),
-            ReactorAction.ProposeRestore restore => Task.Run(() => Restore(restore, actor), token),
+            ReactorAction.CreateBackup backup => CaptureAsync(backup, actor, token),
+            ReactorAction.ProposeRestore restore => RestoreAsync(restore, actor, token),
             _ => Task.FromResult(ActionResult.Failed($"{action.Name} is not something this build performs")),
         };
     }
@@ -77,31 +79,18 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// into a debugging session is exactly the failure this rule exists to prevent — and a pinned
     /// archive does not consume a slot in the keep window, so preserving one erodes nothing.
     /// </remarks>
-    private ActionResult Capture(ReactorAction.CreateBackup action, string actor)
+    private async Task<ActionResult> CaptureAsync(ReactorAction.CreateBackup action, string actor, CancellationToken token)
     {
-        KgsmResult result = instances.CreateBackup(
-            action.Instance, actor, Origin, BackupReason.Incident, BackupRetention.Pinned);
+        EngineResult<BackupCreateReport> result = await engine.CreateBackupAsync(
+            action.Instance, BackupReason.Incident, BackupRetention.Pinned, new EngineCaller(actor, Origin), token)
+            .ConfigureAwait(false);
 
-        if (result.IsFailure)
-            return ActionResult.Failed(Explain(result));
+        if (result.IsFailure || result.Value is null)
+            return ActionResult.Failed(result.Message);
 
-        // The engine prints the id it minted. Read back rather than parsed out of the output: what
-        // was written is a fact the engine holds, and a string scraped from a log is a guess that
-        // would name a backup nobody can find the day the output changes.
-        InstanceBackup? written = NewestBackup(action.Instance, BackupReason.Incident);
-        if (written is null)
-        {
-            logger.LogWarning("Backed up {Instance}, and no archive came back to name.", action.Instance);
-
-            // The archive exists — the engine said so — and this cannot say which. Reported as
-            // succeeded-without-a-name rather than dressed up with a guess: somebody sent to find a
-            // backup id that does not resolve is worse off than one told to go and look.
-            return ActionResult.Succeeded(
-                null,
-                $"archived the state {action.Instance} was left in, and the engine did not name the "
-                + "archive it wrote");
-        }
-
+        // The engine names the archive it wrote in its report, so the id is a fact the engine stated and
+        // not a string scraped from output or a guess from a listing.
+        Backup written = result.Value.Backup;
         return ActionResult.Succeeded(
             written.Id,
             $"archived the state {action.Instance} was left in as {written.Id}{Size(written)}, "
@@ -119,9 +108,9 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// not a rollback candidate: refusing is the answer, because "probably the right one" is how a
     /// world gets overwritten with the wrong week.
     /// </remarks>
-    private ActionResult Restore(ReactorAction.ProposeRestore action, string actor)
+    private async Task<ActionResult> RestoreAsync(ReactorAction.ProposeRestore action, string actor, CancellationToken token)
     {
-        InstanceBackup? candidate = NewestBackup(action.Instance, BackupReason.PreUpdate);
+        Backup? candidate = NewestBackup(action.Instance, BackupReason.PreUpdate);
         if (candidate is null)
         {
             return ActionResult.Failed(
@@ -129,10 +118,11 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
                 + "archive that does not say why it exists is not a rollback candidate");
         }
 
-        KgsmResult result = instances.RestoreBackup(action.Instance, candidate.Id, actor, Origin);
+        EngineResult<BackupRestoreReport> result = await engine.RestoreBackupAsync(
+            action.Instance, candidate.Id, new EngineCaller(actor, Origin), token).ConfigureAwait(false);
 
         return result.IsFailure
-            ? ActionResult.Failed(Explain(result))
+            ? ActionResult.Failed(result.Message)
             : ActionResult.Succeeded(candidate.Id, $"restored {action.Instance} from {Name(candidate)}");
     }
 
@@ -145,7 +135,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// most convincing fabrication on the page — this is the sentence somebody checks before deciding
     /// a week of a world is worth overwriting.
     /// </remarks>
-    internal static string Name(InstanceBackup backup)
+    internal static string Name(Backup backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
 
@@ -154,8 +144,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
         // Converted, not just formatted. A manifest may carry any offset, and printing its local
         // wall clock under the word UTC would misdate the archive by hours in the one sentence
         // somebody reads before overwriting a world.
-        if (backup.CreatedAt is { } at)
-            said += $", taken {at.UtcDateTime:yyyy-MM-dd HH:mm} UTC";
+        said += $", taken {backup.CreatedAt.UtcDateTime:yyyy-MM-dd HH:mm} UTC";
 
         if (!string.IsNullOrWhiteSpace(backup.Version))
             said += $" at version {backup.Version}";
@@ -168,7 +157,7 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// A zero here is a manifest that recorded no size, not an empty archive — and " (0 B)" beside a
     /// backup id reads as one.
     /// </remarks>
-    private static string Size(InstanceBackup backup) => backup.SizeBytes switch
+    private static string Size(Backup backup) => backup.SizeBytes switch
     {
         >= 1_073_741_824 => $" ({backup.SizeBytes / 1_073_741_824.0:F1} GB)",
         >= 1_048_576 => $" ({backup.SizeBytes / 1_048_576.0:F0} MB)",
@@ -184,14 +173,14 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
     /// archive exists, and treating unknown as the reason being looked for is the fabrication this leaf
     /// refuses everywhere else — with a restore on the other end of it.
     /// </remarks>
-    private InstanceBackup? NewestBackup(string instance, string reason)
+    private Backup? NewestBackup(string instance, BackupReason reason)
     {
         try
         {
-            return instances.GetBackupsDetailed(instance)
-                .Where(b => string.Equals(b.Reason, reason, StringComparison.Ordinal))
+            return reader.Backups(instance)?.Backups
+                .Where(b => b.Reason == reason)
                 .Where(b => !string.IsNullOrWhiteSpace(b.Id))
-                .OrderByDescending(b => b.CreatedAt ?? DateTimeOffset.MinValue)
+                .OrderByDescending(b => b.CreatedAt)
                 .FirstOrDefault();
         }
         catch (Exception ex)
@@ -199,15 +188,5 @@ internal sealed class KgsmActionPerformer(IInstanceService instances, ILogger<Kg
             logger.LogError(ex, "Could not read {Instance}'s backups.", instance);
             return null;
         }
-    }
-
-    /// <summary>The engine's own words, which are more use than anything this leaf could paraphrase.</summary>
-    private static string Explain(KgsmResult result)
-    {
-        string said = result.Stderr.Trim();
-        if (said.Length == 0)
-            said = result.Stdout.Trim();
-
-        return said.Length == 0 ? $"the engine exited {result.ExitCode}" : said;
     }
 }

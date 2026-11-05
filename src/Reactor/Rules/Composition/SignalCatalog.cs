@@ -1,4 +1,3 @@
-using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 

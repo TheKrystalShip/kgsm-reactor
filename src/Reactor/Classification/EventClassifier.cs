@@ -162,7 +162,7 @@ internal static class EventClassifier
     /// The bucket an event type falls in.
     /// </summary>
     /// <remarks>
-    /// Prefix matching rather than an exhaustive list of the ~90 types kgsm-lib declares, and
+    /// Prefix matching rather than an exhaustive list of the types the event catalog declares, and
     /// deliberately: the engine gains types faster than this leaf is rebuilt, and a new
     /// <c>backup.*</c> should land in Maintenance the day it is emitted rather than in Other
     /// until somebody notices. The exact names below are the ones whose prefix would put them in the

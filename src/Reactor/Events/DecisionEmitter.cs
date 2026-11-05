@@ -247,9 +247,9 @@ internal sealed record ActedPayload
 /// </summary>
 /// <remarks>
 /// Source-generated, because this binary is Native AOT and there is no reflection fallback to catch a
-/// type nobody registered — it throws at runtime instead. Its own context rather than kgsm-lib's:
+/// type nobody registered — it throws at runtime instead. Its own context rather than the Journal package's:
 /// writing goes through <c>IEventJournalWriter.AppendAsync(string, JsonElement, …)</c>, which needs no
-/// type from the library at all, so emission costs no package release and no consumer re-pin.
+/// type from the Journal package at all, so emission costs no package release and no consumer re-pin.
 /// </remarks>
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
 [JsonSerializable(typeof(DecidedPayload))]

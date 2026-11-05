@@ -1,7 +1,6 @@
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.Kgsm.Reactor.Status;
-using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
 

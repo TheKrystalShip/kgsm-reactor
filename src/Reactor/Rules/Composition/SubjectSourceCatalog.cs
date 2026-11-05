@@ -58,7 +58,7 @@ internal static class SubjectSourceCatalog
             {
                 var footprints = await ctx.Footprint.AllAsync(token).ConfigureAwait(false);
 
-                return footprints is { State: KGSM.Core.Models.ReadingState.Measured, Value: { } measured }
+                return footprints is { State: ReadingState.Measured, Value: { } measured }
                     ? [.. measured.Select(f => f.Instance)]
                     : [];
             }),

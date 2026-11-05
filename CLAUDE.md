@@ -78,8 +78,9 @@ where the journal line is written after the ledger is open and the rules are res
 - **The seven invariants in `systems/operations/reactor.md` are not re-decided here.** Two bite in code:
   the actor is always `rule:<id>` with origin `reactor`, never a person and never null; and
   `RuleEngine.Honours` is a ceiling over a rule's default `observe`, never a substitute for it.
-- **Never shell out to `kgsm.sh`.** All engine access goes through kgsm-lib, a versioned
-  `PackageReference`. The leaf depends on nothing else: not the API, not a sibling leaf.
+- **Never shell out to `kgsm`.** Reads come from `EngineReader` (the engine core, in-process) and writes from
+  `EngineCli` (the typed invocation of the one deployed binary), both versioned `PackageReference`s of the
+  engine packages. The leaf depends on nothing else: not the API, not a sibling leaf.
 - **Native AOT.** The ledger is raw ADO over `Microsoft.Data.Sqlite`; EF Core is not AOT-safe.
 - **The settings file and `ReactorSettings` must agree**, in both directions, and
   `SettingsCoverageTests` fails the build when they do not. A key with no property binds to nothing; a

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using TheKrystalShip.KGSM.Engine.Contracts.Blueprints;
+using TheKrystalShip.KGSM.Engine.Contracts.Instances;
 
-using TheKrystalShip.KGSM.Core.Interfaces;
-using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Watchdog.Client;
+using TheKrystalShip.KGSM.Watchdog.Model;
 
 namespace TheKrystalShip.Kgsm.Reactor.Rules;
 
@@ -29,8 +31,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules;
 /// </remarks>
 internal sealed class WatchdogWorldView(
     IWatchdogClient watchdog,
-    IInstanceService instances,
-    IBlueprintService blueprints,
+    IEngineView engine,
     ILogger<WatchdogWorldView> logger) : IWorldView
 {
     /// <summary>
@@ -46,7 +47,7 @@ internal sealed class WatchdogWorldView(
     {
         try
         {
-            WatchdogInstanceState? state = await watchdog.GetStatusAsync(instance, token).ConfigureAwait(false);
+            InstanceState? state = await watchdog.StatusAsync(instance, token).ConfigureAwait(false);
 
             if (state is null)
             {
@@ -76,7 +77,7 @@ internal sealed class WatchdogWorldView(
     {
         try
         {
-            Instance? spec = instances.GetInstanceInfo(instance);
+            InstanceConfig? spec = engine.Instance(instance);
             if (spec is null)
             {
                 return ValueTask.FromResult(Reading<MemoryDeclaration>.Unavailable(
@@ -88,7 +89,7 @@ internal sealed class WatchdogWorldView(
             // never read.
             Blueprint? blueprint = string.IsNullOrWhiteSpace(spec.Blueprint)
                 ? null
-                : blueprints.GetInfo(spec.Blueprint);
+                : engine.Blueprint(spec.Blueprint);
 
             if (blueprint is null)
             {
@@ -97,8 +98,8 @@ internal sealed class WatchdogWorldView(
             }
 
             return ValueTask.FromResult(Reading<MemoryDeclaration>.Measured(new MemoryDeclaration(
-                MinRamMb: Positive(blueprint.Metadata?.MinRamMb),
-                RecommendedRamMb: Positive(blueprint.Metadata?.RecommendedRamMb),
+                MinRamMb: Positive(blueprint.Metadata.MinRamMb),
+                RecommendedRamMb: Positive(blueprint.Metadata.RecommendedRamMb),
                 HeapFlag: FindHeapFlag(spec.ExecutableArguments))));
         }
         catch (Exception ex)
@@ -115,7 +116,7 @@ internal sealed class WatchdogWorldView(
     {
         try
         {
-            Instance? spec = instances.GetInstanceInfo(instance);
+            InstanceConfig? spec = engine.Instance(instance);
 
             return ValueTask.FromResult(spec is null
                 ? Reading<InstanceSupervision>.Unavailable(

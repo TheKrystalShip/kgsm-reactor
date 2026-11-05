@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.Core.Models;
 using System.Text.Json;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -6,7 +7,6 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.Kgsm.Reactor.Ingest;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.KGSM.Core.Interfaces;
-using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 using TheKrystalShip.KGSM.Lifecycle;
 using TheKrystalShip.Testing;

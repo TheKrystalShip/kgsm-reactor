@@ -90,7 +90,7 @@ internal static class ReactorEvents
 /// <summary>The payload field names, spelled once.</summary>
 /// <remarks>
 /// <b>A field name is a contract the moment something reads it.</b> These are free to change while
-/// the reactor is the only thing that has ever written or read them; once kgsm-lib carries the typed
+/// the reactor is the only thing that has ever written or read them; once the Journal package carries the typed
 /// classes and a consumer deserializes one, renaming a field silently empties it for every reader
 /// built against the old spelling.
 /// </remarks>

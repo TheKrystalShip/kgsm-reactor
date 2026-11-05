@@ -1,6 +1,5 @@
 using System.Globalization;
 
-using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 

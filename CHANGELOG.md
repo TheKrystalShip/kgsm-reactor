@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the leaf reaches the native engine through its packages
+
+The leaf no longer references `TheKrystalShip.KGSM.Lib`. It pins `TheKrystalShip.KGSM.Engine`,
+`TheKrystalShip.KGSM.Journal` and `TheKrystalShip.KGSM.Watchdog.Client`. Rules read an instance's config and a
+blueprint through `EngineReader` (`IEngineView`); a confirmed action runs the one deployed binary through
+`EngineCli` with the rule or the confirming person as the actor and `reactor` as the origin, and a backup it takes
+is named from the report the engine prints. The action ids are the engine's `EngineActions`.
+
 ### Fixed — journal appends keep every line under concurrent writes (0.31.4)
 
 The daemon pins `TheKrystalShip.KGSM.Journal` 2.4.1, whose writer appends with `O_APPEND`. Concurrent appends

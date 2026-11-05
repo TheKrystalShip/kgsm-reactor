@@ -16,7 +16,10 @@ using TheKrystalShip.KGSM.ComponentSurface;
 using TheKrystalShip.KGSM.ComponentSurface.Http;
 using TheKrystalShip.Kgsm.Reactor.Status;
 using TheKrystalShip.KGSM.Core.Interfaces;
+using TheKrystalShip.KGSM.Engine.Reading;
+using TheKrystalShip.KGSM.Watchdog.Client;
 using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Engine.Contracts.Invocation;
 using TheKrystalShip.KGSM.Extensions;
 using TheKrystalShip.KGSM.Lifecycle;
 using TheKrystalShip.Auth.Sessions;
@@ -231,7 +234,11 @@ internal sealed class Program
         // The engine, for re-reading the world. Nothing in the observing half calls it; a rule that
         // checks whether a condition still holds does, and it is wired now so that a host where this
         // is misconfigured fails at startup rather than at the moment it matters.
-        builder.Services.AddKgsmServices(options.KgsmPath);
+        builder.Services.AddSingleton(_ => new EngineReader(new EngineReaderOptions { BinaryPath = options.KgsmPath }));
+        builder.Services.AddSingleton<IEngineView, EngineView>();
+
+        // Writes go through the one deployed binary, never in-process.
+        builder.Services.AddSingleton(_ => new EngineCli(new EngineCliOptions { BinaryPath = options.KgsmPath }));
 
         // The supervisor, which owns the answer to "is this actually running". Every rule re-derives
         // from it rather than trusting the event that woke it — an event says what happened, and only
@@ -296,7 +303,7 @@ internal sealed class Program
         builder.Services.AddSingleton(sp => new RuleRegistry(
             options.RulesDirectory, sp.GetRequiredService<ILogger<RuleRegistry>>()));
 
-        // What a confirmed proposal actually does. Behind kgsm-lib like every other engine access on
+        // What a confirmed proposal actually does. Behind the engine packages like every other engine access on
         // this leaf, and attributed to the rule rather than to whoever the daemon runs as.
         builder.Services.AddSingleton<IActionPerformer, KgsmActionPerformer>();
         builder.Services.AddSingleton<ProposalStore>();

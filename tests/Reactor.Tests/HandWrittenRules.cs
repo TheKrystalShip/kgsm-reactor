@@ -1,5 +1,4 @@
 using TheKrystalShip.Kgsm.Reactor.Rules;
-using TheKrystalShip.KGSM.Core.Models;
 
 using TheKrystalShip.KGSM.Events;
 
@@ -364,7 +363,7 @@ internal static class HandWrittenRules
         Holds: async (ctx, token) =>
         {
             var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
-            if (reading.State != KGSM.Core.Models.ReadingState.Measured)
+            if (reading.State != ReadingState.Measured)
                 return Verdict.Unreadable($"the supervisor could not be read: {reading.Reason ?? "no reason given"}");
 
             InstanceRunState state = reading.Value;
@@ -416,7 +415,7 @@ internal static class HandWrittenRules
                     + "did not arrive with an update");
 
             var reading = await ctx.World.InstanceAsync(ctx.Subject, token).ConfigureAwait(false);
-            if (reading.State != KGSM.Core.Models.ReadingState.Measured)
+            if (reading.State != ReadingState.Measured)
                 return Verdict.Unreadable($"the supervisor could not be read: {reading.Reason ?? "no reason given"}");
 
             if (reading.Value.Running)

@@ -209,7 +209,7 @@ internal abstract record ReactorAction
         /// <summary>Additive: it takes nothing away and competes with nothing.</summary>
         public override bool ChangesServerState => false;
 
-        public override IReadOnlyList<string> Performs => [TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate];
+        public override IReadOnlyList<string> Performs => [TheKrystalShip.KGSM.Engine.Contracts.EngineActions.ServerBackupsCreate];
 
         public override string Describe() => $"archive {Instance} as it stands, pinned";
 
@@ -239,7 +239,7 @@ internal abstract record ReactorAction
         public override bool ChangesServerState => true;
 
         public override IReadOnlyList<string> Performs =>
-            [TheKrystalShip.KGSM.KgsmActions.ServerBackupsRead, TheKrystalShip.KGSM.KgsmActions.ServerBackupsRestore];
+            [TheKrystalShip.KGSM.Engine.Contracts.EngineActions.ServerBackupsRead, TheKrystalShip.KGSM.Engine.Contracts.EngineActions.ServerBackupsRestore];
 
         public override string Describe() => $"roll {Instance} back to the archive taken before its update";
 

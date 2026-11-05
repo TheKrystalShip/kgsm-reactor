@@ -6,7 +6,6 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
-using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.Kgsm.Reactor.Rules;
 
@@ -15,7 +14,7 @@ namespace TheKrystalShip.Kgsm.Reactor.Rules;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The same transport shape kgsm-lib uses for the watchdog: an ordinary <see cref="HttpClient"/> whose
+/// The same transport shape the watchdog client uses: an ordinary <see cref="HttpClient"/> whose
 /// connections are dialed at a <see cref="UnixDomainSocketEndPoint"/>. The host in the URI is a
 /// placeholder the daemon ignores.
 /// </para>

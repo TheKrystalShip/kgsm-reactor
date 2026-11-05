@@ -7,7 +7,6 @@ using TheKrystalShip.Kgsm.Reactor.Events;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
-using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 
 using TheKrystalShip.Auth.Sessions;
@@ -42,7 +41,7 @@ public sealed class ProposalTests : IDisposable
     private readonly List<string> _ruleDirs = [];
 
     // The person confirming holds the offer's action unless a test says otherwise.
-    private static readonly string[] Holds = [TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate];
+    private static readonly string[] Holds = [TheKrystalShip.KGSM.Engine.Contracts.EngineActions.ServerBackupsCreate];
 
     private static readonly SessionPerson Claude = Person(Confirmer, Holds);
 
@@ -412,7 +411,7 @@ public sealed class ProposalTests : IDisposable
             staged.Handle, bob, CancellationToken.None);
 
         Assert.Equal(RedemptionOutcome.Refused, refused.Outcome);
-        Assert.Contains(TheKrystalShip.KGSM.KgsmActions.ServerBackupsCreate, refused.Detail);
+        Assert.Contains(TheKrystalShip.KGSM.Engine.Contracts.EngineActions.ServerBackupsCreate, refused.Detail);
         Assert.Empty(harness.Performer.Performed);
         Assert.Equal(ProposalState.Open, harness.Service.Find(staged.Handle)!.State);
 

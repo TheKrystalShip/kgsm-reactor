@@ -1,7 +1,7 @@
 using TheKrystalShip.Kgsm.Reactor.Rules;
 using TheKrystalShip.Kgsm.Reactor.Rules.Composition;
 using TheKrystalShip.Kgsm.Reactor.Status;
-using TheKrystalShip.KGSM;
+using TheKrystalShip.KGSM.Engine.Contracts;
 using TheKrystalShip.Auth.Sessions;
 
 namespace TheKrystalShip.Kgsm.Reactor.Tests;
@@ -29,8 +29,8 @@ public sealed class RuleWriteTests
     [Fact]
     public void A_rule_that_acts_needs_a_token_listing_what_it_performs()
     {
-        Assert.Equal(KgsmActions.ServerBackupsCreate, RuleWrite.MissingAction(Rule(RuleMode.Act), Person()));
-        Assert.Null(RuleWrite.MissingAction(Rule(RuleMode.Act), Person(KgsmActions.ServerBackupsCreate)));
+        Assert.Equal(EngineActions.ServerBackupsCreate, RuleWrite.MissingAction(Rule(RuleMode.Act), Person()));
+        Assert.Null(RuleWrite.MissingAction(Rule(RuleMode.Act), Person(EngineActions.ServerBackupsCreate)));
     }
 
     [Theory]

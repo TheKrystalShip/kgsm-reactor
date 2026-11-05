@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.Core.Models;
 using System.Collections.Concurrent;
 
 using Microsoft.Extensions.Hosting;
@@ -7,7 +8,6 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.Kgsm.Reactor.Classification;
 using TheKrystalShip.Kgsm.Reactor.Ledger;
 using TheKrystalShip.KGSM.Core.Interfaces;
-using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 using TheKrystalShip.KGSM.Lifecycle;
 
