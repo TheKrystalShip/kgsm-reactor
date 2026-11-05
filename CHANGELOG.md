@@ -7,6 +7,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-11-05
+
+- Pins `TheKrystalShip.KGSM.Journal` 3.1.1, which registers the event service the rule engine and the ingest read from; the service starts again.
+
 ## [0.32.0] - 2026-11-05
 
 ### Changed — the classifier reads the payload's registered type
